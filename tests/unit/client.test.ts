@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { HttpClient } from "../../src/client.js";
-import type { AuthProvider } from "../../src/auth.js";
+import type { AuthProvider } from "../../src/client.js";
 
 function mockAuth(cookie: string | undefined): AuthProvider {
   return { getCookie: vi.fn().mockResolvedValue(cookie) };
