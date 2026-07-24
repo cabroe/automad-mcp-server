@@ -12,19 +12,19 @@ function cfg(): Config {
 }
 
 describe("handlePages (v2 /_api)", () => {
-  it("list hits GET /_api/public/pagelist", async () => {
+  it("list POSTs /_api/page-collection/get-recently-edited", async () => {
     const c = mockClient();
-    (c.get as ReturnType<typeof vi.fn>).mockResolvedValueOnce([{ url: "/" }]);
+    (c.post as ReturnType<typeof vi.fn>).mockResolvedValueOnce([{ url: "/" }]);
     const out = await handlePages({ action: "list" }, c, new WriteGuard(cfg()));
     expect(out).toEqual([{ url: "/" }]);
-    expect(c.get).toHaveBeenCalledWith("/_api/public/pagelist");
+    expect(c.post).toHaveBeenCalledWith("/_api/page-collection/get-recently-edited");
   });
 
-  it("list with context+fields_csv passes query params", async () => {
+  it("list ignores context and fields_csv (v2 uses authenticated endpoint)", async () => {
     const c = mockClient();
-    (c.get as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]);
+    (c.post as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]);
     await handlePages({ action: "list", context: "/blog", fields_csv: "title,url" }, c, new WriteGuard(cfg()));
-    expect(c.get).toHaveBeenCalledWith("/_api/public/pagelist?context=%2Fblog&fields=title%2Curl");
+    expect(c.post).toHaveBeenCalledWith("/_api/page-collection/get-recently-edited");
   });
 
   it("get requires url and POSTs /_api/page/data", async () => {
@@ -132,30 +132,44 @@ describe("handlePages (v2 /_api)", () => {
     expect(r).toMatchObject({ allowed: "pending" });
   });
 
-  it("move without layout throws UNSUPPORTED", async () => {
-    await expect(handlePages({ action: "move", url: "/x" }, mockClient(), new WriteGuard(cfg()))).rejects.toMatchObject({ code: "UNSUPPORTED" });
+  it("move without target_url throws VALIDATION", async () => {
+    await expect(handlePages({ action: "move", url: "/x" }, mockClient(), new WriteGuard(cfg()))).rejects.toMatchObject({ code: "VALIDATION" });
+  });
+
+  it("move with target_url posts to /_api/page/move", async () => {
+    const c = mockClient();
+    (c.post as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ code: 200, data: { url: "/dest/x" } });
+    await handlePages({ action: "move", url: "/x", target_url: "/dest" }, c, new WriteGuard(cfg()));
+    expect(c.post).toHaveBeenCalledWith("/_api/page/move", { url: "/x", targetPage: "/dest" });
+  });
+
+  it("move with target_url and layout posts both", async () => {
+    const c = mockClient();
+    (c.post as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ code: 200 });
+    await handlePages({ action: "move", url: "/a", target_url: "/dest", layout: '["/a","/b"]' }, c, new WriteGuard(cfg()));
+    expect(c.post).toHaveBeenCalledWith("/_api/page/move", { url: "/a", targetPage: "/dest", layout: '["/a","/b"]' });
   });
 
   it("move with non-JSON layout throws VALIDATION", async () => {
-    await expect(handlePages({ action: "move", url: "/x", layout: "not-json" }, mockClient(), new WriteGuard(cfg()))).rejects.toMatchObject({ code: "VALIDATION" });
+    await expect(handlePages({ action: "move", url: "/x", target_url: "/d", layout: "not-json" }, mockClient(), new WriteGuard(cfg()))).rejects.toMatchObject({ code: "VALIDATION" });
   });
 
   it("move with empty array layout throws VALIDATION", async () => {
-    await expect(handlePages({ action: "move", url: "/x", layout: "[]" }, mockClient(), new WriteGuard(cfg()))).rejects.toMatchObject({ code: "VALIDATION" });
+    await expect(handlePages({ action: "move", url: "/x", target_url: "/d", layout: "[]" }, mockClient(), new WriteGuard(cfg()))).rejects.toMatchObject({ code: "VALIDATION" });
   });
 
   it("move with non-string array entries throws VALIDATION", async () => {
-    await expect(handlePages({ action: "move", url: "/x", layout: "[1,2,3]" }, mockClient(), new WriteGuard(cfg()))).rejects.toMatchObject({ code: "VALIDATION" });
+    await expect(handlePages({ action: "move", url: "/x", target_url: "/d", layout: "[1,2,3]" }, mockClient(), new WriteGuard(cfg()))).rejects.toMatchObject({ code: "VALIDATION" });
   });
 
-  it("move with valid array posts to /_api/page/move", async () => {
+  it("duplicate POSTs to /_api/page/duplicate", async () => {
     const c = mockClient();
-    (c.post as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ ok: true });
-    await handlePages({ action: "move", url: "/a", layout: '["/a","/b","/c"]' }, c, new WriteGuard(cfg()));
-    expect(c.post).toHaveBeenCalledWith("/_api/page/move", { url: "/a", layout: '["/a","/b","/c"]' });
+    (c.post as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ redirect: "page?url=%2Fx-copy" });
+    await handlePages({ action: "duplicate", url: "/x" }, c, new WriteGuard(cfg()));
+    expect(c.post).toHaveBeenCalledWith("/_api/page/duplicate", { url: "/x" });
   });
 
-  it("duplicate throws UNSUPPORTED", async () => {
-    await expect(handlePages({ action: "duplicate", url: "/x", target_url: "/y" }, mockClient(), new WriteGuard(cfg()))).rejects.toMatchObject({ code: "UNSUPPORTED" });
+  it("duplicate requires url", async () => {
+    await expect(handlePages({ action: "duplicate" }, mockClient(), new WriteGuard(cfg()))).rejects.toMatchObject({ code: "VALIDATION" });
   });
 });

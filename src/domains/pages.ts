@@ -49,11 +49,8 @@ export async function handlePages(
 
   switch (input.action) {
     case "list": {
-      const params = new URLSearchParams();
-      if (input.context) params.set("context", input.context);
-      if (input.fields_csv) params.set("fields", input.fields_csv);
-      const qs = params.toString();
-      return client.get(`${API_BASE}/public/pagelist${qs ? `?${qs}` : ""}`);
+      const result = await client.post(`${API_BASE}/page-collection/get-recently-edited`);
+      return result;
     }
     case "get": {
       if (!input.url) throw new AutomadMcpError("VALIDATION", "url is required");
@@ -102,26 +99,27 @@ export async function handlePages(
     }
     case "move": {
       if (!input.url) throw new AutomadMcpError("VALIDATION", "url is required for move");
-      if (!input.layout) {
-        throw new AutomadMcpError(
-          "UNSUPPORTED",
-          "v2 page/move is sibling reordering: pass `layout` as a JSON array of sibling URLs in the new order. " +
-            "There is no v2 endpoint to rename or relocate a page; recreate via page/add + page/delete instead.",
-        );
+      if (!input.target_url) {
+        throw new AutomadMcpError("VALIDATION", "target_url (destination parent page) is required for move");
       }
-      let parsedLayout: unknown;
-      try { parsedLayout = JSON.parse(input.layout); }
-      catch { throw new AutomadMcpError("VALIDATION", "layout must be a JSON-encoded array of sibling URLs (got unparseable string)"); }
-      if (!Array.isArray(parsedLayout) || parsedLayout.length === 0) {
-        throw new AutomadMcpError("VALIDATION", "layout must be a non-empty JSON array of sibling URL strings");
+      const payload: Record<string, unknown> = { url: input.url, targetPage: input.target_url };
+      if (input.layout) {
+        let parsedLayout: unknown;
+        try { parsedLayout = JSON.parse(input.layout); }
+        catch { throw new AutomadMcpError("VALIDATION", "layout must be a JSON-encoded array of sibling URLs (got unparseable string)"); }
+        if (!Array.isArray(parsedLayout) || parsedLayout.length === 0) {
+          throw new AutomadMcpError("VALIDATION", "layout must be a non-empty JSON array of sibling URL strings");
+        }
+        if (!parsedLayout.every((u: unknown) => typeof u === "string" && u.startsWith("/"))) {
+          throw new AutomadMcpError("VALIDATION", "layout must contain only URL strings starting with /");
+        }
+        payload["layout"] = input.layout;
       }
-      if (!parsedLayout.every((u) => typeof u === "string" && u.startsWith("/"))) {
-        throw new AutomadMcpError("VALIDATION", "layout must contain only URL strings starting with /");
-      }
-      return client.post(`${API_BASE}/page/move`, { url: input.url, layout: input.layout });
+      return client.post(`${API_BASE}/page/move`, payload);
     }
     case "duplicate": {
-      throw new AutomadMcpError("UNSUPPORTED", "duplicate has no dedicated /_api endpoint in v2; read the source page and POST /_api/page/add with its fields");
+      if (!input.url) throw new AutomadMcpError("VALIDATION", "url is required for duplicate");
+      return client.post(`${API_BASE}/page/duplicate`, { url: input.url });
     }
   }
 }
