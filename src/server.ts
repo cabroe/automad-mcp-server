@@ -1,4 +1,5 @@
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { readThemesList, readThemeSchema } from "./resources/themes.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import type { HttpClient } from "./client.js";
 import type { WriteGuard } from "./write-guard.js";
@@ -45,6 +46,10 @@ export interface ServerDeps {
  *   theme  (list/install/activate/uninstall/scaffold/build/read/write/files —
  *           local-FS theme tooling, requires AUTOMAD_THEMES_PATH)
  *
+ * Resources:
+ *   automad://themes
+ *   automad://themes/{slug}/schema
+ *
  * Destructive actions return a confirmToken; replay the call with
  * `confirm_token` to execute.
  */
@@ -54,10 +59,11 @@ export function createAutomadServer(deps: ServerDeps): McpServer {
   const themeDeps = config.themesPath
     ? { client, guard, themesPath: config.themesPath, starterKitPath: config.starterKitPath ?? config.themesPath }
     : undefined;
+  const themeResourceDeps = { themesPath: config.themesPath };
 
   const server = new McpServer(
     { name: SERVER_NAME, version: SERVER_VERSION },
-    { capabilities: { tools: { listChanged: false } } },
+    { capabilities: { resources: { listChanged: false }, tools: { listChanged: false } } },
   );
 
   const run = async (fn: () => Promise<unknown>): Promise<CallToolResult> => {
@@ -147,6 +153,43 @@ export function createAutomadServer(deps: ServerDeps): McpServer {
         }
         return handleTheme(input, themeDeps);
       }),
+  );
+
+  server.registerResource(
+    "themes",
+    "automad://themes",
+    { title: "Themes", description: "List of discovered themes" },
+    async () => {
+      const list = await readThemesList(themeResourceDeps);
+      return {
+        contents: [
+          {
+            uri: "automad://themes",
+            mimeType: "application/json",
+            text: JSON.stringify(list),
+          },
+        ],
+      };
+    },
+  );
+
+  server.registerResource(
+    "theme-schema",
+    new ResourceTemplate("automad://themes/{slug}/schema", { list: undefined }),
+    { title: "Theme schema", description: "Normalized theme schema" },
+    async (_uri, variables) => {
+      const slug = typeof variables.slug === "string" ? variables.slug : "";
+      const data = await readThemeSchema(themeResourceDeps, slug);
+      return {
+        contents: [
+          {
+            uri: `automad://themes/${slug}/schema`,
+            mimeType: "application/json",
+            text: JSON.stringify(data),
+          },
+        ],
+      };
+    },
   );
 
   return server;

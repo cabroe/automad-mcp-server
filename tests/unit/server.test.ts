@@ -79,4 +79,19 @@ describe("createAutomadServer (v2)", () => {
     await mcp.close();
     await server.close();
   });
+
+  it("advertises read-only theme resources and keeps the existing tools", async () => {
+    const { mcp } = await connect(mockClient(), new WriteGuard(cfg()));
+    const templates = await mcp.listResourceTemplates();
+    expect(templates.resourceTemplates.map((template) => template.uriTemplate)).toEqual([
+      "automad://themes/{slug}/schema",
+    ]);
+    const resources = await mcp.listResources();
+    expect(resources.resources).toEqual([
+      { uri: "automad://themes", name: "themes", title: "Themes", description: "List of discovered themes" },
+    ]);
+    const toolNames = (await mcp.listTools()).tools.map((tool) => tool.name).sort();
+    expect(toolNames).toEqual([...TOOL_NAMES].sort());
+    await mcp.close();
+  });
 });

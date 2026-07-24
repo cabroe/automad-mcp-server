@@ -99,6 +99,17 @@ The Starter Kit translates dashboard field metadata through `i18n/<locale>.json`
 }
 ```
 
+### MCP resources
+
+The server exposes two read-only resources alongside the existing six tools. The list is static for the lifetime of the server process (`listChanged: false`).
+
+| URI | Returns |
+|---|---|
+| `automad://themes` | JSON list of discovered themes with manifest metadata |
+| `automad://themes/{slug}/schema` | JSON normalized theme schema (matches `automad_theme.schema` output) |
+
+The `{slug}` variable must match `^[a-z0-9._-]+$`. Invalid slugs return `NOT_FOUND`. Both resources require `AUTOMAD_THEMES_PATH` for meaningful output; otherwise `automad://themes` returns an empty list and `automad://themes/{slug}/schema` returns `NOT_FOUND`.
+
 `automad_theme.schema` returns every locale together with the original base metadata. Locale entries are sparse overrides; missing translations fall back to `theme.json`. Only direct `i18n/<locale>.json` files are parsed. Partial invalid sections or values are reported as `INVALID_I18N_*` warnings, while the remaining valid values are retained. The action performs no build, network, or file mutation and is suitable for reuse as a future MCP Resource.
 Each field includes its Automad type (`text`, `checkbox`, `color`, `image`, `icon`, `select`, `url`, `format`, `label`, `filter`, or `block`), scope (`page`, `shared`, or `unmasked`), source files, and available labels, options, tooltips, and field order. Unknown prefixes fall back to `text` with an `UNKNOWN_FIELD_PREFIX` warning. The action performs no build, network request, or mutation and is designed for later reuse by an MCP Resource.
 
