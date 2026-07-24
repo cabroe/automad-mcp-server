@@ -55,7 +55,7 @@ const validTheme = {
     license: "MIT",
     version: "0.1.0",
   }),
-  "default.php": "<@ components/page.php @>\n<h1>@{ brand }</h1>\n@{ +main }\n@{ :title }",
+  "default.php": "<@ components/page.php @>\n<h1>@{ brand } @{ brand }</h1>\n@{ +main }\n@{ :title }",
   "components/page.php": "<main>@{ brand }</main>",
   "blocks/pagelist/grid.php": "<div>@{ +grid }</div>",
   "client/index.ts": "console.log('client');",
@@ -76,6 +76,11 @@ describe("ThemeAnalyzer", () => {
     expect(result.files.blocks).toEqual(["blocks/pagelist/grid.php"]);
     expect(result.files.client).toContain("client/index.ts");
     expect(result.files.i18n).toEqual(["i18n/de.json"]);
+    expect(result.fieldSources).toEqual({
+      "+grid": ["blocks/pagelist/grid.php"],
+      "+main": ["default.php"],
+      brand: ["components/page.php", "default.php"],
+    });
     expect(result.fields).toEqual(["+grid", "+main", "brand"]);
     expect(result.blockFields).toEqual(["+grid", "+main"]);
     expect(result.fields).not.toContain(":title");

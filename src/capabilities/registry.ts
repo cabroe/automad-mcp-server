@@ -22,7 +22,7 @@ const EXPECTED_ACTIONS: ExpectedActions = {
   automad_config: ["get", "set"],
   automad_site: ["info", "search"],
   automad_theme: [
-    "list", "install", "activate", "uninstall", "scaffold", "build", "read", "write", "files", "analyze", "validate",
+    "list", "install", "activate", "uninstall", "scaffold", "build", "read", "write", "files", "analyze", "validate", "schema",
   ],
 };
 
@@ -93,6 +93,7 @@ export const CAPABILITY_REGISTRY: readonly CapabilityDefinition[] = [
       files: read("List theme files."),
       analyze: read("Analyze a theme offline."),
       validate: read("Validate a theme offline."),
+      schema: read("Build a normalized theme schema."),
     },
   },
 ] as const;

@@ -27,7 +27,8 @@ export type WriteAction =
   | "theme.write"
   | "theme.files"
   | "theme.analyze"
-  | "theme.validate";
+  | "theme.validate"
+  | "theme.schema";
 
 export type Permit =
   | { allowed: true }
@@ -53,6 +54,7 @@ const READ_ACTIONS: ReadonlySet<WriteAction> = new Set<WriteAction>([
   "theme.files",
   "theme.analyze",
   "theme.validate",
+  "theme.schema",
 ]);
 
 const DESTRUCTIVE_ACTIONS: ReadonlySet<WriteAction> = new Set<WriteAction>([

@@ -5,11 +5,16 @@ import { type ThemeFs, assertWithinRoot } from "./fs.js";
 export type FindingSeverity = "error" | "warning" | "info";
 export interface ThemeFinding { severity: FindingSeverity; code: string; message: string; path?: string; line?: number; }
 export interface ThemeAnalysis {
-  theme: string; path: string;
+  theme: string;
+  path: string;
   manifests: { theme?: Record<string, unknown>; package?: Record<string, unknown>; composer?: Record<string, unknown> };
   files: { templates: string[]; components: string[]; blocks: string[]; client: string[]; icons: string[]; i18n: string[]; lib: string[]; build: string[]; other: string[] };
-  fields: string[]; blockFields: string[]; masks: { page: string[]; shared: string[] };
-  starterKit: { detected: boolean; markers: string[] }; issues: ThemeFinding[];
+  fields: string[];
+  fieldSources: Record<string, string[]>;
+  blockFields: string[];
+  masks: { page: string[]; shared: string[] };
+  starterKit: { detected: boolean; markers: string[] };
+  issues: ThemeFinding[];
 }
 export interface ThemeValidation extends ThemeAnalysis { ok: boolean; findings: ThemeFinding[]; summary: { errors: number; warnings: number; info: number }; }
 
@@ -37,6 +42,7 @@ export class ThemeAnalyzer {
       issues.push({ severity: "warning", code: "I18N_DIRECTORY_EMPTY", message: "i18n directory contains no JSON translations", path: "i18n" });
     }
     const fields = new Set<string>();
+    const sourceMap = new Map<string, Set<string>>();
     for (const relPath of [...files.templates, ...files.components, ...files.blocks]) {
       let source = await this.deps.fs.readFile(path.join(themePath, relPath));
       if (Buffer.byteLength(source, "utf8") > MAX_SOURCE_BYTES) {
@@ -45,10 +51,19 @@ export class ThemeAnalyzer {
       }
       for (const match of source.matchAll(FIELD_RE)) {
         const field = match[1];
-        if (field && !IGNORED_FIELDS.has(field)) fields.add(field);
+        if (!field || IGNORED_FIELDS.has(field)) continue;
+        fields.add(field);
+        const sources = sourceMap.get(field) ?? new Set<string>();
+        sources.add(relPath);
+        sourceMap.set(field, sources);
       }
     }
     const fieldList = [...fields].sort();
+    const fieldSources = Object.fromEntries(
+      [...sourceMap.entries()]
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([field, sources]) => [field, [...sources].sort()]),
+    );
     const blockFields = fieldList.filter((field) => field.startsWith("+"));
     const masks = readMasks(manifests.theme, issues);
     const markers = STARTER_MARKERS.filter((marker) => markerExists(marker, files, manifests));
@@ -56,7 +71,7 @@ export class ThemeAnalyzer {
     if (starterKit.detected) issues.push({ severity: "info", code: "STARTER_KIT_STRUCTURE_DETECTED", message: "recognized Automad Theme Starter Kit structure detected" });
     for (const field of blockFields) issues.push({ severity: "info", code: "BLOCK_FIELD_DETECTED", message: `block field '${field}' detected` });
     if (isBuildScriptDetected(manifests.package, files.build)) issues.push({ severity: "info", code: "BUILD_SCRIPT_DETECTED", message: "Starter Kit build script detected", path: "package.json" });
-    return { theme, path: themePath, manifests, files, fields: fieldList, blockFields, masks, starterKit, issues };
+    return { theme, path: themePath, manifests, files, fields: fieldList, fieldSources, blockFields, masks, starterKit, issues };
   }
 
   async validate(theme: string): Promise<ThemeValidation> {

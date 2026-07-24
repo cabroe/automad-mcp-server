@@ -50,4 +50,8 @@ describe("schemas", () => {
     expect(themeInput.parse({ action: "analyze", theme: "starter" }).action).toBe("analyze");
     expect(themeInput.parse({ action: "validate", theme: "starter" }).action).toBe("validate");
   });
+
+  it("themeInput accepts schema action", () => {
+    expect(themeInput.parse({ action: "schema", theme: "starter" }).action).toBe("schema");
+  });
 });

@@ -77,6 +77,19 @@ describe("handleTheme", () => {
     expect(client.post).not.toHaveBeenCalled();
   });
 
+  it("builds theme schema in read-only mode without HTTP calls", async () => {
+    await nodeFs.mkdir(path.join(themes, "schema-theme"));
+    await nodeFs.writeFile(path.join(themes, "schema-theme", "theme.json"), JSON.stringify({ name: "Schema", masks: { page: ["textIntro"] } }));
+    await nodeFs.writeFile(path.join(themes, "schema-theme", "default.php"), "@{ textIntro }");
+    const client = mockClient();
+    const deps = { client, guard: new WriteGuard({ ...cfg(), writeMode: "read-only" }), themesPath: themes, starterKitPath: starter };
+    const result = await handleTheme({ action: "schema", theme: "schema-theme" }, deps);
+    expect(result).toMatchObject({ theme: "schema-theme", fields: expect.any(Array), warnings: expect.any(Array) });
+    expect(client.get).not.toHaveBeenCalled();
+    expect(client.post).not.toHaveBeenCalled();
+    await expect(handleTheme({ action: "schema" }, deps)).rejects.toMatchObject({ code: "VALIDATION", message: "theme is required for schema" });
+  });
+
   it("scaffold rejects duplicate", async () => {
     await nodeFs.mkdir(path.join(themes, "my-theme"));
     await expect(

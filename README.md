@@ -64,7 +64,7 @@ The server exposes **six tools**. Each takes an `action` parameter and dispatche
 | `automad_shared` | `get` `set` | `/_api/shared/data` (site-wide data: sitename, consent, custom fields) |
 | `automad_config` | `get` `set` | `get` reads `/_api/app/bootstrap`; `set` posts to `/_api/config/update` with a `type:` discriminator (`cache`, `feed`, `debug`, `i18n`, etc.) |
 | `automad_site` | `info` `search` | `info` from bootstrap; `search` via `/_api/search/search-replace` (read-only when `replace` is omitted) |
-| `automad_theme` | `list` `install` `activate` `uninstall` `scaffold` `build` `read` `write` `files` `analyze` `validate` | Local-FS theme tooling and offline Starter-Kit analysis — requires `AUTOMAD_THEMES_PATH` |
+| `automad_theme` | `list` `install` `activate` `uninstall` `scaffold` `build` `read` `write` `files` `analyze` `validate` `schema` | Local-FS theme tooling, Starter-Kit analysis, and normalized schema inspection — requires `AUTOMAD_THEMES_PATH` |
 
 `automad_theme.analyze` inventories a local theme without executing code or using the network. It reports manifests, root templates, `components/`, `blocks/`, `client/`, `icons/`, `i18n/`, `lib/`, build files, Automad field references, block fields, masks, and recognized Starter-Kit markers:
 
@@ -79,6 +79,14 @@ The server exposes **six tools**. Each takes an `action` parameter and dispatche
 ```
 
 Both actions are explicitly read-only in every write mode. They do not run npm, Composer, Git, PHP, JavaScript, Docker, or browser processes. A missing theme returns `NOT_FOUND`; malformed manifests are returned as validation findings. `AUTOMAD_STARTER_KIT_PATH` is not needed for analysis and remains required only when scaffolding from a local starter-kit checkout.
+
+`automad_theme.schema` builds a normalized, read-only field schema from the existing theme analysis:
+
+```json
+{ "action": "schema", "theme": "my-theme" }
+```
+
+Each field includes its Automad type (`text`, `checkbox`, `color`, `image`, `icon`, `select`, `url`, `format`, `label`, `filter`, or `block`), scope (`page`, `shared`, or `unmasked`), source files, and available labels, options, tooltips, and field order. Unknown prefixes fall back to `text` with an `UNKNOWN_FIELD_PREFIX` warning. The action performs no build, network request, or mutation and is designed for later reuse by an MCP Resource.
 
 ### Internal capability registry
 
@@ -214,7 +222,8 @@ src/
   schemas.ts        Zod input schemas for all tools
   write-guard.ts    multi-tier write protection + confirm-token flow
   domains/          one router per tool: pages, media, shared, config, site, theme
-  theme/            theme tooling and Starter-Kit analysis
+  theme/            theme tooling, Starter-Kit analysis, and normalized schemas
+    schema.ts       pure normalized ThemeSchemaBuilder
   capabilities/     internal router/action metadata and invariant validation
 tests/unit/         Vitest unit and domain tests
 

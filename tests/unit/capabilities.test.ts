@@ -20,12 +20,13 @@ describe("capability registry", () => {
     expect(Object.keys(getCapability("automad_pages").actions).sort()).toEqual([
       "create", "delete", "duplicate", "get", "list", "move", "update",
     ]);
+    expect(Object.keys(getCapability("automad_theme").actions)).toContain("schema");
     expect(Object.keys(getCapability("automad_media").actions).sort()).toEqual(["list", "upload"]);
     expect(Object.keys(getCapability("automad_shared").actions).sort()).toEqual(["get", "set"]);
     expect(Object.keys(getCapability("automad_config").actions).sort()).toEqual(["get", "set"]);
     expect(Object.keys(getCapability("automad_site").actions).sort()).toEqual(["info", "search"]);
     expect(Object.keys(getCapability("automad_theme").actions).sort()).toEqual([
-      "activate", "analyze", "build", "files", "install", "list", "read", "scaffold", "uninstall", "validate", "write",
+      "activate", "analyze", "build", "files", "install", "list", "read", "scaffold", "schema", "uninstall", "validate", "write",
     ]);
   });
 
