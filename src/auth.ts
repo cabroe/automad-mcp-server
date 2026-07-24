@@ -27,7 +27,16 @@ export class AuthManager implements AuthProvider {
 
   async getCsrfToken(force = false): Promise<string> {
     if (!force && this.csrf) return this.csrf;
-    await this.scrapeCsrf();
+    try {
+      await this.scrapeCsrf();
+    } catch (e) {
+      if (force) {
+        logger.warn("CSRF scrape failed on forced refresh, forcing re-login");
+        await this.login();
+      } else {
+        throw e;
+      }
+    }
     return this.csrf!;
   }
 
