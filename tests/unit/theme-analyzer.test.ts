@@ -91,6 +91,15 @@ describe("ThemeAnalyzer", () => {
     expect(result.manifests.theme?.name).toBe("Starter");
   });
 
+  it("does not require block fields to be listed in page or shared masks", async () => {
+    await writeTheme("blocks", {
+      "theme.json": JSON.stringify({ name: "Blocks", masks: { page: [], shared: [] } }),
+      "default.php": "@{ +main }",
+    });
+    const result = await analyzer().validate("blocks");
+    expect(result.findings.some((finding) => finding.code === "FIELD_NOT_MASKED")).toBe(false);
+  });
+
   it("rejects a missing theme with NOT_FOUND", async () => {
     await expect(analyzer().analyze("missing")).rejects.toMatchObject({ code: "NOT_FOUND" });
   });

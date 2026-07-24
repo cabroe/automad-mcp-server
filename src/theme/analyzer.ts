@@ -145,6 +145,7 @@ export class ThemeAnalyzer {
       ...(theme?.tooltips && typeof theme.tooltips === "object" ? Object.keys(theme.tooltips) : []),
     ]);
     for (const field of analysis.fields) {
+      if (field.startsWith("+")) continue;
       if (!analysis.masks.page.includes(field) && !analysis.masks.shared.includes(field) && !known.has(field)) findings.push({ severity: "warning", code: "FIELD_NOT_MASKED", message: `field '${field}' is not listed in masks.page or masks.shared` });
     }
     for (const field of [...analysis.masks.page, ...analysis.masks.shared]) {
