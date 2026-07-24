@@ -43,6 +43,18 @@ describe("handleSite (v2 /_api)", () => {
     });
   });
 
+  it("search rejects empty query", async () => {
+    await expect(handleSite({ action: "search", query: "" }, mockClient(), new WriteGuard(cfg())))
+      .rejects.toMatchObject({ code: "VALIDATION" });
+  });
+
+  it("search rejects whitespace-only query", async () => {
+    for (const q of ["   ", "\t\t", " \t  "]) {
+      await expect(handleSite({ action: "search", query: q }, mockClient(), new WriteGuard(cfg())))
+        .rejects.toMatchObject({ code: "VALIDATION" });
+    }
+  });
+
   it("search without replace is read-only (no replaceValue)", async () => {
     const c = mockClient();
     (c.post as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ data: [] });

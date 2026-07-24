@@ -60,7 +60,9 @@ export async function handlePages(
       return readWithRetry(client, input.url);
     }
     case "create": {
-      if (!input.title) throw new AutomadMcpError("VALIDATION", "title is required for create");
+      if (!input.title || !input.title.trim()) {
+        throw new AutomadMcpError("VALIDATION", "title is required for create (got empty or whitespace-only)");
+      }
       if (!input.target_url && !input.url) {
         throw new AutomadMcpError("VALIDATION", "target_url (parent page) is required for create");
       }
@@ -78,7 +80,12 @@ export async function handlePages(
     case "update": {
       if (!input.url) throw new AutomadMcpError("VALIDATION", "url is required for update");
       const data: Record<string, unknown> = {};
-      if (input.title !== undefined) data["title"] = input.title;
+      if (input.title !== undefined) {
+        if (!input.title.trim()) {
+          throw new AutomadMcpError("VALIDATION", "title cannot be empty or whitespace-only");
+        }
+        data["title"] = input.title;
+      }
       if (input.private !== undefined) data["private"] = input.private;
       if (input.tags !== undefined) data["tags"] = input.tags.join(",");
       if (input.fields) Object.assign(data, input.fields);
@@ -102,37 +109,19 @@ export async function handlePages(
             "There is no v2 endpoint to rename or relocate a page; recreate via page/add + page/delete instead.",
         );
       }
-      // v2's page/move is sibling reordering: layout is a JSON array of
-      // sibling URLs in the new order. Validate shape before sending so the
-      // caller gets a clear error instead of v2's generic "Page not found!".
       let parsedLayout: unknown;
-      try {
-        parsedLayout = JSON.parse(input.layout);
-      } catch {
-        throw new AutomadMcpError(
-          "VALIDATION",
-          "layout must be a JSON-encoded array of sibling URLs (got unparseable string)",
-        );
-      }
+      try { parsedLayout = JSON.parse(input.layout); }
+      catch { throw new AutomadMcpError("VALIDATION", "layout must be a JSON-encoded array of sibling URLs (got unparseable string)"); }
       if (!Array.isArray(parsedLayout) || parsedLayout.length === 0) {
-        throw new AutomadMcpError(
-          "VALIDATION",
-          "layout must be a non-empty JSON array of sibling URL strings",
-        );
+        throw new AutomadMcpError("VALIDATION", "layout must be a non-empty JSON array of sibling URL strings");
       }
       if (!parsedLayout.every((u) => typeof u === "string" && u.startsWith("/"))) {
-        throw new AutomadMcpError(
-          "VALIDATION",
-          "layout must contain only URL strings starting with /",
-        );
+        throw new AutomadMcpError("VALIDATION", "layout must contain only URL strings starting with /");
       }
       return client.post(`${API_BASE}/page/move`, { url: input.url, layout: input.layout });
     }
     case "duplicate": {
-      throw new AutomadMcpError(
-        "UNSUPPORTED",
-        "duplicate has no dedicated /_api endpoint in v2; read the source page and POST /_api/page/add with its fields",
-      );
+      throw new AutomadMcpError("UNSUPPORTED", "duplicate has no dedicated /_api endpoint in v2; read the source page and POST /_api/page/add with its fields");
     }
   }
 }

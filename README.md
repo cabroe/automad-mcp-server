@@ -88,6 +88,39 @@ The server exposes **six tools**. Each takes an `action` parameter and dispatche
 // → { "ok": true }
 ```
 
+### Setting up the Starter Kit (for `theme.scaffold`)
+
+`theme.scaffold` copies a **local** directory into `AUTOMAD_THEMES_PATH/<slug>` and rewrites `theme.json` + `package.json` with the name/author/license you pass in — it does not fetch the [automad-theme-starter-kit](https://github.com/automadcms/automad-theme-starter-kit) itself. `AUTOMAD_STARTER_KIT_PATH` has to already point at a local checkout before you call it.
+
+**Option A — clone it anywhere, point at it directly**
+
+```bash
+git clone --depth 1 https://github.com/automadcms/automad-theme-starter-kit.git ~/automad-starter-kit
+```
+
+```json
+"AUTOMAD_STARTER_KIT_PATH": "/Users/you/automad-starter-kit"
+```
+
+Simplest option if the MCP host has normal filesystem access outside the themes directory.
+
+**Option B — stage it inside `AUTOMAD_THEMES_PATH` via `theme.install`**
+
+If you'd rather manage everything through the MCP tool, clone the starter kit into a dedicated subfolder under the themes path (prefix with `_` so it's clearly not a real theme), then point `AUTOMAD_STARTER_KIT_PATH` there:
+
+```jsonc
+// one-time setup — clones the raw template, does NOT rewrite theme.json/package.json
+{ "action": "install", "source": "https://github.com/automadcms/automad-theme-starter-kit", "theme": "_starter-kit-template" }
+```
+
+```json
+"AUTOMAD_STARTER_KIT_PATH": "/app/packages/_starter-kit-template"
+```
+
+Only `theme.scaffold` rewrites the manifest metadata — `theme.install` is a plain clone/copy. Don't activate `_starter-kit-template` itself as a theme; it's just the template source for future `scaffold` calls.
+
+Once `AUTOMAD_STARTER_KIT_PATH` is set (either way), `theme.scaffold` works as shown below.
+
 ### Example: theme scaffold + build
 
 ```jsonc
@@ -106,6 +139,8 @@ The server exposes **six tools**. Each takes an `action` parameter and dispatche
 { "action": "activate", "theme": "my-theme" }
 // → { "activated": true, "remote": { "code": 200 } }   or   { "activated": false, "remote": {...} }
 ```
+
+> `theme.build` only runs the npm/esbuild pipeline (`npm install` + `npm run build`). If the theme grows PHP dependencies via `composer.json`, run `composer install` manually on the host — the MCP tool doesn't do that. Likewise, the Starter Kit's local dev server (`npm run dev` — PHP built-in server + esbuild watch, per its own README) is a local dev workflow; no `automad_theme` action starts it.
 
 ## Host setup
 

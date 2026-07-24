@@ -28,12 +28,8 @@ export async function handleSite(
   guard: WriteGuard,
 ): Promise<unknown> {
   const permit = guard.check(ACTION_MAP[input.action], "/", input.confirm_token);
-  if (permit.allowed === false) {
-    throw new AutomadMcpError("FORBIDDEN", permit.reason);
-  }
-  if (permit.allowed === "pending") {
-    return permit;
-  }
+  if (permit.allowed === false) throw new AutomadMcpError("FORBIDDEN", permit.reason);
+  if (permit.allowed === "pending") return permit;
 
   switch (input.action) {
     case "info": {
@@ -48,15 +44,14 @@ export async function handleSite(
       };
     }
     case "search": {
-      if (!input.query) {
-        throw new AutomadMcpError("VALIDATION", "query is required for search");
+      if (!input.query || !input.query.trim()) {
+        throw new AutomadMcpError("VALIDATION", "query is required for search (got empty or whitespace-only)");
       }
       const payload: Record<string, unknown> = {
         searchValue: input.query,
         isRegex: input.is_regex ?? false,
         isCaseSensitive: input.is_case_sensitive ?? false,
       };
-      // Omit replaceValue → read-only search.
       if (input.replace !== undefined) payload["replaceValue"] = input.replace;
       return client.post(`${API_BASE}/search/search-replace`, payload);
     }

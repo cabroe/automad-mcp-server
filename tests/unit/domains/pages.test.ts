@@ -43,6 +43,31 @@ describe("handlePages (v2 /_api)", () => {
     expect((c.post as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThan(1);
   });
 
+  it("create rejects empty title", async () => {
+    await expect(
+      handlePages({ action: "create", title: "", target_url: "/" }, mockClient(), new WriteGuard(cfg())),
+    ).rejects.toMatchObject({ code: "VALIDATION" });
+  });
+
+  it("create rejects whitespace-only title", async () => {
+    for (const t of ["   ", "\t\t", " \t  "]) {
+      await expect(
+        handlePages({ action: "create", title: t, target_url: "/" }, mockClient(), new WriteGuard(cfg())),
+      ).rejects.toMatchObject({ code: "VALIDATION" });
+    }
+  });
+
+  it("create accepts a normal title", async () => {
+    const c = mockClient();
+    (c.post as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce({ redirect: "page?url=%2Fhello" })
+      .mockResolvedValueOnce({ ok: true })
+      .mockResolvedValue({ url: "/hello", fields: {} });
+    await expect(
+      handlePages({ action: "create", title: "Hello", target_url: "/" }, c, new WriteGuard(cfg())),
+    ).resolves.toMatchObject({ ok: true, url: "/hello" });
+  });
+
   it("create posts to /_api/page/add, publishes, polls until readable", async () => {
     const c = mockClient();
     (c.post as ReturnType<typeof vi.fn>)
@@ -73,6 +98,12 @@ describe("handlePages (v2 /_api)", () => {
       .mockResolvedValue({ url: "/hello", fields: {} });
     const out = await handlePages({ action: "create", title: "Hello", target_url: "/blog" }, c, new WriteGuard(cfg()));
     expect(out).toMatchObject({ ok: true, url: "/hello" });
+  });
+
+  it("update rejects whitespace-only title", async () => {
+    await expect(
+      handlePages({ action: "update", url: "/x", title: "   " }, mockClient(), new WriteGuard(cfg())),
+    ).rejects.toMatchObject({ code: "VALIDATION" });
   });
 
   it("update publishes via input.url, polls on resulting slug, returns canonical URL", async () => {
