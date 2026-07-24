@@ -5,6 +5,7 @@ import type { WriteGuard } from "./write-guard.js";
 import type { Config } from "./config.js";
 import { AutomadMcpError, errorToJson } from "./errors.js";
 import { logger } from "./logger.js";
+import { validateCapabilityRegistry } from "./capabilities/registry.js";
 
 import {
   pagesInput,
@@ -48,6 +49,7 @@ export interface ServerDeps {
  * `confirm_token` to execute.
  */
 export function createAutomadServer(deps: ServerDeps): McpServer {
+  validateCapabilityRegistry();
   const { client, guard, config } = deps;
   const themeDeps = config.themesPath
     ? { client, guard, themesPath: config.themesPath, starterKitPath: config.starterKitPath ?? config.themesPath }

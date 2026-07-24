@@ -80,6 +80,10 @@ The server exposes **six tools**. Each takes an `action` parameter and dispatche
 
 Both actions are explicitly read-only in every write mode. They do not run npm, Composer, Git, PHP, JavaScript, Docker, or browser processes. A missing theme returns `NOT_FOUND`; malformed manifests are returned as validation findings. `AUTOMAD_STARTER_KIT_PATH` is not needed for analysis and remains required only when scaffolding from a local starter-kit checkout.
 
+### Internal capability registry
+
+The server keeps the six public domain-router tools unchanged and maintains a static internal capability registry for their action metadata. The registry records read-only/destructive behavior and validates router/action coverage during server construction. It is not exposed as one MCP tool per action and performs no filesystem, network, token, or audit work. Later Resources, scoped tokens, audit logging, and HTTP authorization can consume the same metadata without changing the public router contract.
+
 ### What v2 does NOT expose (intentionally omitted)
 
 - `pages.duplicate` — no v2 endpoint, throws `UNSUPPORTED` with a hint (read source + `page/add`)
@@ -211,14 +215,8 @@ src/
   write-guard.ts    multi-tier write protection + confirm-token flow
   domains/          one router per tool: pages, media, shared, config, site, theme
   theme/            theme tooling and Starter-Kit analysis
-    fs.ts           ThemeFs interface + LocalThemeFs (ssh-swappable later)
-    analyzer.ts     offline inventory, field extraction, and validation
-    build.ts        spawn npm install + npm run build with timeout
-    manager.ts      list / install / activate / uninstall / build
-    scaffold.ts     copy starter kit into themes/<slug> + rewrite manifest
-    editor.ts       read / write / files (with path-traversal guard)
+  capabilities/     internal router/action metadata and invariant validation
 tests/unit/         Vitest unit and domain tests
-```
 
 ## License
 
