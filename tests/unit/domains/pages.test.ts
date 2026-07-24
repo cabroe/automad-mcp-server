@@ -46,23 +46,29 @@ describe("handlePages (v2 /_api)", () => {
     expect(c.post).toHaveBeenCalledWith("/_api/page/data", { url: "/x" });
   });
 
-  it("create posts title+targetPage to /_api/page/add then auto-publishes via redirect slug", async () => {
+  it("create posts to /_api/page/add, publishes, and polls until readable", async () => {
     const c = mockClient();
     (c.post as ReturnType<typeof vi.fn>)
-      .mockResolvedValueOnce({ redirect: "page?url=%2Fhello" })
-      .mockResolvedValueOnce({ ok: true });
+      .mockResolvedValueOnce({ redirect: "page?url=%2Fhello" })  // page/add
+      .mockResolvedValueOnce({ ok: true })                       // page/publish
+      .mockResolvedValue({ url: "/hello", fields: {} });           // page/data (poll reads)
     const out = await handlePages(
       { action: "create", title: "Hello", target_url: "/blog", template: "standard-lite/page.php" },
       c,
       new WriteGuard(cfg()),
     );
-    expect(c.post).toHaveBeenCalledTimes(2);
     expect(c.post).toHaveBeenNthCalledWith(1, "/_api/page/add", {
       targetPage: "/blog",
       title: "Hello",
       theme_template: "standard-lite/page.php",
     });
     expect(c.post).toHaveBeenNthCalledWith(2, "/_api/page/publish", { url: "/hello" });
+    // poll reads: at least 1 successful page/data on the resulting url
+    expect(c.post.mock.calls.length).toBeGreaterThanOrEqual(3);
+    for (let i = 3; i < c.post.mock.calls.length; i++) {
+      expect(c.post.mock.calls[i]?.[0]).toBe("/_api/page/data");
+      expect(c.post.mock.calls[i]?.[1]).toEqual({ url: "/hello" });
+    }
     expect(out).toMatchObject({ ok: true, url: "/hello" });
   });
 
@@ -70,7 +76,8 @@ describe("handlePages (v2 /_api)", () => {
     const c = mockClient();
     (c.post as ReturnType<typeof vi.fn>)
       .mockResolvedValueOnce({ redirect: "no-url-here" })
-      .mockResolvedValueOnce({ ok: true });
+      .mockResolvedValueOnce({ ok: true })
+      .mockResolvedValue({ url: "/expected", fields: {} });
     await handlePages(
       { action: "create", title: "Hi", url: "/expected" },
       c,
@@ -79,18 +86,35 @@ describe("handlePages (v2 /_api)", () => {
     expect(c.post).toHaveBeenNthCalledWith(2, "/_api/page/publish", { url: "/expected" });
   });
 
-  it("update publishes via the directory URL (input.url), not the resulting draft slug", async () => {
+  it("create tolerates publish failure (best-effort)", async () => {
     const c = mockClient();
-    // v2's page/data response includes the resulting slug (it changes when the title changes),
-    // but page/publish must use the directory URL (input.url), not the draft slug.
     (c.post as ReturnType<typeof vi.fn>)
-      .mockResolvedValueOnce({ updateUI: true, slug: "mcp-test-renamed" })
-      .mockResolvedValueOnce({ ok: true });
+      .mockResolvedValueOnce({ redirect: "page?url=%2Fhello" })
+      .mockRejectedValueOnce(new Error("publish offline"))
+      .mockResolvedValue({ url: "/hello", fields: {} });
+    const out = await handlePages(
+      { action: "create", title: "Hello", target_url: "/blog" },
+      c,
+      new WriteGuard(cfg()),
+    );
+    expect(out).toMatchObject({ ok: true, url: "/hello" });
+  });
+
+  it("update publishes via input.url, polls on resulting slug, returns canonical URL", async () => {
+    const c = mockClient();
+    // v2's page/data save response includes the resulting slug when the title
+    // changes — the MCP uses this to compute the new canonical URL. The
+    // publish itself is sent to input.url (where the directory currently
+    // lives; v2 does the rename during publish).
+    (c.post as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce({ updateUI: true, slug: "renamed" }) // page/data save
+      .mockResolvedValueOnce({ ok: true })                       // page/publish (at input.url)
+      .mockResolvedValue({ url: "/renamed", fields: {} });       // poll reads (at resultingUrl)
     const out = await handlePages(
       {
         action: "update",
-        url: "/mcp-test",
-        title: "mcp-test-renamed",
+        url: "/original",
+        title: "renamed",
         private: true,
         tags: ["x", "y"],
         fields: { main: [] },
@@ -99,24 +123,32 @@ describe("handlePages (v2 /_api)", () => {
       new WriteGuard(cfg()),
     );
     expect(c.post).toHaveBeenNthCalledWith(1, "/_api/page/data", {
-      url: "/mcp-test",
-      data: { title: "mcp-test-renamed", private: true, tags: "x,y", main: [] },
+      url: "/original",
+      data: { title: "renamed", private: true, tags: "x,y", main: [] },
     });
-    expect(c.post).toHaveBeenNthCalledWith(2, "/_api/page/publish", { url: "/mcp-test" });
-    expect(out).toMatchObject({ url: "/mcp-test" });
+    // publish is sent to input.url (the directory's current location);
+    // poll reads verify the page is queryable at the new slug.
+    expect(c.post).toHaveBeenNthCalledWith(2, "/_api/page/publish", { url: "/original" });
+    for (let i = 3; i < c.post.mock.calls.length; i++) {
+      expect(c.post.mock.calls[i]?.[0]).toBe("/_api/page/data");
+      expect(c.post.mock.calls[i]?.[1]).toEqual({ url: "/renamed" });
+    }
+    expect(out).toMatchObject({ ok: true, url: "/renamed" });
   });
 
-  it("update does not fail when publish itself fails (best-effort)", async () => {
+  it("update without slug change uses input.url throughout", async () => {
     const c = mockClient();
     (c.post as ReturnType<typeof vi.fn>)
-      .mockResolvedValueOnce({ updateUI: true, slug: "x" })
-      .mockRejectedValueOnce(new Error("publish offline"));
+      .mockResolvedValueOnce({})                       // page/data save (no slug change)
+      .mockResolvedValueOnce({ ok: true })             // page/publish
+      .mockResolvedValue({ url: "/same", fields: {} }); // poll reads
     const out = await handlePages(
-      { action: "update", url: "/x", title: "T" },
+      { action: "update", url: "/same", fields: { main: [] } },
       c,
       new WriteGuard(cfg()),
     );
-    expect(out).toMatchObject({ updateUI: true });
+    expect(c.post).toHaveBeenNthCalledWith(2, "/_api/page/publish", { url: "/same" });
+    expect(out).toMatchObject({ ok: true, url: "/same" });
   });
 
   it("delete requires url and POSTs to /_api/page/delete", async () => {

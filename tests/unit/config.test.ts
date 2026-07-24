@@ -9,7 +9,7 @@ describe("loadConfig", () => {
     }
   });
 
-  it("loads the canonical v2 env", () => {
+  it("loads the canonical v2 env (with themes)", () => {
     process.env["AUTOMAD_URL"] = "https://blog.example.com";
     process.env["AUTOMAD_USER"] = "admin";
     process.env["AUTOMAD_PASS"] = "secret";
@@ -23,6 +23,16 @@ describe("loadConfig", () => {
     expect(cfg.starterKitPath).toBe("/app/packages"); // default = themesPath
   });
 
+  it("does NOT require AUTOMAD_THEMES_PATH (theme tool is optional)", () => {
+    process.env["AUTOMAD_URL"] = "https://x";
+    process.env["AUTOMAD_USER"] = "u";
+    process.env["AUTOMAD_PASS"] = "p";
+    expect(() => loadConfig()).not.toThrow();
+    const cfg = loadConfig();
+    expect(cfg.themesPath).toBeUndefined();
+    expect(cfg.starterKitPath).toBeUndefined();
+  });
+
   it("respects AUTOMAD_STARTER_KIT_PATH override", () => {
     process.env["AUTOMAD_URL"] = "https://x";
     process.env["AUTOMAD_USER"] = "u";
@@ -32,13 +42,6 @@ describe("loadConfig", () => {
     const cfg = loadConfig();
     expect(cfg.themesPath).toBe("/themes");
     expect(cfg.starterKitPath).toBe("/templates/starter");
-  });
-
-  it("requires AUTOMAD_THEMES_PATH", () => {
-    process.env["AUTOMAD_URL"] = "https://x";
-    process.env["AUTOMAD_USER"] = "u";
-    process.env["AUTOMAD_PASS"] = "p";
-    expect(() => loadConfig()).toThrow(/AUTOMAD_THEMES_PATH/);
   });
 
   it("requires AUTOMAD_PASS", () => {

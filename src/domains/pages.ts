@@ -16,6 +16,37 @@ const ACTION_MAP: Record<PagesAction, WriteAction> = {
   duplicate: "pages.duplicate",
 };
 
+/** How long to wait for v2 to commit a publish before the page is queryable. */
+const POST_PUBLISH_POLL_ATTEMPTS = 8;
+const POST_PUBLISH_POLL_INTERVAL_MS = 200;
+
+/**
+ * Publish a page and poll `page/data` until the *renamed* URL is queryable.
+ * v2's `page/publish` is fire-and-forget at the API level — a 200 means
+ * "publish scheduled" but the page can take a few hundred ms to show up.
+ *
+ * `inputUrl` is the URL we tell v2 to publish (this is where the page's
+ * directory currently lives; v2 does the rename during publish when the
+ * title changed). `resultingUrl` is the canonical URL the page lives at
+ * *after* publish, used to confirm the page is queryable.
+ */
+async function publishAndWait(client: HttpClient, inputUrl: string, resultingUrl: string): Promise<void> {
+  try {
+    await client.post(`${API_BASE}/page/publish`, { url: inputUrl });
+  } catch {
+    return; // publish itself failed — nothing to wait for
+  }
+  for (let i = 0; i < POST_PUBLISH_POLL_ATTEMPTS; i++) {
+    await new Promise((r) => setTimeout(r, POST_PUBLISH_POLL_INTERVAL_MS));
+    try {
+      await client.post(`${API_BASE}/page/data`, { url: resultingUrl });
+      return; // readable at the new canonical URL
+    } catch {
+      // still not queryable; try again
+    }
+  }
+}
+
 export async function handlePages(
   input: PagesInput,
   client: HttpClient,
@@ -31,9 +62,6 @@ export async function handlePages(
 
   switch (input.action) {
     case "list": {
-      // GET /_api/public/pagelist is public. NOTE: on 2.0.0-beta.15 the endpoint
-      // currently 500s (Automad bug, PublicController.php:107) — the call is
-      // still issued; the HttpClient surfaces the error faithfully.
       const params = new URLSearchParams();
       if (input.context) params.set("context", input.context);
       if (input.fields_csv) params.set("fields", input.fields_csv);
@@ -56,15 +84,9 @@ export async function handlePages(
       if (input.template) payload["theme_template"] = input.template;
       if (input.private !== undefined) payload["private"] = input.private;
       const created = (await client.post(`${API_BASE}/page/add`, payload)) as { redirect?: string };
-      // page/add produces a draft. v2's read endpoints only see published pages,
-      // so publish the new draft to make subsequent get/list/move/delete behave intuitively.
       const slug = extractSlugFromRedirect(created.redirect) ?? input.url;
       if (slug) {
-        try {
-          await client.post(`${API_BASE}/page/publish`, { url: slug });
-        } catch {
-          /* best-effort: publish failure shouldn't fail the create */
-        }
+        await publishAndWait(client, slug, slug);
       }
       return { ok: true, url: slug, ...created };
     }
@@ -77,16 +99,15 @@ export async function handlePages(
       if (input.fields) Object.assign(data, input.fields);
       const payload: Record<string, unknown> = { url: input.url, data };
       if (input.template) payload["theme_template"] = input.template;
-      const updated = (await client.post(`${API_BASE}/page/data`, payload)) as { slug?: string };
-      // page/data save produces a draft. v2's `page/publish` takes the page's
-      // *directory* URL (not the draft slug) and applies the pending draft —
-      // including renaming the directory to the new slug if the title changed.
-      try {
-        await client.post(`${API_BASE}/page/publish`, { url: input.url });
-      } catch {
-        /* best-effort */
-      }
-      return { ...updated, url: input.url };
+      const saved = (await client.post(`${API_BASE}/page/data`, payload)) as { slug?: string };
+      // v2 may rename the page (slug changes when the title changes). After
+      // publish, the page is reachable under the *new* slug, not input.url.
+      // publishAndWait tells v2 to publish at input.url (where the directory
+      // currently lives; v2 does the rename), then polls the resulting URL
+      // so the caller can immediately read or move the renamed page.
+      const resultingUrl = saved.slug ? `/${saved.slug}` : input.url;
+      await publishAndWait(client, input.url, resultingUrl);
+      return { ok: true, url: resultingUrl };
     }
     case "delete": {
       if (!input.url) throw new AutomadMcpError("VALIDATION", "url is required for delete");
@@ -94,9 +115,6 @@ export async function handlePages(
     }
     case "move": {
       if (!input.url) throw new AutomadMcpError("VALIDATION", "url is required for move");
-      // v2's page/move is **sibling reordering**, not path-rename: it takes a
-      // `layout` array describing the new order of sibling URLs. There is no
-      // v2 endpoint to "rename" or "move a page to a different path".
       if (!input.layout) {
         throw new AutomadMcpError(
           "UNSUPPORTED",

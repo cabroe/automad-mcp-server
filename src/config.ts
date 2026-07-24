@@ -8,10 +8,14 @@ export interface Config {
   password: string;
   writeMode: WriteMode;
   logLevel: string;
-  /** Absolute path on the local filesystem where Automad theme packages live. */
-  themesPath: string;
-  /** Path to the starter-kit template used for `theme.scaffold`. */
-  starterKitPath: string;
+  /**
+   * Absolute path on the local filesystem where Automad theme packages live.
+   * Optional — when unset, the `automad_theme` tool returns a clear error
+   * for every action and the rest of the server works fine.
+   */
+  themesPath?: string | undefined;
+  /** Path to the starter-kit template used by `theme.scaffold`. */
+  starterKitPath?: string | undefined;
 }
 
 /** Automad v2 only: JSON API base path. */
@@ -27,7 +31,7 @@ export function loadConfig(): Config {
   const url = required("AUTOMAD_URL");
   const username = required("AUTOMAD_USER");
   const password = required("AUTOMAD_PASS");
-  const themesPath = required("AUTOMAD_THEMES_PATH");
+  const themesPath = process.env["AUTOMAD_THEMES_PATH"];
   const starterKitPath = process.env["AUTOMAD_STARTER_KIT_PATH"] ?? themesPath;
 
   const writeModeRaw = process.env["AUTOMAD_WRITE_MODE"] ?? "confirm-destructive";

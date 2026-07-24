@@ -3,7 +3,7 @@ import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import type { HttpClient } from "./client.js";
 import type { WriteGuard } from "./write-guard.js";
 import type { Config } from "./config.js";
-import { errorToJson } from "./errors.js";
+import { AutomadMcpError, errorToJson } from "./errors.js";
 import { logger } from "./logger.js";
 
 import {
@@ -22,12 +22,12 @@ import { handleSite } from "./domains/site.js";
 import { handleTheme } from "./domains/theme.js";
 
 export const SERVER_NAME = "automad-mcp";
-export const SERVER_VERSION = "0.3.0";
+export const SERVER_VERSION = "0.3.1";
 
 export interface ServerDeps {
   client: HttpClient;
   guard: WriteGuard;
-  /** Required for the `automad_theme` tool (themesPath, starterKitPath). */
+  /** Optional when `automad_theme` is unused; required for theme tooling. */
   config: Config;
 }
 
@@ -42,42 +42,39 @@ export interface ServerDeps {
  *   config (get from bootstrap, set via /_api/config/update)
  *   site   (info from bootstrap, search via /_api/search/search-replace)
  *   theme  (list/install/activate/uninstall/scaffold/build/read/write/files —
- *           local-FS theme tooling against AUTOMAD_THEMES_PATH)
+ *           local-FS theme tooling, requires AUTOMAD_THEMES_PATH)
  *
  * Destructive actions return a confirmToken; replay the call with
  * `confirm_token` to execute.
  */
 export function createAutomadServer(deps: ServerDeps): McpServer {
   const { client, guard, config } = deps;
-  const themeDeps = { client, guard, themesPath: config.themesPath, starterKitPath: config.starterKitPath };
+  const themeDeps = config.themesPath
+    ? { client, guard, themesPath: config.themesPath, starterKitPath: config.starterKitPath ?? config.themesPath }
+    : undefined;
 
   const server = new McpServer(
     { name: SERVER_NAME, version: SERVER_VERSION },
-    {
-      instructions:
-        "Automad v2 MCP bridge (serves only Automad v2, https://automad.org/version-2). " +
-        "Each tool takes an `action` parameter and talks to the v2 /_api JSON dispatch layer " +
-        "via session-cookie + CSRF authentication. The `automad_theme` tool works on the " +
-        "local filesystem (requires AUTOMAD_THEMES_PATH). Destructive actions return a confirmToken; " +
-        "replay the call with `confirm_token` to execute.",
-    },
+    { capabilities: { tools: { listChanged: false } } },
   );
 
-  const run = (fn: () => Promise<unknown>): Promise<CallToolResult> =>
-    fn()
-      .then((data) => ({
+  const run = async (fn: () => Promise<unknown>): Promise<CallToolResult> => {
+    try {
+      const data = await fn();
+      return {
         content: [
           { type: "text" as const, text: typeof data === "string" ? data : JSON.stringify(data) },
         ],
-      }))
-      .catch((err: unknown) => {
-        const serialized = errorToJson(err);
-        logger.warn({ err: serialized }, "tool call failed");
-        return {
-          content: [{ type: "text" as const, text: JSON.stringify(serialized) }],
-          isError: true,
-        };
-      });
+      };
+    } catch (err: unknown) {
+      const serialized = errorToJson(err);
+      logger.warn({ err: serialized }, "tool call failed");
+      return {
+        content: [{ type: "text" as const, text: JSON.stringify(serialized) }],
+        isError: true,
+      };
+    }
+  };
 
   server.registerTool(
     "automad_pages",
@@ -138,7 +135,16 @@ export function createAutomadServer(deps: ServerDeps): McpServer {
         "Scaffold copies the starter kit into a new theme dir; build runs `npm install` + `npm run build`.",
       inputSchema: themeInput,
     },
-    (input) => run(() => handleTheme(input, themeDeps)),
+    (input) =>
+      run(() => {
+        if (!themeDeps) {
+          throw new AutomadMcpError(
+            "UNSUPPORTED",
+            "automad_theme is disabled: set AUTOMAD_THEMES_PATH (and optionally AUTOMAD_STARTER_KIT_PATH) to enable it.",
+          );
+        }
+        return handleTheme(input, themeDeps);
+      }),
   );
 
   return server;
