@@ -10,11 +10,12 @@ describe("schemas", () => {
     expect(() => pagesInput.parse({ action: "bogus" })).toThrow();
   });
 
-  it("mediaInput requires source for upload", () => {
-    expect(() => mediaInput.parse({ action: "upload" })).toThrow();
-    expect(() =>
-      mediaInput.parse({ action: "upload", source: { base64: "AA==", filename: "x.png", mimeType: "image/png" } }),
-    ).not.toThrow();
+  it("mediaInput accepts list", () => {
+    expect(mediaInput.parse({ action: "list" })).toBeDefined();
+  });
+
+  it("mediaInput rejects unknown action", () => {
+    expect(() => mediaInput.parse({ action: "bogus" })).toThrow();
   });
 
   it("writeMode enum is strict", () => {

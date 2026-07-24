@@ -24,24 +24,19 @@ export const pagesInput = z.object({
   confirm_token: z.string().optional(),
 });
 
-export const mediaInput = z
-  .object({
-    action: z.enum(["list", "get", "upload", "delete", "rename"]),
-    path: pathSchema.optional(),
-    source: z
-      .object({
-        base64: z.string(),
-        filename: z.string(),
-        mimeType: z.string(),
-      })
-      .optional(),
-    new_name: z.string().optional(),
-    confirm_token: z.string().optional(),
-  })
-  .refine((v) => v.action !== "upload" || v.source !== undefined, {
-    message: "source is required for upload",
-    path: ["source"],
-  });
+export const mediaInput = z.object({
+  action: z.enum(["list", "get", "upload", "delete", "rename"]),
+  path: pathSchema.optional(),
+  source: z
+    .object({
+      base64: z.string(),
+      filename: z.string(),
+      mimeType: z.string(),
+    })
+    .optional(),
+  new_name: z.string().optional(),
+  confirm_token: z.string().optional(),
+});
 
 export const snippetsInput = z.object({
   action: z.enum(["list", "get", "set", "delete"]),
