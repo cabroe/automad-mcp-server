@@ -22,6 +22,12 @@ describe("WriteGuard", () => {
     expect(guard.check("pages.list", "/x").allowed).toBe(true);
   });
 
+  it("permits theme analysis in read-only mode", () => {
+    guard = new WriteGuard({ ...emptyCfg(), writeMode: "read-only" });
+    expect(guard.check("theme.analyze", "/starter")).toEqual({ allowed: true });
+    expect(guard.check("theme.validate", "/starter")).toEqual({ allowed: true });
+  });
+
   it("permits non-destructive in confirm mode", () => {
     expect(guard.check("pages.create", "/x").allowed).toBe(true);
     expect(guard.check("pages.update", "/x").allowed).toBe(true);

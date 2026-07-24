@@ -6,6 +6,7 @@ import {
   configInput,
   siteInput,
   writeMode,
+  themeInput,
 } from "../../src/schemas.js";
 
 describe("schemas", () => {
@@ -43,5 +44,10 @@ describe("schemas", () => {
   it("siteInput action enum is info|search", () => {
     expect(siteInput.parse({ action: "info" })).toBeDefined();
     expect(() => siteInput.parse({ action: "backup" })).toThrow();
+  });
+
+  it("themeInput accepts read-only analysis actions", () => {
+    expect(themeInput.parse({ action: "analyze", theme: "starter" }).action).toBe("analyze");
+    expect(themeInput.parse({ action: "validate", theme: "starter" }).action).toBe("validate");
   });
 });

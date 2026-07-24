@@ -93,7 +93,7 @@ export const themeInput = z.object({
   action: z.enum([
     "list", "install", "activate", "uninstall",
     "scaffold", "build",
-    "read", "write", "files",
+    "read", "write", "files", "analyze", "validate",
   ]),
   /** Theme slug (directory name under AUTOMAD_THEMES_PATH). */
   theme: z.string().optional(),
