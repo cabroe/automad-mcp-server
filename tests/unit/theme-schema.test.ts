@@ -17,6 +17,7 @@ function analysis(overrides: Partial<ThemeAnalysis> = {}): ThemeAnalysis {
     blockFields: ["+main"],
     masks: { page: ["textIntro", "selectLayout", "brand"], shared: ["+main", "colorAccent"] },
     starterKit: { detected: false, markers: [] },
+    translations: {},
     issues: [],
     ...overrides,
   };
@@ -78,6 +79,105 @@ describe("ThemeSchemaBuilder", () => {
     expect(result.warnings.map((warning) => warning.code)).toEqual([
       "INVALID_FIELD_LABEL", "INVALID_FIELD_OPTIONS", "INVALID_FIELD_TOOLTIP", "SOURCE_TRUNCATED",
     ]);
+  });
+
+  it("returns copies instead of mutating analysis arrays", () => {
+    const input = analysis();
+    const result = new ThemeSchemaBuilder().build(input);
+    result.masks.page.push("mutated");
+    result.templates.push("mutated.php");
+    expect(input.masks.page).not.toContain("mutated");
+    expect(input.files.templates).not.toContain("mutated.php");
+  });
+
+
+  it("normalizes Starter-Kit German translations with sparse fallback", () => {
+    const input = analysis({
+      translations: {
+        de: {
+          locale: "de",
+          path: "i18n/de.json",
+          data: {
+            labels: {
+              brand: "Branding Logo (SVG, HTML oder Text)",
+              selectColorTheme: "Farbthema (hell/dunkel)",
+            },
+            options: {
+              selectColorTheme: { switcher: "Theme-Switcher anzeigen", light: "Hell", dark: "Dunkel" },
+            },
+            tooltips: { "+main": "Der Haupt-Inhalt" },
+          },
+        },
+      },
+    });
+    const result = new ThemeSchemaBuilder().build(input);
+    expect(result.locales).toEqual(["de"]);
+    expect(result.translations.de).toEqual({
+      locale: "de",
+      path: "i18n/de.json",
+      fields: {
+        "+main": { tooltip: "Der Haupt-Inhalt" },
+        brand: { label: "Branding Logo (SVG, HTML oder Text)" },
+        selectColorTheme: {
+          label: "Farbthema (hell/dunkel)",
+          options: { switcher: "Theme-Switcher anzeigen", light: "Hell", dark: "Dunkel" },
+        },
+      },
+    });
+    expect(result.fields.find((field) => field.name === "brand")?.label).toBeUndefined();
+  });
+
+  it("retains valid siblings when individual values are invalid and reports warnings", () => {
+    const input = analysis({
+      translations: {
+        de: {
+          locale: "de",
+          path: "i18n/de.json",
+          data: {
+            labels: { brand: 42 },
+            options: { selectLayout: { good: "Gut", bad: 99 } },
+            tooltips: { imageHero: false },
+          },
+        },
+      },
+    });
+    const result = new ThemeSchemaBuilder().build(input);
+    expect(result.translations.de?.fields).toEqual({
+      selectLayout: { options: { good: "Gut" } },
+    });
+    const codes = result.warnings.filter((warning) => ["INVALID_I18N_LABEL", "INVALID_I18N_OPTIONS", "INVALID_I18N_TOOLTIP"].includes(warning.code)).map((warning) => warning.code);
+    expect(codes).toEqual(expect.arrayContaining(["INVALID_I18N_LABEL", "INVALID_I18N_OPTIONS", "INVALID_I18N_TOOLTIP"]));
+  });
+
+  it("preserves unknown translated fields with a warning", () => {
+    const input = analysis({
+      translations: {
+        de: {
+          locale: "de",
+          path: "i18n/de.json",
+          data: { labels: { mysteryField: "Geheimnis" } },
+        },
+      },
+    });
+    const result = new ThemeSchemaBuilder().build(input);
+    expect(result.translations.de?.fields.mysteryField).toEqual({ label: "Geheimnis" });
+    expect(result.warnings).toContainEqual(expect.objectContaining({ code: "UNKNOWN_TRANSLATION_FIELD", field: "mysteryField" }));
+  });
+
+  it("reports invalid section and runtime root", () => {
+    const input = analysis({
+      translations: {
+        de: { locale: "de", path: "i18n/de.json", data: { labels: "wrong" } },
+        en: { locale: "en", path: "i18n/en.json", data: "wrong" as unknown as Record<string, unknown> },
+      },
+    });
+    const result = new ThemeSchemaBuilder().build(input);
+    expect(result.locales).toEqual(["de", "en"]);
+    expect(Object.keys(result.translations)).toEqual(["de", "en"]);
+    expect(result.translations.de?.fields).toEqual({});
+    expect(result.translations.en?.fields).toEqual({});
+    const codes = result.warnings.map((warning) => warning.code);
+    expect(codes).toEqual(expect.arrayContaining(["INVALID_I18N_LABEL", "INVALID_I18N_ROOT"]));
   });
 
   it("returns copies instead of mutating analysis arrays", () => {

@@ -86,6 +86,20 @@ Both actions are explicitly read-only in every write mode. They do not run npm, 
 { "action": "schema", "theme": "my-theme" }
 ```
 
+
+#### Locale metadata (`theme.json` + `i18n/<locale>.json`)
+
+The Starter Kit translates dashboard field metadata through `i18n/<locale>.json` files using the shape:
+
+```json
+{
+  "labels": { "brand": "Branding Logo (SVG, HTML oder Text)" },
+  "options": { "selectColorTheme": { "light": "Hell", "dark": "Dunkel" } },
+  "tooltips": { "+main": "Der Haupt-Inhalt" }
+}
+```
+
+`automad_theme.schema` returns every locale together with the original base metadata. Locale entries are sparse overrides; missing translations fall back to `theme.json`. Only direct `i18n/<locale>.json` files are parsed. Partial invalid sections or values are reported as `INVALID_I18N_*` warnings, while the remaining valid values are retained. The action performs no build, network, or file mutation and is suitable for reuse as a future MCP Resource.
 Each field includes its Automad type (`text`, `checkbox`, `color`, `image`, `icon`, `select`, `url`, `format`, `label`, `filter`, or `block`), scope (`page`, `shared`, or `unmasked`), source files, and available labels, options, tooltips, and field order. Unknown prefixes fall back to `text` with an `UNKNOWN_FIELD_PREFIX` warning. The action performs no build, network request, or mutation and is designed for later reuse by an MCP Resource.
 
 ### Internal capability registry

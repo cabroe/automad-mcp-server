@@ -14,6 +14,8 @@ export interface ThemeSchemaField {
   tooltip?: string;
   order?: number;
 }
+export interface ThemeFieldTranslation { label?: string; options?: Record<string, string>; tooltip?: string; }
+export interface ThemeSchemaTranslation { locale: string; path: string; fields: Record<string, ThemeFieldTranslation>; }
 export interface ThemeSchema {
   theme: string;
   path: string;
@@ -22,6 +24,8 @@ export interface ThemeSchema {
   templates: string[];
   blocks: string[];
   warnings: ThemeSchemaWarning[];
+  locales: string[];
+  translations: Record<string, ThemeSchemaTranslation>;
 }
 
 const PREFIX_TYPES: Array<[string, ThemeFieldType]> = [
@@ -76,6 +80,7 @@ export class ThemeSchemaBuilder {
       return field;
     });
     fields.sort((a, b) => (a.order === undefined ? 1 : b.order === undefined ? -1 : a.order - b.order) || a.name.localeCompare(b.name));
+    const { locales, translations } = buildTranslations(analysis, manifest, warnings);
     warnings.sort((a, b) => a.code.localeCompare(b.code) || (a.field ?? "").localeCompare(b.field ?? "") || a.message.localeCompare(b.message));
     return {
       theme: analysis.theme,
@@ -85,6 +90,8 @@ export class ThemeSchemaBuilder {
       templates: [...analysis.files.templates],
       blocks: [...analysis.files.blocks],
       warnings,
+      locales,
+      translations,
     };
   }
 }
@@ -96,6 +103,97 @@ function fieldType(name: string, warnings: ThemeSchemaWarning[]): ThemeFieldType
   }
   warnings.push({ code: "UNKNOWN_FIELD_PREFIX", message: `Field '${name}' has no recognized Automad field prefix; defaulting to text`, field: name });
   return "text";
+}
+
+function buildTranslations(
+  analysis: ThemeAnalysis,
+  manifest: Record<string, unknown> | undefined,
+  warnings: ThemeSchemaWarning[],
+): { locales: string[]; translations: Record<string, ThemeSchemaTranslation> } {
+  const known = new Set<string>(analysis.fields);
+  const fieldOrder = Array.isArray(manifest?.fieldOrder) ? manifest.fieldOrder : [];
+  for (const field of fieldOrder) if (typeof field === "string") known.add(field);
+  for (const section of [manifest?.labels, manifest?.options, manifest?.tooltips]) {
+    const record = objectRecord(section);
+    if (record) for (const field of Object.keys(record)) known.add(field);
+  }
+  const locales = Object.keys(analysis.translations).sort();
+  const translations: Record<string, ThemeSchemaTranslation> = {};
+  for (const locale of locales) {
+    const source = analysis.translations[locale]!;
+    const fields: Record<string, ThemeFieldTranslation> = {};
+    translations[locale] = { locale, path: source.path, fields };
+    const data = objectRecord(source.data);
+    if (!data) {
+      warnings.push({ code: "INVALID_I18N_ROOT", message: `Locale '${locale}': translation root must be an object` });
+      continue;
+    }
+    const translated = new Map<string, ThemeFieldTranslation>();
+    normalizeStringSection(data.labels, "label", "INVALID_I18N_LABEL", locale, translated, warnings);
+    normalizeOptions(data.options, locale, translated, warnings);
+    normalizeStringSection(data.tooltips, "tooltip", "INVALID_I18N_TOOLTIP", locale, translated, warnings);
+    for (const field of [...translated.keys()].sort()) {
+      fields[field] = { ...translated.get(field)! };
+      if (!known.has(field)) warnings.push({ code: "UNKNOWN_TRANSLATION_FIELD", message: `Locale '${locale}': translated field '${field}' is not known by the theme schema`, field });
+    }
+  }
+  return { locales, translations };
+}
+
+function normalizeStringSection(
+  value: unknown,
+  key: "label" | "tooltip",
+  code: "INVALID_I18N_LABEL" | "INVALID_I18N_TOOLTIP",
+  locale: string,
+  fields: Map<string, ThemeFieldTranslation>,
+  warnings: ThemeSchemaWarning[],
+): void {
+  if (value === undefined) return;
+  const section = objectRecord(value);
+  if (!section) {
+    warnings.push({ code, message: `Locale '${locale}': ${key}s section must be an object` });
+    return;
+  }
+  for (const [field, translated] of Object.entries(section)) {
+    if (typeof translated !== "string") {
+      warnings.push({ code, message: `Locale '${locale}': ${key} for '${field}' must be a string`, field });
+      continue;
+    }
+    const target = fields.get(field) ?? {};
+    target[key] = translated;
+    fields.set(field, target);
+  }
+}
+
+function normalizeOptions(
+  value: unknown,
+  locale: string,
+  fields: Map<string, ThemeFieldTranslation>,
+  warnings: ThemeSchemaWarning[],
+): void {
+  if (value === undefined) return;
+  const section = objectRecord(value);
+  if (!section) {
+    warnings.push({ code: "INVALID_I18N_OPTIONS", message: `Locale '${locale}': options section must be an object` });
+    return;
+  }
+  for (const [field, rawOptions] of Object.entries(section)) {
+    const options = objectRecord(rawOptions);
+    if (!options) {
+      warnings.push({ code: "INVALID_I18N_OPTIONS", message: `Locale '${locale}': options for '${field}' must be an object`, field });
+      continue;
+    }
+    const valid: Record<string, string> = {};
+    for (const [option, translated] of Object.entries(options)) {
+      if (typeof translated === "string") valid[option] = translated;
+      else warnings.push({ code: "INVALID_I18N_OPTIONS", message: `Locale '${locale}': option '${option}' for '${field}' must be a string`, field });
+    }
+    if (Object.keys(valid).length > 0) {
+      const target = fields.get(field) ?? {};
+      target.options = valid;
+      fields.set(field, target);
+    }
+  }
 }
 
 function objectRecord(value: unknown): Record<string, unknown> | undefined {

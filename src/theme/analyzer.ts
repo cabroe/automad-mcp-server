@@ -4,6 +4,11 @@ import { type ThemeFs, assertWithinRoot } from "./fs.js";
 
 export type FindingSeverity = "error" | "warning" | "info";
 export interface ThemeFinding { severity: FindingSeverity; code: string; message: string; path?: string; line?: number; }
+export interface ThemeTranslationSource {
+  locale: string;
+  path: string;
+  data: Record<string, unknown>;
+}
 export interface ThemeAnalysis {
   theme: string;
   path: string;
@@ -11,6 +16,7 @@ export interface ThemeAnalysis {
   files: { templates: string[]; components: string[]; blocks: string[]; client: string[]; icons: string[]; i18n: string[]; lib: string[]; build: string[]; other: string[] };
   fields: string[];
   fieldSources: Record<string, string[]>;
+  translations: Record<string, ThemeTranslationSource>;
   blockFields: string[];
   masks: { page: string[]; shared: string[] };
   starterKit: { detected: boolean; markers: string[] };
@@ -35,8 +41,16 @@ export class ThemeAnalyzer {
     await this.readManifest(themePath, files, "theme.json", "theme", manifests, issues);
     await this.readManifest(themePath, files, "package.json", "package", manifests, issues);
     await this.readManifest(themePath, files, "composer.json", "composer", manifests, issues);
-    for (const relPath of files.i18n.filter((value) => value.endsWith(".json"))) {
-      await this.readJson(themePath, relPath, "I18N_JSON_INVALID", issues);
+    const translations: Record<string, ThemeTranslationSource> = {};
+    for (const relPath of files.i18n.filter((value) => /^i18n\/[^/]+\.json$/.test(value)).sort()) {
+      const parsed = await this.readJson(themePath, relPath, "I18N_JSON_INVALID", issues);
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) continue;
+      const locale = path.basename(relPath, ".json");
+      if (translations[locale]) {
+        issues.push({ severity: "warning", code: "DUPLICATE_I18N_LOCALE", message: `Duplicate i18n locale '${locale}' at ${relPath}`, path: relPath });
+        continue;
+      }
+      translations[locale] = { locale, path: relPath, data: parsed as Record<string, unknown> };
     }
     if (await this.deps.fs.isDirectory(path.join(themePath, "i18n")) && files.i18n.length === 0) {
       issues.push({ severity: "warning", code: "I18N_DIRECTORY_EMPTY", message: "i18n directory contains no JSON translations", path: "i18n" });
@@ -71,7 +85,7 @@ export class ThemeAnalyzer {
     if (starterKit.detected) issues.push({ severity: "info", code: "STARTER_KIT_STRUCTURE_DETECTED", message: "recognized Automad Theme Starter Kit structure detected" });
     for (const field of blockFields) issues.push({ severity: "info", code: "BLOCK_FIELD_DETECTED", message: `block field '${field}' detected` });
     if (isBuildScriptDetected(manifests.package, files.build)) issues.push({ severity: "info", code: "BUILD_SCRIPT_DETECTED", message: "Starter Kit build script detected", path: "package.json" });
-    return { theme, path: themePath, manifests, files, fields: fieldList, fieldSources, blockFields, masks, starterKit, issues };
+    return { theme, path: themePath, manifests, files, fields: fieldList, fieldSources, blockFields, masks, starterKit, translations, issues };
   }
 
   async validate(theme: string): Promise<ThemeValidation> {

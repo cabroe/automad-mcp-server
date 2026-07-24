@@ -79,12 +79,22 @@ describe("handleTheme", () => {
 
   it("builds theme schema in read-only mode without HTTP calls", async () => {
     await nodeFs.mkdir(path.join(themes, "schema-theme"));
-    await nodeFs.writeFile(path.join(themes, "schema-theme", "theme.json"), JSON.stringify({ name: "Schema", masks: { page: ["textIntro"] } }));
-    await nodeFs.writeFile(path.join(themes, "schema-theme", "default.php"), "@{ textIntro }");
+    await nodeFs.mkdir(path.join(themes, "schema-theme", "i18n"), { recursive: true });
+    await nodeFs.writeFile(path.join(themes, "schema-theme", "i18n", "de.json"), JSON.stringify({ labels: { textIntro: "Einleitung" } }));
     const client = mockClient();
     const deps = { client, guard: new WriteGuard({ ...cfg(), writeMode: "read-only" }), themesPath: themes, starterKitPath: starter };
     const result = await handleTheme({ action: "schema", theme: "schema-theme" }, deps);
-    expect(result).toMatchObject({ theme: "schema-theme", fields: expect.any(Array), warnings: expect.any(Array) });
+    expect(result).toMatchObject({
+      theme: "schema-theme",
+      locales: ["de"],
+      translations: {
+        de: {
+          locale: "de",
+          path: "i18n/de.json",
+          fields: expect.any(Object),
+        },
+      },
+    });
     expect(client.get).not.toHaveBeenCalled();
     expect(client.post).not.toHaveBeenCalled();
     await expect(handleTheme({ action: "schema" }, deps)).rejects.toMatchObject({ code: "VALIDATION", message: "theme is required for schema" });

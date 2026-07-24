@@ -61,7 +61,9 @@ const validTheme = {
   "client/index.ts": "console.log('client');",
   "client/styles/index.less": ".page { color: red; }",
   "icons/menu.svg": "<svg />",
-  "i18n/de.json": JSON.stringify({ brand: "Marke" }),
+  "i18n/de.json": JSON.stringify({ labels: { brand: "Marke" } }),
+  "i18n/en.json": JSON.stringify({ labels: { brand: "Brand" } }),
+  "i18n/archive/fr.json": JSON.stringify({ labels: { brand: "Marque" } }),
   "lib/functions.php": "<?php",
   "esbuild.js": "export default {};",
 };
@@ -75,12 +77,19 @@ describe("ThemeAnalyzer", () => {
     expect(result.files.components).toEqual(["components/page.php"]);
     expect(result.files.blocks).toEqual(["blocks/pagelist/grid.php"]);
     expect(result.files.client).toContain("client/index.ts");
-    expect(result.files.i18n).toEqual(["i18n/de.json"]);
+    expect(result.files.i18n).toEqual(["i18n/archive/fr.json", "i18n/de.json", "i18n/en.json"]);
     expect(result.fieldSources).toEqual({
       "+grid": ["blocks/pagelist/grid.php"],
       "+main": ["default.php"],
       brand: ["components/page.php", "default.php"],
     });
+    expect(Object.keys(result.translations)).toEqual(["de", "en"]);
+    expect(result.translations.de).toEqual({
+      locale: "de",
+      path: "i18n/de.json",
+      data: { labels: { brand: "Marke" } },
+    });
+    expect(result.translations.fr).toBeUndefined();
     expect(result.fields).toEqual(["+grid", "+main", "brand"]);
     expect(result.blockFields).toEqual(["+grid", "+main"]);
     expect(result.fields).not.toContain(":title");
@@ -128,6 +137,17 @@ describe("ThemeAnalyzer", () => {
     expect(codes).toContain("FIELD_NOT_MASKED");
     expect(result.summary.errors).toBeGreaterThan(0);
     expect(result.summary.errors + result.summary.warnings + result.summary.info).toBe(result.findings.length);
+  });
+
+  it("omits invalid locale JSON while retaining analyzer issue", async () => {
+    await writeTheme("bad-i18n", {
+      "theme.json": JSON.stringify({ name: "Bad i18n" }),
+      "default.php": "@{ textMain }",
+      "i18n/de.json": "not-json",
+    });
+    const result = await analyzer().analyze("bad-i18n");
+    expect(result.translations).toEqual({});
+    expect(result.issues).toContainEqual(expect.objectContaining({ code: "I18N_JSON_INVALID", path: "i18n/de.json" }));
   });
 
   it("reports metadata mismatches and unused masks", async () => {
