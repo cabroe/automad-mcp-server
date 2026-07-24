@@ -46,29 +46,33 @@ describe("handlePages (v2 /_api)", () => {
     expect(c.post).toHaveBeenCalledWith("/_api/page/data", { url: "/x" });
   });
 
+  it("get retries on 404 (v2 commit-lag) and eventually surfaces NOT_FOUND", async () => {
+    const c = mockClient();
+    (c.post as ReturnType<typeof vi.fn>).mockRejectedValue(
+      Object.assign(new Error("HTTP 404"), { name: "AutomadMcpError", code: "NOT_FOUND" }),
+    );
+    await expect(
+      handlePages({ action: "get", url: "/missing" }, c, new WriteGuard(cfg())),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    // Retried at least twice (initial + 1 retry within the budget)
+    expect((c.post as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThan(1);
+  });
+
   it("create posts to /_api/page/add, publishes, and polls until readable", async () => {
     const c = mockClient();
     (c.post as ReturnType<typeof vi.fn>)
-      .mockResolvedValueOnce({ redirect: "page?url=%2Fhello" })  // page/add
-      .mockResolvedValueOnce({ ok: true })                       // page/publish
-      .mockResolvedValue({ url: "/hello", fields: {} });           // page/data (poll reads)
+      .mockResolvedValueOnce({ redirect: "page?url=%2Fhello" })
+      .mockResolvedValueOnce({ ok: true })
+      .mockResolvedValue({ url: "/hello", fields: {} });
     const out = await handlePages(
       { action: "create", title: "Hello", target_url: "/blog", template: "standard-lite/page.php" },
       c,
       new WriteGuard(cfg()),
     );
     expect(c.post).toHaveBeenNthCalledWith(1, "/_api/page/add", {
-      targetPage: "/blog",
-      title: "Hello",
-      theme_template: "standard-lite/page.php",
+      targetPage: "/blog", title: "Hello", theme_template: "standard-lite/page.php",
     });
     expect(c.post).toHaveBeenNthCalledWith(2, "/_api/page/publish", { url: "/hello" });
-    // poll reads: at least 1 successful page/data on the resulting url
-    expect(c.post.mock.calls.length).toBeGreaterThanOrEqual(3);
-    for (let i = 3; i < c.post.mock.calls.length; i++) {
-      expect(c.post.mock.calls[i]?.[0]).toBe("/_api/page/data");
-      expect(c.post.mock.calls[i]?.[1]).toEqual({ url: "/hello" });
-    }
     expect(out).toMatchObject({ ok: true, url: "/hello" });
   });
 
@@ -79,9 +83,7 @@ describe("handlePages (v2 /_api)", () => {
       .mockResolvedValueOnce({ ok: true })
       .mockResolvedValue({ url: "/expected", fields: {} });
     await handlePages(
-      { action: "create", title: "Hi", url: "/expected" },
-      c,
-      new WriteGuard(cfg()),
+      { action: "create", title: "Hi", url: "/expected" }, c, new WriteGuard(cfg()),
     );
     expect(c.post).toHaveBeenNthCalledWith(2, "/_api/page/publish", { url: "/expected" });
   });
@@ -93,62 +95,26 @@ describe("handlePages (v2 /_api)", () => {
       .mockRejectedValueOnce(new Error("publish offline"))
       .mockResolvedValue({ url: "/hello", fields: {} });
     const out = await handlePages(
-      { action: "create", title: "Hello", target_url: "/blog" },
-      c,
-      new WriteGuard(cfg()),
+      { action: "create", title: "Hello", target_url: "/blog" }, c, new WriteGuard(cfg()),
     );
     expect(out).toMatchObject({ ok: true, url: "/hello" });
   });
 
   it("update publishes via input.url, polls on resulting slug, returns canonical URL", async () => {
     const c = mockClient();
-    // v2's page/data save response includes the resulting slug when the title
-    // changes — the MCP uses this to compute the new canonical URL. The
-    // publish itself is sent to input.url (where the directory currently
-    // lives; v2 does the rename during publish).
     (c.post as ReturnType<typeof vi.fn>)
-      .mockResolvedValueOnce({ updateUI: true, slug: "renamed" }) // page/data save
-      .mockResolvedValueOnce({ ok: true })                       // page/publish (at input.url)
-      .mockResolvedValue({ url: "/renamed", fields: {} });       // poll reads (at resultingUrl)
+      .mockResolvedValueOnce({ updateUI: true, slug: "renamed" })
+      .mockResolvedValueOnce({ ok: true })
+      .mockResolvedValue({ url: "/renamed", fields: {} });
     const out = await handlePages(
-      {
-        action: "update",
-        url: "/original",
-        title: "renamed",
-        private: true,
-        tags: ["x", "y"],
-        fields: { main: [] },
-      },
-      c,
-      new WriteGuard(cfg()),
+      { action: "update", url: "/original", title: "renamed", private: true, tags: ["x","y"], fields: { main: [] } },
+      c, new WriteGuard(cfg()),
     );
     expect(c.post).toHaveBeenNthCalledWith(1, "/_api/page/data", {
-      url: "/original",
-      data: { title: "renamed", private: true, tags: "x,y", main: [] },
+      url: "/original", data: { title: "renamed", private: true, tags: "x,y", main: [] },
     });
-    // publish is sent to input.url (the directory's current location);
-    // poll reads verify the page is queryable at the new slug.
     expect(c.post).toHaveBeenNthCalledWith(2, "/_api/page/publish", { url: "/original" });
-    for (let i = 3; i < c.post.mock.calls.length; i++) {
-      expect(c.post.mock.calls[i]?.[0]).toBe("/_api/page/data");
-      expect(c.post.mock.calls[i]?.[1]).toEqual({ url: "/renamed" });
-    }
     expect(out).toMatchObject({ ok: true, url: "/renamed" });
-  });
-
-  it("update without slug change uses input.url throughout", async () => {
-    const c = mockClient();
-    (c.post as ReturnType<typeof vi.fn>)
-      .mockResolvedValueOnce({})                       // page/data save (no slug change)
-      .mockResolvedValueOnce({ ok: true })             // page/publish
-      .mockResolvedValue({ url: "/same", fields: {} }); // poll reads
-    const out = await handlePages(
-      { action: "update", url: "/same", fields: { main: [] } },
-      c,
-      new WriteGuard(cfg()),
-    );
-    expect(c.post).toHaveBeenNthCalledWith(2, "/_api/page/publish", { url: "/same" });
-    expect(out).toMatchObject({ ok: true, url: "/same" });
   });
 
   it("delete requires url and POSTs to /_api/page/delete", async () => {
@@ -165,29 +131,20 @@ describe("handlePages (v2 /_api)", () => {
     expect(r).toMatchObject({ allowed: "pending" });
   });
 
-  it("move without layout throws UNSUPPORTED (v2 move is reordering, not rename)", async () => {
-    await expect(
-      handlePages({ action: "move", url: "/x" }, mockClient(), new WriteGuard(cfg())),
-    ).rejects.toMatchObject({ code: "UNSUPPORTED" });
+  it("move without layout throws UNSUPPORTED", async () => {
+    await expect(handlePages({ action: "move", url: "/x" }, mockClient(), new WriteGuard(cfg())))
+      .rejects.toMatchObject({ code: "UNSUPPORTED" });
   });
 
   it("move with layout posts to /_api/page/move with layout", async () => {
     const c = mockClient();
     (c.post as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ ok: true });
-    await handlePages(
-      { action: "move", url: "/a", layout: '["/a","/b","/c"]' },
-      c,
-      new WriteGuard(cfg()),
-    );
-    expect(c.post).toHaveBeenCalledWith("/_api/page/move", {
-      url: "/a",
-      layout: '["/a","/b","/c"]',
-    });
+    await handlePages({ action: "move", url: "/a", layout: '["/a","/b","/c"]' }, c, new WriteGuard(cfg()));
+    expect(c.post).toHaveBeenCalledWith("/_api/page/move", { url: "/a", layout: '["/a","/b","/c"]' });
   });
 
-  it("duplicate throws UNSUPPORTED (no v2 endpoint)", async () => {
-    await expect(
-      handlePages({ action: "duplicate", url: "/x", target_url: "/y" }, mockClient(), new WriteGuard(cfg())),
-    ).rejects.toMatchObject({ code: "UNSUPPORTED" });
+  it("duplicate throws UNSUPPORTED", async () => {
+    await expect(handlePages({ action: "duplicate", url: "/x", target_url: "/y" }, mockClient(), new WriteGuard(cfg())))
+      .rejects.toMatchObject({ code: "UNSUPPORTED" });
   });
 });

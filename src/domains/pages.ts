@@ -16,35 +16,44 @@ const ACTION_MAP: Record<PagesAction, WriteAction> = {
   duplicate: "pages.duplicate",
 };
 
-/** How long to wait for v2 to commit a publish before the page is queryable. */
-const POST_PUBLISH_POLL_ATTEMPTS = 8;
-const POST_PUBLISH_POLL_INTERVAL_MS = 200;
-
-/**
- * Publish a page and poll `page/data` until the *renamed* URL is queryable.
- * v2's `page/publish` is fire-and-forget at the API level — a 200 means
- * "publish scheduled" but the page can take a few hundred ms to show up.
- *
- * `inputUrl` is the URL we tell v2 to publish (this is where the page's
- * directory currently lives; v2 does the rename during publish when the
- * title changed). `resultingUrl` is the canonical URL the page lives at
- * *after* publish, used to confirm the page is queryable.
- */
+const READ_RETRY_TOTAL_MS = 3000;
+const READ_RETRY_INTERVAL_MS = 200;
 async function publishAndWait(client: HttpClient, inputUrl: string, resultingUrl: string): Promise<void> {
   try {
     await client.post(`${API_BASE}/page/publish`, { url: inputUrl });
   } catch {
-    return; // publish itself failed — nothing to wait for
+    return;
   }
-  for (let i = 0; i < POST_PUBLISH_POLL_ATTEMPTS; i++) {
-    await new Promise((r) => setTimeout(r, POST_PUBLISH_POLL_INTERVAL_MS));
+  for (let i = 0; i < 8 && i * READ_RETRY_INTERVAL_MS < READ_RETRY_TOTAL_MS; i++) {
+    await new Promise((r) => setTimeout(r, READ_RETRY_INTERVAL_MS));
     try {
       await client.post(`${API_BASE}/page/data`, { url: resultingUrl });
-      return; // readable at the new canonical URL
-    } catch {
-      // still not queryable; try again
+      return;
+    } catch { /* try again */ }
+  }
+}
+
+/**
+ * Read a page, retrying briefly on 404 to absorb v2's commit-lag.
+ * Without this, a `get` that races a `create`/`update` in another call
+ * would see a transient NOT_FOUND.
+ */
+async function readWithRetry(client: HttpClient, url: string): Promise<unknown> {
+  let lastErr: unknown;
+  const start = Date.now();
+  while (Date.now() - start < READ_RETRY_TOTAL_MS) {
+    try {
+      return await client.post(`${API_BASE}/page/data`, { url });
+    } catch (err) {
+      lastErr = err;
+      // Retry only on NOT_FOUND (transient commit-lag). Anything else
+      // (validation, auth, network) surfaces immediately.
+      const code = (err as { code?: unknown })?.code;
+      if (code !== "NOT_FOUND") throw err;
+      await new Promise((r) => setTimeout(r, READ_RETRY_INTERVAL_MS));
     }
   }
+  throw lastErr;
 }
 
 export async function handlePages(
@@ -53,12 +62,8 @@ export async function handlePages(
   guard: WriteGuard,
 ): Promise<unknown> {
   const permit = guard.check(ACTION_MAP[input.action], input.url ?? "/", input.confirm_token);
-  if (permit.allowed === false) {
-    throw new AutomadMcpError("FORBIDDEN", permit.reason);
-  }
-  if (permit.allowed === "pending") {
-    return permit;
-  }
+  if (permit.allowed === false) throw new AutomadMcpError("FORBIDDEN", permit.reason);
+  if (permit.allowed === "pending") return permit;
 
   switch (input.action) {
     case "list": {
@@ -70,7 +75,7 @@ export async function handlePages(
     }
     case "get": {
       if (!input.url) throw new AutomadMcpError("VALIDATION", "url is required");
-      return client.post(`${API_BASE}/page/data`, { url: input.url });
+      return readWithRetry(client, input.url);
     }
     case "create": {
       if (!input.title) throw new AutomadMcpError("VALIDATION", "title is required for create");
@@ -85,9 +90,7 @@ export async function handlePages(
       if (input.private !== undefined) payload["private"] = input.private;
       const created = (await client.post(`${API_BASE}/page/add`, payload)) as { redirect?: string };
       const slug = extractSlugFromRedirect(created.redirect) ?? input.url;
-      if (slug) {
-        await publishAndWait(client, slug, slug);
-      }
+      if (slug) await publishAndWait(client, slug, slug);
       return { ok: true, url: slug, ...created };
     }
     case "update": {
@@ -100,11 +103,6 @@ export async function handlePages(
       const payload: Record<string, unknown> = { url: input.url, data };
       if (input.template) payload["theme_template"] = input.template;
       const saved = (await client.post(`${API_BASE}/page/data`, payload)) as { slug?: string };
-      // v2 may rename the page (slug changes when the title changes). After
-      // publish, the page is reachable under the *new* slug, not input.url.
-      // publishAndWait tells v2 to publish at input.url (where the directory
-      // currently lives; v2 does the rename), then polls the resulting URL
-      // so the caller can immediately read or move the renamed page.
       const resultingUrl = saved.slug ? `/${saved.slug}` : input.url;
       await publishAndWait(client, input.url, resultingUrl);
       return { ok: true, url: resultingUrl };
@@ -122,10 +120,7 @@ export async function handlePages(
             "There is no v2 endpoint to rename or relocate a page; recreate via page/add + page/delete instead.",
         );
       }
-      return client.post(`${API_BASE}/page/move`, {
-        url: input.url,
-        layout: input.layout,
-      });
+      return client.post(`${API_BASE}/page/move`, { url: input.url, layout: input.layout });
     }
     case "duplicate": {
       throw new AutomadMcpError(
@@ -136,14 +131,9 @@ export async function handlePages(
   }
 }
 
-/** Parse `page?url=%2Fblog%2Fhello` -> `/blog/hello`. */
 function extractSlugFromRedirect(redirect: string | undefined): string | undefined {
   if (!redirect) return undefined;
   const m = /[?&]url=([^&]+)/.exec(redirect);
   if (!m || !m[1]) return undefined;
-  try {
-    return decodeURIComponent(m[1]);
-  } catch {
-    return undefined;
-  }
+  try { return decodeURIComponent(m[1]); } catch { return undefined; }
 }
