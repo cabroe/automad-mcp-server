@@ -7,47 +7,31 @@ import type { PagesInput } from "../schemas.js";
 type PagesAction = PagesInput["action"];
 
 const ACTION_MAP: Record<PagesAction, WriteAction> = {
-  list: "pages.list",
-  get: "pages.get",
-  create: "pages.create",
-  update: "pages.update",
-  delete: "pages.delete",
-  move: "pages.move",
-  duplicate: "pages.duplicate",
+  list: "pages.list", get: "pages.get", create: "pages.create", update: "pages.update",
+  delete: "pages.delete", move: "pages.move", duplicate: "pages.duplicate",
 };
 
 const READ_RETRY_TOTAL_MS = 3000;
 const READ_RETRY_INTERVAL_MS = 200;
+
 async function publishAndWait(client: HttpClient, inputUrl: string, resultingUrl: string): Promise<void> {
   try {
     await client.post(`${API_BASE}/page/publish`, { url: inputUrl });
-  } catch {
-    return;
-  }
+  } catch { return; }
   for (let i = 0; i < 8 && i * READ_RETRY_INTERVAL_MS < READ_RETRY_TOTAL_MS; i++) {
     await new Promise((r) => setTimeout(r, READ_RETRY_INTERVAL_MS));
-    try {
-      await client.post(`${API_BASE}/page/data`, { url: resultingUrl });
-      return;
-    } catch { /* try again */ }
+    try { await client.post(`${API_BASE}/page/data`, { url: resultingUrl }); return; }
+    catch { /* retry */ }
   }
 }
 
-/**
- * Read a page, retrying briefly on 404 to absorb v2's commit-lag.
- * Without this, a `get` that races a `create`/`update` in another call
- * would see a transient NOT_FOUND.
- */
 async function readWithRetry(client: HttpClient, url: string): Promise<unknown> {
   let lastErr: unknown;
   const start = Date.now();
   while (Date.now() - start < READ_RETRY_TOTAL_MS) {
-    try {
-      return await client.post(`${API_BASE}/page/data`, { url });
-    } catch (err) {
+    try { return await client.post(`${API_BASE}/page/data`, { url }); }
+    catch (err) {
       lastErr = err;
-      // Retry only on NOT_FOUND (transient commit-lag). Anything else
-      // (validation, auth, network) surfaces immediately.
       const code = (err as { code?: unknown })?.code;
       if (code !== "NOT_FOUND") throw err;
       await new Promise((r) => setTimeout(r, READ_RETRY_INTERVAL_MS));
@@ -57,9 +41,7 @@ async function readWithRetry(client: HttpClient, url: string): Promise<unknown> 
 }
 
 export async function handlePages(
-  input: PagesInput,
-  client: HttpClient,
-  guard: WriteGuard,
+  input: PagesInput, client: HttpClient, guard: WriteGuard,
 ): Promise<unknown> {
   const permit = guard.check(ACTION_MAP[input.action], input.url ?? "/", input.confirm_token);
   if (permit.allowed === false) throw new AutomadMcpError("FORBIDDEN", permit.reason);
@@ -118,6 +100,30 @@ export async function handlePages(
           "UNSUPPORTED",
           "v2 page/move is sibling reordering: pass `layout` as a JSON array of sibling URLs in the new order. " +
             "There is no v2 endpoint to rename or relocate a page; recreate via page/add + page/delete instead.",
+        );
+      }
+      // v2's page/move is sibling reordering: layout is a JSON array of
+      // sibling URLs in the new order. Validate shape before sending so the
+      // caller gets a clear error instead of v2's generic "Page not found!".
+      let parsedLayout: unknown;
+      try {
+        parsedLayout = JSON.parse(input.layout);
+      } catch {
+        throw new AutomadMcpError(
+          "VALIDATION",
+          "layout must be a JSON-encoded array of sibling URLs (got unparseable string)",
+        );
+      }
+      if (!Array.isArray(parsedLayout) || parsedLayout.length === 0) {
+        throw new AutomadMcpError(
+          "VALIDATION",
+          "layout must be a non-empty JSON array of sibling URL strings",
+        );
+      }
+      if (!parsedLayout.every((u) => typeof u === "string" && u.startsWith("/"))) {
+        throw new AutomadMcpError(
+          "VALIDATION",
+          "layout must contain only URL strings starting with /",
         );
       }
       return client.post(`${API_BASE}/page/move`, { url: input.url, layout: input.layout });
