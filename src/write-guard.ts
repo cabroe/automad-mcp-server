@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { Config, WriteMode } from "./config.js";
 
+/** v2-only action whitelist. Endpoints that don't exist in v2 are simply absent. */
 export type WriteAction =
   | "pages.list"
   | "pages.get"
@@ -10,30 +11,13 @@ export type WriteAction =
   | "pages.move"
   | "pages.duplicate"
   | "media.list"
-  | "media.get"
   | "media.upload"
-  | "media.delete"
-  | "media.rename"
-  | "snippets.list"
-  | "snippets.get"
-  | "snippets.set"
-  | "snippets.delete"
-  | "templates.list"
-  | "templates.get"
-  | "templates.set"
-  | "templates.delete"
-  | "templates.validate"
+  | "shared.get"
+  | "shared.set"
   | "config.get"
   | "config.set"
-  | "config.validate"
-  | "theme.list"
-  | "theme.install"
-  | "theme.activate"
-  | "theme.uninstall"
   | "site.info"
-  | "site.search"
-  | "site.backup"
-  | "site.restore";
+  | "site.search";
 
 export type Permit =
   | { allowed: true }
@@ -50,15 +34,8 @@ const READ_ACTIONS: ReadonlySet<WriteAction> = new Set<WriteAction>([
   "pages.list",
   "pages.get",
   "media.list",
-  "media.get",
-  "snippets.list",
-  "snippets.get",
-  "templates.list",
-  "templates.get",
-  "templates.validate",
+  "shared.get",
   "config.get",
-  "config.validate",
-  "theme.list",
   "site.info",
   "site.search",
 ]);
@@ -66,12 +43,6 @@ const READ_ACTIONS: ReadonlySet<WriteAction> = new Set<WriteAction>([
 const DESTRUCTIVE_ACTIONS: ReadonlySet<WriteAction> = new Set<WriteAction>([
   "pages.delete",
   "pages.move",
-  "media.delete",
-  "snippets.delete",
-  "templates.delete",
-  "config.set",
-  "theme.uninstall",
-  "site.restore",
 ]);
 
 export interface WriteGuardOptions {
@@ -108,7 +79,6 @@ export class WriteGuard {
       return { allowed: true };
     }
 
-    // confirm-destructive mode below.
     if (confirmToken !== undefined) {
       const entry = this.pending.get(confirmToken);
       if (!entry || entry.expiresAt < Date.now() || entry.action !== action || entry.target !== target) {

@@ -2,11 +2,17 @@ import { describe, it, expect, vi } from "vitest";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { createAutomadServer } from "../../src/server.js";
-import type { HttpClient } from "../../src/client.js";
 import { WriteGuard } from "../../src/write-guard.js";
+import type { HttpClient } from "../../src/client.js";
 import type { Config } from "../../src/config.js";
 
-type MockFn = ReturnType<typeof vi.fn>;
+const TOOL_NAMES = [
+  "automad_config",
+  "automad_media",
+  "automad_pages",
+  "automad_shared",
+  "automad_site",
+] as const;
 
 function mockClient(): HttpClient {
   return {
@@ -14,41 +20,24 @@ function mockClient(): HttpClient {
     post: vi.fn(),
     put: vi.fn(),
     delete: vi.fn(),
-    uploadMultipart: vi.fn(),
+    upload: vi.fn(),
   } as unknown as HttpClient;
 }
 
 function cfg(): Config {
-  return {
-    url: "https://x",
-    username: "u",
-    password: "p",
-    writeMode: "unrestricted",
-    logLevel: "info",
-  };
+  return { url: "https://x", username: "u", password: "p", writeMode: "unrestricted", logLevel: "error" };
 }
 
 async function connect(client: HttpClient, guard: WriteGuard) {
   const server = createAutomadServer({ client, guard });
-  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
-  await server.connect(serverTransport);
-  const mcp = new Client({ name: "test", version: "1.0" }, { capabilities: {} });
-  await mcp.connect(clientTransport);
+  const mcp = new Client({ name: "test", version: "0" }, { capabilities: {} });
+  const [t1, t2] = InMemoryTransport.createLinkedPair();
+  await Promise.all([server.connect(t1), mcp.connect(t2)]);
   return { server, mcp };
 }
 
-const TOOL_NAMES = [
-  "automad_pages",
-  "automad_media",
-  "automad_snippets",
-  "automad_templates",
-  "automad_config",
-  "automad_theme",
-  "automad_site",
-];
-
-describe("createAutomadServer", () => {
-  it("registers all seven tools", async () => {
+describe("createAutomadServer (v2)", () => {
+  it("registers the five v2 tools", async () => {
     const { server, mcp } = await connect(mockClient(), new WriteGuard(cfg()));
     const list = await mcp.listTools();
     expect(list.tools.map((t) => t.name).sort()).toEqual([...TOOL_NAMES].sort());
@@ -56,26 +45,28 @@ describe("createAutomadServer", () => {
     await server.close();
   });
 
-  it("dispatches a read tool and returns JSON text content", async () => {
-    const client = mockClient();
-    (client.get as MockFn).mockResolvedValueOnce({ pages: [{ path: "/x" }] });
-    const { server, mcp } = await connect(client, new WriteGuard(cfg()));
-    const res = await mcp.callTool({ name: "automad_pages", arguments: { action: "list" } });
-    const content = res.content as Array<{ type: string; text: string }>;
-    expect(content[0].type).toBe("text");
-    expect(JSON.parse(content[0].text)).toEqual({ pages: [{ path: "/x" }] });
+  it("every registered tool exposes an action enum", async () => {
+    const { server, mcp } = await connect(mockClient(), new WriteGuard(cfg()));
+    const list = await mcp.listTools();
+    for (const t of list.tools) {
+      const actionEnum = (t.inputSchema as { properties?: { action?: { enum?: string[] } } })?.properties?.action?.enum;
+      expect(Array.isArray(actionEnum) && actionEnum.length > 0).toBe(true);
+    }
     await mcp.close();
     await server.close();
   });
 
-  it("surfaces handler errors as structured isError results", async () => {
-    const client = mockClient();
-    (client.get as MockFn).mockRejectedValueOnce(new Error("boom"));
-    const { server, mcp } = await connect(client, new WriteGuard(cfg()));
-    const res = await mcp.callTool({ name: "automad_pages", arguments: { action: "list" } });
-    expect(res.isError).toBe(true);
-    const content = res.content as Array<{ type: string; text: string }>;
-    expect(JSON.parse(content[0].text).code).toBe("UNKNOWN");
+  it("handler errors are surfaced as isError results, not thrown", async () => {
+    const boom = (): HttpClient => {
+      const c = mockClient();
+      (c.get as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error("boom"));
+      return c;
+    };
+    const { server, mcp } = await connect(boom(), new WriteGuard(cfg()));
+    const result = await mcp.callTool({ name: "automad_site", arguments: { action: "info" } });
+    expect(result.isError).toBe(true);
+    const payload = JSON.parse((result.content[0] as { text: string }).text);
+    expect(payload.message).toMatch(/boom/);
     await mcp.close();
     await server.close();
   });

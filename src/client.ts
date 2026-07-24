@@ -1,13 +1,16 @@
 import { AutomadMcpError } from "./errors.js";
 import { logger } from "./logger.js";
-import { randomUUID } from "node:crypto";
 
-// Use global fetch (Node 18+ undici-backed) so consumers can stub it in tests
-// via vi.stubGlobal("fetch", ...). The undici package is kept as a dependency
-// to guarantee the runtime fetch is available on every supported Node version.
+/**
+ * v2 /_api envelope shape (live-verified on 2.0.0-beta.15):
+ *   success: { code: 200, data: <payload>, error: "", success: "" }
+ *   failure: { code: 4xx/5xx, error: "<msg>", exception?: {...} }
+ * Public reads return `data` directly; some endpoints return no `data` wrapper.
+ */
 
 export interface AuthProvider {
   getCookie(force?: boolean): Promise<string | undefined>;
+  getCsrfToken(force?: boolean): Promise<string>;
 }
 
 export interface HttpClientOptions {
@@ -18,7 +21,12 @@ export interface RequestOptions {
   maxRetries?: number;
   retryDelayMs?: number;
   headers?: Record<string, string>;
+  /** POST body. Sent as `__json__` multipart field (JSON.stringify). Omit for reads. */
   body?: unknown;
+  /** Skip CSRF injection (caller injected it manually, e.g. upload). */
+  skipCsrf?: boolean;
+  /** Internal: tells the request loop that `body` is already a FormData — don't wrap it. */
+  _isMultipart?: boolean;
 }
 
 export class HttpClient {
@@ -28,85 +36,101 @@ export class HttpClient {
     private readonly defaults: { maxRetries?: number; retryDelayMs?: number } = {},
   ) {}
 
-  async get<T>(path: string, opts?: RequestOptions): Promise<T> {
+  get<T>(path: string, opts?: RequestOptions): Promise<T> {
     return this.request<T>("GET", path, opts);
   }
 
-  async post<T>(path: string, body?: unknown, opts?: RequestOptions): Promise<T> {
+  post<T>(path: string, body?: unknown, opts?: RequestOptions): Promise<T> {
     return this.request<T>("POST", path, { ...opts, body });
   }
 
-  async put<T>(path: string, body?: unknown, opts?: RequestOptions): Promise<T> {
-    return this.request<T>("PUT", path, { ...opts, body });
-  }
-
-  async delete<T>(path: string, opts?: RequestOptions): Promise<T> {
+  delete<T>(path: string, opts?: RequestOptions): Promise<T> {
     return this.request<T>("DELETE", path, opts);
   }
 
-  async uploadMultipart<T>(
+  /**
+   * Single-chunk file upload via `/_api/file-collection/upload` (Dropzone contract).
+   * v2 requires chunking metadata but a single-chunk payload (dztotalchunkcount=1) is valid.
+   */
+  async upload<T>(
     path: string,
-    file: { base64: string; filename: string; mimeType: string },
+    file: { base64: string; filename: string; mimeType: string; url?: string },
     opts?: RequestOptions,
   ): Promise<T> {
-    const boundary = `----automad-mcp-${randomUUID()}`;
-    const headerLine = `--${boundary}\r\n`;
-    const safeFilename = file.filename.replace(/["\r\n]/g, "");
-    const fileLine = `Content-Disposition: form-data; name="file"; filename="${safeFilename}"\r\nContent-Type: ${file.mimeType}\r\n\r\n`;
-    const fileBody = Buffer.from(file.base64, "base64");
-    const closingLine = `\r\n--${boundary}--\r\n`;
-    const body = Buffer.concat([
-      Buffer.from(headerLine + fileLine),
-      fileBody,
-      Buffer.from(closingLine),
-    ]);
+    const size = byteLength(file.base64);
+    const csrf = await this.auth.getCsrfToken();
+    const fdata = new FormData();
+    fdata.set("__csrf__", csrf);
+    fdata.set(
+      "__json__",
+      JSON.stringify({
+        url: file.url ?? "",
+        file: { name: file.filename, type: file.mimeType, size },
+      }),
+    );
+    const buf = Buffer.from(file.base64, "base64");
+    fdata.set("file", new File([new Blob([buf], { type: file.mimeType })], file.filename, { type: file.mimeType }));
+    fdata.set("dzuuid", cryptoRandomId());
+    fdata.set("dzchunkindex", "0");
+    fdata.set("dztotalchunkcount", "1");
+    fdata.set("dzchunkbyteoffset", "0");
+    fdata.set("dzchunksize", String(size));
     return this.request<T>("POST", path, {
       ...opts,
-      headers: {
-        "Content-Type": `multipart/form-data; boundary=${boundary}`,
-        ...(opts?.headers ?? {}),
-      },
-      body,
+      body: fdata,
+      skipCsrf: true,
+      _isMultipart: true,
     });
   }
 
-  private async request<T>(
-    method: string,
-    path: string,
-    opts?: RequestOptions,
-  ): Promise<T> {
+  private async request<T>(method: string, path: string, opts?: RequestOptions): Promise<T> {
     const maxRetries = opts?.maxRetries ?? this.defaults.maxRetries ?? 2;
     const retryDelay = opts?.retryDelayMs ?? this.defaults.retryDelayMs ?? 250;
     const url = this.opts.baseUrl.replace(/\/$/, "") + path;
+    const isMultipart = opts?._isMultipart === true;
 
     let attempt = 0;
     let forceReauth = false;
+    let forceRescrape = false;
+
     while (true) {
       attempt++;
       const cookie = await this.auth.getCookie(forceReauth);
       forceReauth = false;
+      const csrf = opts?.skipCsrf ? undefined : await this.auth.getCsrfToken(forceRescrape);
+      forceRescrape = false;
+
       const headers: Record<string, string> = {
         Accept: "application/json",
         ...(opts?.headers ?? {}),
       };
       if (cookie) headers["Cookie"] = cookie;
-
       let body: BodyInit | undefined;
-      if (opts?.body !== undefined) {
-        if (typeof opts.body === "string" || Buffer.isBuffer(opts.body)) {
-          body = opts.body as BodyInit;
-        } else {
-          headers["Content-Type"] = headers["Content-Type"] ?? "application/json";
-          body = JSON.stringify(opts.body);
-        }
+      if (isMultipart) {
+        body = opts?.body as BodyInit;
+      } else if (opts?.body !== undefined) {
+        const fdata = new FormData();
+        if (csrf) fdata.set("__csrf__", csrf);
+        fdata.set("__json__", JSON.stringify(opts.body));
+        body = fdata;
       }
-
       logger.debug({ method, url, attempt }, "HTTP request");
       const init: RequestInit = { method, headers };
-      if (body !== undefined) {
-        init.body = body;
-      }
+      if (body !== undefined) init.body = body;
       const res = await fetch(url, init);
+
+      if (res.status === 403 && attempt <= maxRetries) {
+        const peek = await safeJson(res);
+        if (peek !== null && typeof peek === "object" && "error" in peek) {
+          const errVal = (peek as Record<string, unknown>)["error"];
+          if (typeof errVal === "string" && /csrf/i.test(errVal)) {
+            logger.warn({ url }, "CSRF mismatch, rescrape + retry");
+            forceRescrape = true;
+            await sleep(retryDelay);
+            continue;
+          }
+        }
+      }
 
       if (res.status === 401 && attempt <= maxRetries) {
         logger.warn({ url }, "401 received, retrying after re-auth");
@@ -121,50 +145,65 @@ export class HttpClient {
         continue;
       }
 
-      if (res.status === 401 || res.status === 403) {
-        const code = res.status === 401 ? "AUTH" : "FORBIDDEN";
-        throw new AutomadMcpError(code, `HTTP ${res.status} on ${method} ${path}`);
-      }
-      if (res.status === 404) {
-        throw new AutomadMcpError("NOT_FOUND", `HTTP 404 on ${method} ${path}`);
-      }
-      if (res.status === 422 || res.status === 400) {
-        const detail = await safeJson(res);
-        throw new AutomadMcpError("VALIDATION", `HTTP ${res.status}`, detail);
-      }
-      if (res.status === 429) {
-        throw new AutomadMcpError("RATE_LIMITED", "Rate limited by Automad dashboard");
-      }
-      if (res.status === 409) {
-        const detail = await safeJson(res);
-        throw new AutomadMcpError("CONFLICT", `HTTP 409 on ${method} ${path}`, detail);
-      }
-      if (res.status >= 500) {
-        const detail = await safeJson(res);
-        throw new AutomadMcpError("NETWORK", `HTTP ${res.status} on ${method} ${path}`, detail);
-      }
-      if (!res.ok) {
-        const detail = await safeJson(res);
-        throw new AutomadMcpError("UNKNOWN", `HTTP ${res.status}`, detail);
-      }
-
-      return (await safeJson(res)) as T;
+      return unwrap<T>(res, method, path);
     }
   }
 }
 
-export async function safeJson(res: Response | { json: () => Promise<unknown>; text: () => Promise<string> }): Promise<unknown> {
+/** Decode a v2 /_api JSON envelope: return `data` on success, throw on error. */
+async function unwrap<T>(res: Response, method: string, path: string): Promise<T> {
+  const payload = (await safeJson(res)) as Record<string, unknown> | undefined;
+
+  const errorText =
+    payload && typeof payload === "object" && typeof payload.error === "string"
+      ? payload.error
+      : undefined;
+  const codeNum = payload && typeof payload === "object" && typeof payload.code === "number" ? payload.code : undefined;
+
+  if (!res.ok || (errorText && errorText.length > 0) || (codeNum !== undefined && codeNum >= 400)) {
+    const message = errorText ?? `HTTP ${res.status} on ${method} ${path}`;
+    throw new AutomadMcpError(mapStatusToCode(res.status), message, payload);
+  }
+
+  if (payload && "data" in payload) {
+    return payload.data as T;
+  }
+  return (payload ?? {}) as T;
+}
+
+function mapStatusToCode(status: number): AutomadMcpError["code"] {
+  if (status === 401 || status === 403) return "FORBIDDEN";
+  if (status === 404) return "NOT_FOUND";
+  if (status === 422 || status === 400) return "VALIDATION";
+  if (status === 429) return "RATE_LIMITED";
+  if (status === 409) return "CONFLICT";
+  if (status >= 500) return "NETWORK";
+  return "UNKNOWN";
+}
+
+export async function safeJson(
+  res: Response | { json: () => Promise<unknown>; text: () => Promise<string> },
+): Promise<unknown> {
   try {
     return await res.json();
   } catch {
     try {
-      return JSON.parse(await res.text());
+      return await res.text();
     } catch {
-      return null;
+      return undefined;
     }
   }
 }
 
+function byteLength(b64: string): number {
+  const pad = b64.endsWith("==") ? 2 : b64.endsWith("=") ? 1 : 0;
+  return Math.floor((b64.length * 3) / 4) - pad;
+}
+
+function cryptoRandomId(): string {
+  return globalThis.crypto.randomUUID();
+}
+
 function sleep(ms: number): Promise<void> {
-  return new Promise((r) => setTimeout(r, ms));
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }

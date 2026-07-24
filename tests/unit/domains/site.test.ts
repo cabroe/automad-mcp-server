@@ -2,80 +2,61 @@ import { describe, it, expect, vi } from "vitest";
 import { handleSite } from "../../../src/domains/site.js";
 import type { HttpClient } from "../../../src/client.js";
 import { WriteGuard } from "../../../src/write-guard.js";
-import type { Config } from "../../../config.js";
+import type { Config } from "../../../src/config.js";
 
 function mockClient(): HttpClient {
-  return { get: vi.fn(), post: vi.fn(), put: vi.fn(), delete: vi.fn() } as unknown as HttpClient;
-}
-function cfg(): Config {
-  return { url: "https://x", username: "u", password: "p", writeMode: "unrestricted", logLevel: "info" };
+  return {
+    get: vi.fn(),
+    post: vi.fn(),
+    put: vi.fn(),
+    delete: vi.fn(),
+    upload: vi.fn(),
+  } as unknown as HttpClient;
 }
 
-describe("handleSite", () => {
-  it("info calls /api/system", async () => {
-    const client = mockClient();
-    (client.get as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ version: "2.0" });
-    const out = await handleSite({ action: "info" }, client, new WriteGuard(cfg()));
-    expect(out).toEqual({ version: "2.0" });
-    expect(client.get).toHaveBeenCalledWith("/dashboard/api/system");
+function cfg(): Config {
+  return { url: "https://x", username: "u", password: "p", writeMode: "unrestricted", logLevel: "error" };
+}
+
+describe("handleSite (v2 /_api)", () => {
+  it("info returns version/languages/fileTypes/reservedFields from bootstrap", async () => {
+    const c = mockClient();
+    (c.get as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      version: "2.0.0-beta.51",
+      sitename: "S",
+      languages: { English: "" },
+      fileTypes: { image: [] },
+      reservedFields: { title: "" },
+    });
+    const out = await handleSite({ action: "info" }, c, new WriteGuard(cfg()));
+    expect(out).toMatchObject({
+      version: "2.0.0-beta.51",
+      sitename: "S",
+      languages: { English: "" },
+    });
+    expect(c.get).toHaveBeenCalledWith("/_api/app/bootstrap");
   });
 
   it("search requires query", async () => {
-    await expect(
-      handleSite({ action: "search" }, mockClient(), new WriteGuard(cfg())),
-    ).rejects.toMatchObject({ code: "VALIDATION" });
-  });
-
-  it("search encodes query into /api/search", async () => {
-    const client = mockClient();
-    (client.get as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ results: [] });
-    await handleSite({ action: "search", query: "hello world" }, client, new WriteGuard(cfg()));
-    expect(client.get).toHaveBeenCalledWith("/dashboard/api/search?q=hello%20world");
-  });
-
-  it("backup posts to /api/backup", async () => {
-    const client = mockClient();
-    (client.post as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ path: "/backup.zip" });
-    const out = await handleSite({ action: "backup" }, client, new WriteGuard(cfg()));
-    expect(out).toEqual({ path: "/backup.zip" });
-    expect(client.post).toHaveBeenCalledWith("/dashboard/api/backup");
-  });
-
-  it("restore requires backup_path", async () => {
-    await expect(
-      handleSite({ action: "restore" }, mockClient(), new WriteGuard(cfg())),
-    ).rejects.toMatchObject({ code: "VALIDATION" });
-  });
-
-  it("restore requires confirmation in confirm-destructive mode", async () => {
-    const r = await handleSite(
-      { action: "restore", backup_path: "/b.zip" },
-      mockClient(),
-      new WriteGuard({ ...cfg(), writeMode: "confirm-destructive" }),
-    );
-    expect(r).toMatchObject({ allowed: "pending" });
-  });
-
-  it("restore with confirm_token posts path", async () => {
-    const client = mockClient();
-    (client.post as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ ok: true });
-    const guard = new WriteGuard({ ...cfg(), writeMode: "confirm-destructive" });
-    const pending = await handleSite(
-      { action: "restore", backup_path: "/b.zip" },
-      client,
-      guard,
-    );
-    if (!pending || typeof pending !== "object" || !("confirmToken" in pending)) {
-      throw new Error("expected pending");
-    }
-    const out = await handleSite(
-      { action: "restore", backup_path: "/b.zip", confirm_token: pending.confirmToken as string },
-      client,
-      guard,
-    );
-    expect(out).toEqual({ ok: true });
-    expect(client.post).toHaveBeenCalledWith("/dashboard/api/backup/restore", {
-      path: "/b.zip",
+    await expect(handleSite({ action: "search" }, mockClient(), new WriteGuard(cfg()))).rejects.toMatchObject({
+      code: "VALIDATION",
     });
+  });
+
+  it("search without replace is read-only (no replaceValue)", async () => {
+    const c = mockClient();
+    (c.post as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ data: [] });
+    await handleSite({ action: "search", query: "hello" }, c, new WriteGuard(cfg()));
+    const [, body] = (c.post as ReturnType<typeof vi.fn>).mock.calls[0] as [string, Record<string, unknown>];
+    expect(body).toEqual({ searchValue: "hello", isRegex: false, isCaseSensitive: false });
+    expect("replaceValue" in body).toBe(false);
+  });
+
+  it("search with replace posts replaceValue", async () => {
+    const c = mockClient();
+    (c.post as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ data: [] });
+    await handleSite({ action: "search", query: "foo", replace: "bar", is_regex: true }, c, new WriteGuard(cfg()));
+    const [, body] = (c.post as ReturnType<typeof vi.fn>).mock.calls[0] as [string, Record<string, unknown>];
+    expect(body).toEqual({ searchValue: "foo", isRegex: true, isCaseSensitive: false, replaceValue: "bar" });
   });
 });

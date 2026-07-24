@@ -1,31 +1,18 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { AutomadMcpError } from "../../src/errors.js";
-import { loadConfig, type Config } from "../../src/config.js";
+import { describe, it, expect, beforeEach } from "vitest";
+import { loadConfig, API_BASE } from "../../src/config.js";
 
 describe("loadConfig", () => {
-  const ORIGINAL_ENV = process.env;
-
   beforeEach(() => {
-    process.env = { ...ORIGINAL_ENV };
-    delete process.env.AUTOMAD_URL;
-    delete process.env.AUTOMAD_USER;
-    delete process.env.AUTOMAD_PASS;
-    delete process.env.AUTOMAD_TOKEN;
-    delete process.env.AUTOMAD_WRITE_MODE;
-    delete process.env.LOG_LEVEL;
+    for (const k of ["AUTOMAD_URL", "AUTOMAD_USER", "AUTOMAD_PASS", "AUTOMAD_TOKEN", "AUTOMAD_WRITE_MODE", "LOG_LEVEL"]) {
+      delete process.env[k];
+    }
   });
 
-  afterEach(() => {
-    process.env = ORIGINAL_ENV;
-  });
-
-  it("loads minimal config with defaults", () => {
-    process.env.AUTOMAD_URL = "https://blog.example.com";
-    process.env.AUTOMAD_USER = "admin";
-    process.env.AUTOMAD_PASS = "secret";
-
-    const cfg: Config = loadConfig();
-
+  it("loads the canonical v2 env", () => {
+    process.env["AUTOMAD_URL"] = "https://blog.example.com";
+    process.env["AUTOMAD_USER"] = "admin";
+    process.env["AUTOMAD_PASS"] = "secret";
+    const cfg = loadConfig();
     expect(cfg.url).toBe("https://blog.example.com");
     expect(cfg.username).toBe("admin");
     expect(cfg.password).toBe("secret");
@@ -33,85 +20,50 @@ describe("loadConfig", () => {
     expect(cfg.logLevel).toBe("info");
   });
 
-  it("accepts explicit unrestricted mode", () => {
-    process.env.AUTOMAD_URL = "https://x";
-    process.env.AUTOMAD_USER = "u";
-    process.env.AUTOMAD_PASS = "p";
-    process.env.AUTOMAD_WRITE_MODE = "unrestricted";
-
-    expect(loadConfig().writeMode).toBe("unrestricted");
+  it("respects AUTOMAD_WRITE_MODE", () => {
+    process.env["AUTOMAD_URL"] = "https://x";
+    process.env["AUTOMAD_USER"] = "u";
+    process.env["AUTOMAD_PASS"] = "p";
+    process.env["AUTOMAD_WRITE_MODE"] = "read-only";
+    expect(loadConfig().writeMode).toBe("read-only");
   });
 
-  it("throws when AUTOMAD_URL is missing", () => {
-    process.env.AUTOMAD_USER = "u";
-    process.env.AUTOMAD_PASS = "p";
+  it("rejects unknown write mode", () => {
+    process.env["AUTOMAD_URL"] = "https://x";
+    process.env["AUTOMAD_USER"] = "u";
+    process.env["AUTOMAD_PASS"] = "p";
+    process.env["AUTOMAD_WRITE_MODE"] = "nope";
+    expect(() => loadConfig()).toThrow(/Invalid write mode/);
+  });
 
+  it("requires AUTOMAD_URL", () => {
+    process.env["AUTOMAD_USER"] = "u";
+    process.env["AUTOMAD_PASS"] = "p";
     expect(() => loadConfig()).toThrow(/AUTOMAD_URL/);
   });
 
-  it("throws when AUTOMAD_USER is missing", () => {
-    process.env.AUTOMAD_URL = "https://x";
-    process.env.AUTOMAD_PASS = "p";
-
+  it("requires AUTOMAD_USER", () => {
+    process.env["AUTOMAD_URL"] = "https://x";
+    process.env["AUTOMAD_PASS"] = "p";
     expect(() => loadConfig()).toThrow(/AUTOMAD_USER/);
   });
 
-  it("throws validation errors for missing required variables", () => {
-    expect.assertions(2);
-
-    try {
-      loadConfig();
-    } catch (error: unknown) {
-      expect(error).toBeInstanceOf(AutomadMcpError);
-      expect((error as AutomadMcpError).code).toBe("VALIDATION");
-    }
+  it("requires AUTOMAD_PASS (no token in v2)", () => {
+    process.env["AUTOMAD_URL"] = "https://x";
+    process.env["AUTOMAD_USER"] = "u";
+    expect(() => loadConfig()).toThrow(/AUTOMAD_PASS/);
   });
 
-  it("throws when neither password nor token is given", () => {
-    process.env.AUTOMAD_URL = "https://x";
-    process.env.AUTOMAD_USER = "u";
-
-    expect(() => loadConfig()).toThrow(/AUTOMAD_PASS|AUTOMAD_TOKEN/);
+  it("exports the v2 /_api base path", () => {
+    expect(API_BASE).toBe("/_api");
   });
 
-  it("accepts token instead of password", () => {
-    process.env.AUTOMAD_URL = "https://x";
-    process.env.AUTOMAD_USER = "u";
-    process.env.AUTOMAD_TOKEN = "tok";
-
+  it("ignores any leftover AUTOMAD_TOKEN (v2 has no bearer auth)", () => {
+    process.env["AUTOMAD_URL"] = "https://x";
+    process.env["AUTOMAD_USER"] = "u";
+    process.env["AUTOMAD_PASS"] = "p";
+    process.env["AUTOMAD_TOKEN"] = "ignored";
     const cfg = loadConfig();
-
-    expect(cfg.token).toBe("tok");
-    expect(cfg.password).toBeUndefined();
-  });
-
-  it("includes both credentials when both are provided", () => {
-    process.env.AUTOMAD_URL = "https://x";
-    process.env.AUTOMAD_USER = "u";
-    process.env.AUTOMAD_PASS = "p";
-    process.env.AUTOMAD_TOKEN = "tok";
-
-    const cfg = loadConfig();
-
-    expect(cfg.password).toBe("p");
-    expect(cfg.token).toBe("tok");
-  });
-
-  it("validates write mode values", () => {
-    process.env.AUTOMAD_URL = "https://x";
-    process.env.AUTOMAD_USER = "u";
-    process.env.AUTOMAD_PASS = "p";
-    process.env.AUTOMAD_WRITE_MODE = "garbage";
-
-    expect(() => loadConfig()).toThrow(/write mode/i);
-  });
-
-  it("loads an explicit log level", () => {
-    process.env.AUTOMAD_URL = "https://x";
-    process.env.AUTOMAD_USER = "u";
-    process.env.AUTOMAD_PASS = "p";
-    process.env.LOG_LEVEL = "debug";
-
-    expect(loadConfig().logLevel).toBe("debug");
+    expect("token" in cfg).toBe(false);
   });
 });

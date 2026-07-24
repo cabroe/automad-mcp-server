@@ -6,6 +6,7 @@ export type AutomadErrorCode =
   | "CONFLICT"
   | "NETWORK"
   | "RATE_LIMITED"
+  | "UNSUPPORTED"
   | "UNKNOWN";
 
 export class AutomadMcpError extends Error {

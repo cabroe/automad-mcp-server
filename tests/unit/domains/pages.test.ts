@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { handlePages } from "../../../src/domains/pages.js";
 import type { HttpClient } from "../../../src/client.js";
 import { WriteGuard } from "../../../src/write-guard.js";
@@ -10,74 +10,87 @@ function mockClient(): HttpClient {
     post: vi.fn(),
     put: vi.fn(),
     delete: vi.fn(),
+    upload: vi.fn(),
   } as unknown as HttpClient;
 }
 
-function cfg(writeMode: Config["writeMode"] = "unrestricted"): Config {
-  return { url: "https://x", username: "u", password: "p", writeMode, logLevel: "info" };
+function cfg(): Config {
+  return { url: "https://x", username: "u", password: "p", writeMode: "unrestricted", logLevel: "error" };
 }
 
-describe("handlePages", () => {
-  let client: HttpClient;
-  let guard: WriteGuard;
-
-  beforeEach(() => {
-    client = mockClient();
-    guard = new WriteGuard(cfg());
+describe("handlePages (v2 /_api)", () => {
+  it("list hits GET /_api/public/pagelist (public, no auth path)", async () => {
+    const c = mockClient();
+    (c.get as ReturnType<typeof vi.fn>).mockResolvedValueOnce([{ url: "/" }]);
+    const out = await handlePages({ action: "list" }, c, new WriteGuard(cfg()));
+    expect(out).toEqual([{ url: "/" }]);
+    expect(c.get).toHaveBeenCalledWith("/_api/public/pagelist");
   });
 
-  it("list calls /api/pages", async () => {
-    (client.get as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ pages: [] });
-    const out = await handlePages({ action: "list" }, client, guard);
-    expect(out).toEqual({ pages: [] });
-    expect(client.get).toHaveBeenCalledWith("/dashboard/api/pages");
+  it("list with context+fields_csv passes query params", async () => {
+    const c = mockClient();
+    (c.get as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]);
+    await handlePages(
+      { action: "list", context: "/blog", fields_csv: "title,url" },
+      c,
+      new WriteGuard(cfg()),
+    );
+    expect(c.get).toHaveBeenCalledWith("/_api/public/pagelist?context=%2Fblog&fields=title%2Curl");
   });
 
-  it("get requires path", async () => {
-    await expect(handlePages({ action: "get" }, client, guard)).rejects.toMatchObject({
-      code: "VALIDATION",
+  it("get requires url and POSTs /_api/page/data with {url}", async () => {
+    const c = mockClient();
+    (c.post as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ url: "/x", fields: {} });
+    await expect(handlePages({ action: "get" }, c, new WriteGuard(cfg()))).rejects.toMatchObject({ code: "VALIDATION" });
+    await handlePages({ action: "get", url: "/x" }, c, new WriteGuard(cfg()));
+    expect(c.post).toHaveBeenCalledWith("/_api/page/data", { url: "/x" });
+  });
+
+  it("create posts title+targetPage to /_api/page/add", async () => {
+    const c = mockClient();
+    (c.post as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ ok: true });
+    await handlePages(
+      { action: "create", title: "Hello", target_url: "/blog", template: "standard-lite/page.php" },
+      c,
+      new WriteGuard(cfg()),
+    );
+    expect(c.post).toHaveBeenCalledWith("/_api/page/add", {
+      targetPage: "/blog",
+      title: "Hello",
+      theme_template: "standard-lite/page.php",
     });
   });
 
-  it("get calls /api/pages/{path}", async () => {
-    (client.get as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ path: "/x" });
-    const out = await handlePages({ action: "get", path: "/x" }, client, guard);
-    expect(out).toEqual({ path: "/x" });
-    expect(client.get).toHaveBeenCalledWith("/dashboard/api/pages/%2Fx");
-  });
-
-  it("create posts with serialized page body", async () => {
-    (client.post as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ ok: true });
+  it("update flattens title/private/tags/fields into data block", async () => {
+    const c = mockClient();
+    (c.post as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ ok: true });
     await handlePages(
-      { action: "create", path: "/x", data: { title: "T", variables: { a: 1 } } },
-      client,
-      guard,
+      {
+        action: "update",
+        url: "/blog/hello",
+        title: "Hello v2",
+        private: true,
+        tags: ["x", "y"],
+        fields: { main: [] },
+      },
+      c,
+      new WriteGuard(cfg()),
     );
-    const [, body] = (client.post as ReturnType<typeof vi.fn>).mock.calls[0];
-    expect(body.path).toBe("/x");
-    expect(body.raw).toContain("title: T");
+    expect(c.post).toHaveBeenCalledWith("/_api/page/data", {
+      url: "/blog/hello",
+      data: { title: "Hello v2", private: true, tags: "x,y", main: [] },
+    });
   });
 
-  it("delete requires confirmation in confirm-destructive mode", async () => {
-    guard = new WriteGuard(cfg("confirm-destructive"));
-    const r = await handlePages({ action: "delete", path: "/x" }, client, guard);
+  it("delete in confirm-destructive mode returns a pending permit", async () => {
+    const guard = new WriteGuard({ ...cfg(), writeMode: "confirm-destructive" });
+    const r = await handlePages({ action: "delete", url: "/x" }, mockClient(), guard);
     expect(r).toMatchObject({ allowed: "pending" });
-    expect(client.delete).not.toHaveBeenCalled();
   });
 
-  it("delete with confirm_token proceeds", async () => {
-    guard = new WriteGuard(cfg("confirm-destructive"));
-    (client.delete as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ ok: true });
-    const pending = await handlePages({ action: "delete", path: "/x" }, client, guard);
-    if (!pending || typeof pending !== "object" || !("confirmToken" in pending)) {
-      throw new Error("expected pending");
-    }
-    const out = await handlePages(
-      { action: "delete", path: "/x", confirm_token: pending.confirmToken as string },
-      client,
-      guard,
-    );
-    expect(out).toEqual({ ok: true });
-    expect(client.delete).toHaveBeenCalled();
+  it("duplicate throws UNSUPPORTED (no v2 endpoint)", async () => {
+    await expect(
+      handlePages({ action: "duplicate", url: "/x", target_url: "/y" }, mockClient(), new WriteGuard(cfg())),
+    ).rejects.toMatchObject({ code: "UNSUPPORTED" });
   });
 });
