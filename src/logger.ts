@@ -11,5 +11,5 @@ export const logger = pino(
       service: "automad-mcp",
     },
   },
-  process.stdout,
+  process.stderr
 );

@@ -54,10 +54,56 @@ export class AuthManager implements AuthProvider {
     if (!this.cookie) {
       throw new AutomadMcpError("AUTH", "No session cookie returned by Automad v2 login");
     }
-    logger.info("Dashboard login successful");
 
     // CSRF was minted during login; fetch it now.
     await this.scrapeCsrf();
+    // v2's /_api/session/login returns 200 + cookie even for invalid credentials
+    // (PHP session starts, but the session is unauthenticated). Verify with
+    // a probe call before letting callers think the login succeeded.
+    await this.probeAuthenticated();
+    logger.info("Dashboard login successful");
+  }
+
+  /**
+   * v2 has a dangerous quirk: the login endpoint returns 200 + a session
+   * cookie for ANY credentials, but the session is unauthenticated when
+   * the password is wrong. We probe by hitting /_api/app/bootstrap with the
+   * cookie+CSRF and checking whether v2 returns the authenticated payload
+   * (a populated `data.sitename`) or a generic error / empty body.
+   */
+  private async probeAuthenticated(): Promise<void> {
+    const url = this.cfg.url.replace(/\/$/, "") + `${API_BASE}/app/bootstrap`;
+    const csrf = this.csrf;
+    if (!csrf) throw new AutomadMcpError("AUTH", "Cannot probe without CSRF token");
+    const fdata = new FormData();
+    fdata.set("__csrf__", csrf);
+    fdata.set("__json__", "{}");
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { Cookie: this.cookie! },
+      body: fdata,
+    });
+    if (!res.ok) {
+      this.cookie = undefined;
+      this.csrf = undefined;
+      throw new AutomadMcpError("AUTH", `Login probe failed: HTTP ${res.status}`);
+    }
+    const body = (await safeJson(res)) as
+      | { code?: number; data?: { sitename?: string }; error?: string }
+      | undefined;
+    // Bad credentials come back as {code: 200, error: "Invalid username or password."}.
+    if (typeof body?.error === "string" && body.error.length > 0) {
+      this.cookie = undefined;
+      this.csrf = undefined;
+      throw new AutomadMcpError("AUTH", `Login probe failed: ${body.error}`);
+    }
+    // For a logged-in session, /app/bootstrap returns {code: 200, data: {sitename, dashboard, ...}}.
+    // For an anonymous session, `data` is missing or sitename is empty.
+    if (!body?.data?.sitename) {
+      this.cookie = undefined;
+      this.csrf = undefined;
+      throw new AutomadMcpError("AUTH", "Login probe failed: session is not authenticated (no sitename in response data)");
+    }
   }
 
   private async scrapeCsrf(): Promise<void> {
@@ -67,10 +113,7 @@ export class AuthManager implements AuthProvider {
       redirect: "follow",
     });
     if (!res.ok) {
-      throw new AutomadMcpError(
-        "AUTH",
-        `Failed to fetch dashboard for CSRF: HTTP ${res.status}`,
-      );
+      throw new AutomadMcpError("AUTH", `Failed to fetch dashboard for CSRF: HTTP ${res.status}`);
     }
     const html = await res.text();
     const m = CSRF_RE.exec(html);
