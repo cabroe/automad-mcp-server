@@ -133,15 +133,13 @@ export class HttpClient {
       const res = await fetch(url, init);
 
       if (res.status === 403 && attempt <= maxRetries) {
-        const peek = await safeJson(res);
-        if (peek !== null && typeof peek === "object" && "error" in peek) {
-          const errVal = (peek as Record<string, unknown>)["error"];
-          if (typeof errVal === "string" && /csrf/i.test(errVal)) {
-            logger.warn({ url }, "CSRF mismatch, rescrape + retry");
-            forceRescrape = true;
-            await sleep(retryDelay);
-            continue;
-          }
+        const detail = await safeJson(res);
+        const error = (detail && typeof detail === "object" && "error" in detail && typeof detail.error === "string") ? detail.error : "";
+        if (/csrf/i.test(error)) {
+          logger.warn({ url }, "CSRF mismatch, rescrape + retry");
+          forceRescrape = true;
+          await new Promise<void>((r) => setTimeout(r, retryDelay));
+          continue;
         }
       }
 
