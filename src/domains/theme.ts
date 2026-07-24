@@ -6,6 +6,7 @@ import { LocalThemeFs, type ThemeFs } from "../theme/fs.js";
 import { ThemeManager } from "../theme/manager.js";
 import { scaffold, type ScaffoldDeps } from "../theme/scaffold.js";
 import { listFiles, readFile, writeFile, type EditorDeps } from "../theme/editor.js";
+import { ThemeAnalyzer } from "../theme/analyzer.js";
 
 type ThemeAction = ThemeInput["action"];
 
@@ -19,6 +20,8 @@ const ACTION_MAP: Record<ThemeAction, WriteAction> = {
   read: "theme.read",
   write: "theme.write",
   files: "theme.list",
+  analyze: "theme.analyze",
+  validate: "theme.validate",
 };
 
 export interface ThemeHandlerDeps {
@@ -51,8 +54,17 @@ export async function handleTheme(
     starterKitPath: deps.starterKitPath,
     client: deps.client,
   });
+  const analyzer = new ThemeAnalyzer({ fs, themesPath: deps.themesPath });
 
   switch (input.action) {
+    case "analyze": {
+      if (!input.theme) throw new AutomadMcpError("VALIDATION", "theme is required for analyze");
+      return analyzer.analyze(input.theme);
+    }
+    case "validate": {
+      if (!input.theme) throw new AutomadMcpError("VALIDATION", "theme is required for validate");
+      return analyzer.validate(input.theme);
+    }
     case "list":
       return manager.list();
     case "install": {

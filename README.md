@@ -64,7 +64,21 @@ The server exposes **six tools**. Each takes an `action` parameter and dispatche
 | `automad_shared` | `get` `set` | `/_api/shared/data` (site-wide data: sitename, consent, custom fields) |
 | `automad_config` | `get` `set` | `get` reads `/_api/app/bootstrap`; `set` posts to `/_api/config/update` with a `type:` discriminator (`cache`, `feed`, `debug`, `i18n`, etc.) |
 | `automad_site` | `info` `search` | `info` from bootstrap; `search` via `/_api/search/search-replace` (read-only when `replace` is omitted) |
-| `automad_theme` | `list` `install` `activate` `uninstall` `scaffold` `build` `read` `write` `files` | Local-FS theme tooling — requires `AUTOMAD_THEMES_PATH` |
+| `automad_theme` | `list` `install` `activate` `uninstall` `scaffold` `build` `read` `write` `files` `analyze` `validate` | Local-FS theme tooling and offline Starter-Kit analysis — requires `AUTOMAD_THEMES_PATH` |
+
+`automad_theme.analyze` inventories a local theme without executing code or using the network. It reports manifests, root templates, `components/`, `blocks/`, `client/`, `icons/`, `i18n/`, `lib/`, build files, Automad field references, block fields, masks, and recognized Starter-Kit markers:
+
+```json
+{ "action": "analyze", "theme": "my-theme" }
+```
+
+`automad_theme.validate` runs the same inventory and returns `ok`, ordered `findings`, and severity counts. It checks `theme.json`, optional `package.json`/`composer.json`, root templates, i18n JSON, metadata consistency, field masks, and Starter-Kit build markers:
+
+```json
+{ "action": "validate", "theme": "my-theme" }
+```
+
+Both actions are explicitly read-only in every write mode. They do not run npm, Composer, Git, PHP, JavaScript, Docker, or browser processes. A missing theme returns `NOT_FOUND`; malformed manifests are returned as validation findings. `AUTOMAD_STARTER_KIT_PATH` is not needed for analysis and remains required only when scaffolding from a local starter-kit checkout.
 
 ### What v2 does NOT expose (intentionally omitted)
 
@@ -176,7 +190,7 @@ Point the MCP server `command` at the built `dist/index.js` (run `npm run build`
 ```bash
 npm install
 npm run build       # tsc → dist/
-npm test            # vitest, 108 tests
+npm test            # vitest
 npm run test:coverage
 npm run lint        # eslint
 npm run dev         # tsx src/index.ts
@@ -196,13 +210,14 @@ src/
   schemas.ts        Zod input schemas for all tools
   write-guard.ts    multi-tier write protection + confirm-token flow
   domains/          one router per tool: pages, media, shared, config, site, theme
-  theme/            theme tool internals
+  theme/            theme tooling and Starter-Kit analysis
     fs.ts           ThemeFs interface + LocalThemeFs (ssh-swappable later)
+    analyzer.ts     offline inventory, field extraction, and validation
     build.ts        spawn npm install + npm run build with timeout
     manager.ts      list / install / activate / uninstall / build
     scaffold.ts     copy starter kit into themes/<slug> + rewrite manifest
     editor.ts       read / write / files (with path-traversal guard)
-tests/unit/         108 vitest tests
+tests/unit/         Vitest unit and domain tests
 ```
 
 ## License

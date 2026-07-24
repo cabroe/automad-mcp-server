@@ -63,6 +63,20 @@ describe("handleTheme", () => {
     expect(await nodeFs.readFile(path.join(r.path, "page.php"), "utf8")).toBe("<?php");
   });
 
+  it("analyzes and validates themes in read-only mode without HTTP calls", async () => {
+    await nodeFs.mkdir(path.join(themes, "starter"));
+    await nodeFs.writeFile(path.join(themes, "starter", "theme.json"), JSON.stringify({ name: "Starter" }));
+    await nodeFs.writeFile(path.join(themes, "starter", "default.php"), "<h1>Starter</h1>");
+    const client = mockClient();
+    const deps = { client, guard: new WriteGuard({ ...cfg(), writeMode: "read-only" }), themesPath: themes, starterKitPath: starter };
+    const analysis = await handleTheme({ action: "analyze", theme: "starter" }, deps);
+    expect(analysis).toMatchObject({ theme: "starter" });
+    const validation = await handleTheme({ action: "validate", theme: "starter" }, deps);
+    expect(validation).toMatchObject({ ok: true });
+    expect(client.get).not.toHaveBeenCalled();
+    expect(client.post).not.toHaveBeenCalled();
+  });
+
   it("scaffold rejects duplicate", async () => {
     await nodeFs.mkdir(path.join(themes, "my-theme"));
     await expect(
