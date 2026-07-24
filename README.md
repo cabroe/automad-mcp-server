@@ -2,7 +2,9 @@
 
 An [MCP (Model Context Protocol)](https://modelcontextprotocol.io) server that lets AI assistants manage an [Automad CMS](https://automad.org) site — pages, media, snippets, templates, config, themes, and site-level actions — over stdio.
 
-Automad has no official REST API, so this server acts as an **HTTP bridge** to the Automad dashboard's AJAX endpoints, authenticating via a session cookie (or a static token).
+> **Status:** alpha — functional but not yet published to npm. Automad has no official API, so dashboard endpoints are reverse-engineered; verify against your instance.
+
+Automad has no official REST API, so this server acts as an **HTTP bridge** to the Automad dashboard's AJAX endpoints, authenticating with a dashboard username and password (session cookie).
 
 ## Requirements
 
@@ -11,15 +13,16 @@ Automad has no official REST API, so this server acts as an **HTTP bridge** to t
 
 ## Install
 
-```bash
-npm install @automadcms/mcp-server
-```
-
-Or run ad-hoc with `npx`:
+Not yet published to npm — build from source:
 
 ```bash
-npx @automadcms/mcp-server
+git clone https://github.com/cabroe/automad-mcp-server.git
+cd automad-mcp-server
+npm install
+npm run build        # outputs dist/index.js
 ```
+
+Then run with `npm start` (or `node dist/index.js`).
 
 ## Configuration
 
@@ -30,7 +33,7 @@ All configuration is via environment variables:
 | `AUTOMAD_URL` | yes | — | Base URL of the Automad site, e.g. `https://blog.example.com` |
 | `AUTOMAD_USER` | yes | — | Dashboard username |
 | `AUTOMAD_PASS` | one of PASS/TOKEN | — | Dashboard password |
-| `AUTOMAD_TOKEN` | one of PASS/TOKEN | — | Static auth token sent as-is (skips login) |
+| `AUTOMAD_TOKEN` | one of PASS/TOKEN | — | Experimental static token; header format not yet verified against Automad — prefer `AUTOMAD_PASS` |
 | `AUTOMAD_WRITE_MODE` | no | `confirm-destructive` | `read-only` \| `confirm-destructive` \| `unrestricted` |
 | `LOG_LEVEL` | no | `info` | Pino log level |
 
@@ -78,8 +81,8 @@ Add to `claude_desktop_config.json` (macOS: `~/Library/Application Support/Claud
 {
   "mcpServers": {
     "automad": {
-      "command": "npx",
-      "args": ["-y", "@automadcms/mcp-server"],
+      "command": "node",
+      "args": ["/absolute/path/to/automad-mcp-server/dist/index.js"],
       "env": {
         "AUTOMAD_URL": "https://blog.example.com",
         "AUTOMAD_USER": "admin",
@@ -93,7 +96,7 @@ Add to `claude_desktop_config.json` (macOS: `~/Library/Application Support/Claud
 
 ### Cursor / Cline / Zed
 
-Point the MCP server command at the installed binary (or `npx -y @automadcms/mcp-server`) and provide the same environment variables.
+Point the MCP server `command` at the built `dist/index.js` (run `npm run build` first) and provide the same environment variables.
 
 ## Development
 
