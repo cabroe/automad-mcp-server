@@ -1,12 +1,13 @@
 import { AutomadMcpError } from "./errors.js";
 import { logger } from "./logger.js";
+import { randomUUID } from "node:crypto";
 
 // Use global fetch (Node 18+ undici-backed) so consumers can stub it in tests
 // via vi.stubGlobal("fetch", ...). The undici package is kept as a dependency
 // to guarantee the runtime fetch is available on every supported Node version.
 
 export interface AuthProvider {
-  getCookie(): Promise<string | undefined>;
+  getCookie(force?: boolean): Promise<string | undefined>;
 }
 
 export interface HttpClientOptions {
@@ -48,9 +49,10 @@ export class HttpClient {
     file: { base64: string; filename: string; mimeType: string },
     opts?: RequestOptions,
   ): Promise<T> {
-    const boundary = `----automad-mcp-${Date.now()}`;
+    const boundary = `----automad-mcp-${randomUUID()}`;
     const headerLine = `--${boundary}\r\n`;
-    const fileLine = `Content-Disposition: form-data; name="file"; filename="${file.filename}"\r\nContent-Type: ${file.mimeType}\r\n\r\n`;
+    const safeFilename = file.filename.replace(/["\r\n]/g, "");
+    const fileLine = `Content-Disposition: form-data; name="file"; filename="${safeFilename}"\r\nContent-Type: ${file.mimeType}\r\n\r\n`;
     const fileBody = Buffer.from(file.base64, "base64");
     const closingLine = `\r\n--${boundary}--\r\n`;
     const body = Buffer.concat([
@@ -78,9 +80,11 @@ export class HttpClient {
     const url = this.opts.baseUrl.replace(/\/$/, "") + path;
 
     let attempt = 0;
+    let forceReauth = false;
     while (true) {
       attempt++;
-      const cookie = await this.auth.getCookie();
+      const cookie = await this.auth.getCookie(forceReauth);
+      forceReauth = false;
       const headers: Record<string, string> = {
         Accept: "application/json",
         ...(opts?.headers ?? {}),
@@ -106,6 +110,7 @@ export class HttpClient {
 
       if (res.status === 401 && attempt <= maxRetries) {
         logger.warn({ url }, "401 received, retrying after re-auth");
+        forceReauth = true;
         await sleep(retryDelay);
         continue;
       }
@@ -130,6 +135,14 @@ export class HttpClient {
       if (res.status === 429) {
         throw new AutomadMcpError("RATE_LIMITED", "Rate limited by Automad dashboard");
       }
+      if (res.status === 409) {
+        const detail = await safeJson(res);
+        throw new AutomadMcpError("CONFLICT", `HTTP 409 on ${method} ${path}`, detail);
+      }
+      if (res.status >= 500) {
+        const detail = await safeJson(res);
+        throw new AutomadMcpError("NETWORK", `HTTP ${res.status} on ${method} ${path}`, detail);
+      }
       if (!res.ok) {
         const detail = await safeJson(res);
         throw new AutomadMcpError("UNKNOWN", `HTTP ${res.status}`, detail);
@@ -140,7 +153,7 @@ export class HttpClient {
   }
 }
 
-async function safeJson(res: Response | { json: () => Promise<unknown>; text: () => Promise<string> }): Promise<unknown> {
+export async function safeJson(res: Response | { json: () => Promise<unknown>; text: () => Promise<string> }): Promise<unknown> {
   try {
     return await res.json();
   } catch {

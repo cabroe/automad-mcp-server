@@ -29,6 +29,17 @@ describe("parsePage", () => {
     const p = parsePage(raw);
     expect(p.blocks.map((b) => b.name)).toEqual(["a", "b"]);
   });
+  it("parses booleans, null, numbers, and JSON values", () => {
+    const raw = `active: true\narchived: false\ntag: null\ncount: 42\nmeta: {"k":"v"}\n`;
+    const p = parsePage(raw);
+    expect(p.variables).toEqual({
+      active: true,
+      archived: false,
+      tag: null,
+      count: 42,
+      meta: { k: "v" },
+    });
+  });
 });
 
 describe("serializePage", () => {

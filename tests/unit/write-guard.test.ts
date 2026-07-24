@@ -95,6 +95,16 @@ describe("WriteGuard", () => {
       reason: "unknown token",
     });
   });
+  it("confirm token is bound to its target", () => {
+    const pending = guard.check("pages.delete", "/a");
+    if (pending.allowed !== "pending") throw new Error("expected pending");
+    // replay against a different target must be rejected, token not consumed
+    const wrong = guard.check("pages.delete", "/b", pending.confirmToken);
+    expect(wrong.allowed).toBe(false);
+    // replay against the original target succeeds
+    const ok = guard.check("pages.delete", "/a", pending.confirmToken);
+    expect(ok.allowed).toBe(true);
+  });
 });
 
 function emptyCfg(): Config {

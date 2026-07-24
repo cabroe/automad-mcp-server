@@ -1,6 +1,6 @@
 import { AutomadMcpError } from "./errors.js";
 import { logger } from "./logger.js";
-import type { AuthProvider } from "./client.js";
+import { type AuthProvider, safeJson } from "./client.js";
 import type { Config } from "./config.js";
 
 export class AuthManager implements AuthProvider {
@@ -47,10 +47,3 @@ export class AuthManager implements AuthProvider {
   }
 }
 
-async function safeJson(res: Response): Promise<unknown> {
-  try {
-    return await res.json();
-  } catch {
-    return null;
-  }
-}

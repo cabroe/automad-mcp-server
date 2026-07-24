@@ -81,7 +81,7 @@ describe("HttpClient", () => {
     await expect(client.get("/x")).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
-  it("maps 5xx to NETWORK with retry", async () => {
+  it("retries 5xx then succeeds", async () => {
     fetchMock
       .mockResolvedValueOnce({
         status: 503,
@@ -104,5 +104,48 @@ describe("HttpClient", () => {
     const res = await client.get("/x");
     expect(res).toEqual({ ok: 1 });
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+  it("maps 409 to CONFLICT", async () => {
+    fetchMock.mockResolvedValueOnce({
+      status: 409,
+      ok: false,
+      headers: new Map(),
+      json: async () => ({ detail: "exists" }),
+      text: async () => "",
+    });
+    const client = new HttpClient({ baseUrl: "https://x" }, mockAuth("c"));
+    await expect(client.get("/x")).rejects.toMatchObject({ code: "CONFLICT" });
+  });
+
+  it("maps exhausted 5xx to NETWORK", async () => {
+    fetchMock.mockResolvedValue({
+      status: 503,
+      ok: false,
+      headers: new Map(),
+      json: async () => ({}),
+      text: async () => "",
+    });
+    const client = new HttpClient({ baseUrl: "https://x" }, mockAuth("c"), {
+      maxRetries: 1,
+      retryDelayMs: 1,
+    });
+    await expect(client.get("/x")).rejects.toMatchObject({ code: "NETWORK" });
+  });
+
+  it("forces re-auth on 401 retry", async () => {
+    const auth = mockAuth("sid=abc");
+    fetchMock.mockResolvedValue({
+      status: 401,
+      ok: false,
+      headers: new Map(),
+      json: async () => ({}),
+      text: async () => "",
+    });
+    const client = new HttpClient({ baseUrl: "https://x" }, auth, {
+      maxRetries: 1,
+      retryDelayMs: 1,
+    });
+    await expect(client.get("/x")).rejects.toMatchObject({ code: "AUTH" });
+    expect(auth.getCookie).toHaveBeenCalledWith(true);
   });
 });

@@ -70,6 +70,9 @@ function parseValue(raw: string): unknown {
   const trimmed = raw.trim();
   if (/^-?\d+$/.test(trimmed)) return Number(trimmed);
   if (/^-?\d*\.\d+$/.test(trimmed)) return Number(trimmed);
+  if (trimmed === "true") return true;
+  if (trimmed === "false") return false;
+  if (trimmed === "null") return null;
   if (trimmed.startsWith("[") || trimmed.startsWith("{")) {
     try {
       return JSON.parse(trimmed);

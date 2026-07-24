@@ -111,7 +111,7 @@ export class WriteGuard {
     // confirm-destructive mode below.
     if (confirmToken !== undefined) {
       const entry = this.pending.get(confirmToken);
-      if (!entry || entry.expiresAt < Date.now() || entry.action !== action) {
+      if (!entry || entry.expiresAt < Date.now() || entry.action !== action || entry.target !== target) {
         return { allowed: false, reason: "expired or unknown" };
       }
       this.pending.delete(confirmToken);
