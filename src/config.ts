@@ -8,6 +8,10 @@ export interface Config {
   password: string;
   writeMode: WriteMode;
   logLevel: string;
+  /** Absolute path on the local filesystem where Automad theme packages live. */
+  themesPath: string;
+  /** Path to the starter-kit template used for `theme.scaffold`. */
+  starterKitPath: string;
 }
 
 /** Automad v2 only: JSON API base path. */
@@ -23,8 +27,10 @@ export function loadConfig(): Config {
   const url = required("AUTOMAD_URL");
   const username = required("AUTOMAD_USER");
   const password = required("AUTOMAD_PASS");
+  const themesPath = required("AUTOMAD_THEMES_PATH");
+  const starterKitPath = process.env["AUTOMAD_STARTER_KIT_PATH"] ?? themesPath;
 
-  const writeModeRaw = process.env.AUTOMAD_WRITE_MODE ?? "confirm-destructive";
+  const writeModeRaw = process.env["AUTOMAD_WRITE_MODE"] ?? "confirm-destructive";
   if (!(writeModeRaw in VALID_MODES)) {
     throw new AutomadMcpError(
       "VALIDATION",
@@ -37,7 +43,9 @@ export function loadConfig(): Config {
     username,
     password,
     writeMode: writeModeRaw as WriteMode,
-    logLevel: process.env.LOG_LEVEL ?? "info",
+    logLevel: process.env["LOG_LEVEL"] ?? "info",
+    themesPath,
+    starterKitPath,
   };
 }
 

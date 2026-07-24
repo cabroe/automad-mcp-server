@@ -52,7 +52,7 @@ describe("HttpClient (v2 /_api)", () => {
     expect(JSON.parse(f.get("__json__") as string)).toEqual({ url: "/blog" });
   });
 
-  it("upload() builds Dropzone single-chunk multipart", async () => {
+  it("upload() uses plain `url` field and Dropzone chunk meta, NO __json__", async () => {
     fetchMock.mockResolvedValueOnce({
       status: 200,
       ok: true,
@@ -69,7 +69,8 @@ describe("HttpClient (v2 /_api)", () => {
     const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     const f = init.body as FormData;
     expect(f.get("__csrf__")).toBeTruthy();
-    expect(JSON.parse(f.get("__json__") as string)).toMatchObject({ url: "/shared/images" });
+    expect(f.get("url")).toBe("/shared/images");
+    expect(f.get("__json__")).toBeNull();
     expect(f.get("dzuuid")).toBeTruthy();
     expect(f.get("dzchunkindex")).toBe("0");
     expect(f.get("dztotalchunkcount")).toBe("1");
@@ -136,6 +137,40 @@ describe("HttpClient (v2 /_api)", () => {
     expect((auth.getCsrfToken as ReturnType<typeof vi.fn>).mock.calls[1][0]).toBe(true);
   });
 
+  it("upload() CSRF mismatch -> in-body token refreshed, retry once", async () => {
+    fetchMock
+      .mockResolvedValueOnce({
+        status: 403,
+        ok: false,
+        json: async () => ({ error: "CSRF token mismatch" }),
+        text: async () => "",
+      })
+      .mockResolvedValueOnce({
+        status: 200,
+        ok: true,
+        json: async () => ({ data: { ok: 1 } }),
+        text: async () => '{"data":{"ok":1}}',
+      });
+    const csrfResponses = ["old-token", "new-token"];
+    const auth: AuthProvider = {
+      getCookie: vi.fn().mockResolvedValue("sid=abc"),
+      getCsrfToken: vi.fn().mockImplementation(async (force?: boolean) => {
+        if (force) return csrfResponses[1]!;
+        return csrfResponses[0]!;
+      }),
+    };
+    const client = new HttpClient({ baseUrl: "https://x" }, auth);
+    await client.upload("/_api/file-collection/upload", {
+      base64: "AA==",
+      filename: "x.png",
+      mimeType: "image/png",
+    });
+    // The second request body should carry the rescrape'd csrf token.
+    const [, init2] = fetchMock.mock.calls[1] as [string, RequestInit];
+    const f2 = init2.body as FormData;
+    expect(f2.get("__csrf__")).toBe("new-token");
+  });
+
   it("401 -> re-auth + retry once, then surface FORBIDDEN", async () => {
     fetchMock
       .mockResolvedValueOnce({
@@ -174,6 +209,19 @@ describe("HttpClient (v2 /_api)", () => {
     const res = await client.get("/_api/page/data");
     expect(res).toEqual({ ok: 1 });
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("repeated 5xx gives up after one retry (no hammering)", async () => {
+    fetchMock.mockResolvedValue({
+      status: 500,
+      ok: false,
+      json: async () => ({ error: "down" }),
+      text: async () => "",
+    });
+    const client = new HttpClient({ baseUrl: "https://x" }, mockAuth(), { maxRetries: 5 });
+    await expect(client.get("/_api/x")).rejects.toMatchObject({ code: "NETWORK" });
+    // 1 initial + at most 1 retry (status didn't change -> no further retry)
+    expect(fetchMock.mock.calls.length).toBeLessThanOrEqual(2);
   });
 
   it("exhausted 5xx -> NETWORK", async () => {

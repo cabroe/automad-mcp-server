@@ -1,15 +1,16 @@
 # @automadcms/mcp-server
 
-An [MCP (Model Context Protocol)](https://modelcontextprotocol.io) server that lets AI assistants manage an [Automad CMS](https://automad.org) site — pages, media, snippets, templates, config, themes, and site-level actions — over stdio.
+An [MCP (Model Context Protocol)](https://modelcontextprotocol.io) server for **[Automad v2](https://automad.org/version-2)** — pages, media, shared data, config, site actions, and full local-filesystem theme tooling (scaffold / build / edit) over stdio.
 
-> **Status:** alpha — functional but not yet published to npm. Automad has no official API, so dashboard endpoints are reverse-engineered; verify against your instance.
+> **Status:** alpha — functional, verified against a live `automad/automad:v2` Docker container. Not yet published to npm.
 
-Automad has no official REST API, so this server acts as an **HTTP bridge** to the Automad dashboard's AJAX endpoints, authenticating with a dashboard username and password (session cookie).
+The server bridges to Automad v2's `/_api/{controller}/{method}` JSON dispatch layer via session-cookie + per-POST CSRF token, and (for the theme tool) to the local filesystem where themes live.
 
 ## Requirements
 
 - Node.js ≥ 20
-- A running Automad installation with dashboard access
+- A running Automad v2 installation (e.g. `docker run -dp 8080:80 automad/automad:v2`) with dashboard access
+- For the theme tool: `node`, `npm`, and `git` available on the same host as the MCP server, plus read/write access to the themes directory
 
 ## Install
 
@@ -30,45 +31,80 @@ All configuration is via environment variables:
 
 | Variable | Required | Default | Description |
 |---|---|---|---|
-| `AUTOMAD_URL` | yes | — | Base URL of the Automad site, e.g. `https://blog.example.com` |
-| `AUTOMAD_USER` | yes | — | Dashboard username |
-| `AUTOMAD_PASS` | one of PASS/TOKEN | — | Dashboard password |
-| `AUTOMAD_TOKEN` | one of PASS/TOKEN | — | Experimental static token; header format not yet verified against Automad — prefer `AUTOMAD_PASS` |
+| `AUTOMAD_URL` | yes | — | Base URL of the Automad v2 site, e.g. `https://blog.example.com` |
+| `AUTOMAD_USER` | yes | — | Dashboard username (used as `name-or-email` in `/_api/session/login`) |
+| `AUTOMAD_PASS` | yes | — | Dashboard password |
+| `AUTOMAD_THEMES_PATH` | yes (if using `automad_theme`) | — | Absolute path to the local themes directory (the same path Automad uses for `packages`) |
+| `AUTOMAD_STARTER_KIT_PATH` | no | `AUTOMAD_THEMES_PATH` | Path to the [automad-theme-starter-kit](https://github.com/automadcms/automad-theme-starter-kit) used by `theme.scaffold` |
 | `AUTOMAD_WRITE_MODE` | no | `confirm-destructive` | `read-only` \| `confirm-destructive` \| `unrestricted` |
 | `LOG_LEVEL` | no | `info` | Pino log level |
+
+> **v2 has no bearer-token auth** (the v1-era `AUTOMAD_TOKEN` is gone). All authenticated calls use a PHP session cookie + a CSRF token scraped from the dashboard HTML.
+
+## Authentication & CSRF
+
+The MCP logs in once on first use (`POST /_api/session/login`, urlencoded `name-or-email`+`password`, CSRF-exempt) and stores the `Automad-<md5>` session cookie. Every authenticated `POST` then needs a `__csrf__` form field whose value matches the token in the rendered dashboard HTML. The AuthManager fetches the dashboard (`GET /dashboard` — follows the `Location: /dashboard/setup` redirect on first run) and extracts the token from the `<meta name="csrf" content="…">` tag. A `403 CSRF token mismatch` triggers one automatic rescrape + retry.
 
 ## Write protection
 
 Three modes, set via `AUTOMAD_WRITE_MODE`:
 
-- **`read-only`** — only non-mutating actions (`list`, `get`, `info`, `search`, `validate`).
-- **`confirm-destructive`** *(default)* — ordinary writes run directly; destructive writes (delete, move, restore, uninstall, `config.set`) return a `confirmToken` (5-min TTL). Replay the same call with `confirm_token` to execute.
+- **`read-only`** — only non-mutating actions (`list`, `get`, `info`, `search`, `validate`, `files`, `read`).
+- **`confirm-destructive`** *(default)* — ordinary writes run directly; destructive writes (`delete`, `move`, `install`, `activate`, `uninstall`, `scaffold`, `build`, `write`) return a `confirmToken` (5-min TTL). Replay the same call with `confirm_token` to execute.
 - **`unrestricted`** — everything runs immediately.
 
 ## Tools
 
-The server exposes seven tools. Each takes an `action` parameter and dispatches internally (domain-router pattern).
+The server exposes **six tools**. Each takes an `action` parameter and dispatches to a domain router. Every action is supported by a real, live-verified `/_api` endpoint (or, for theme tooling, a local filesystem operation).
 
-| Tool | Actions |
-|---|---|
-| `automad_pages` | `list` `get` `create` `update` `delete` `move` `duplicate` |
-| `automad_media` | `list` `get` `upload` `delete` `rename` |
-| `automad_snippets` | `list` `get` `set` `delete` |
-| `automad_templates` | `list` `get` `set` `delete` `validate` |
-| `automad_config` | `get` `set` `validate` |
-| `automad_theme` | `list` `install` `activate` `uninstall` |
-| `automad_site` | `info` `search` `backup` `restore` |
+| Tool | Actions | What it does |
+|---|---|---|
+| `automad_pages` | `list` `get` `create` `update` `delete` `move` `duplicate` | `/_api/public/pagelist`, `/_api/page/data` (read + save), `/_api/page/add` (auto-publishes the draft), `/_api/page/publish`, `/_api/page/delete`, `/_api/page/move` (sibling reordering, not rename) |
+| `automad_media` | `list` `upload` | `/_api/file-collection/list` (page/shared dir), `/_api/file-collection/upload` (single-chunk Dropzone) |
+| `automad_shared` | `get` `set` | `/_api/shared/data` (site-wide data: sitename, consent, custom fields) |
+| `automad_config` | `get` `set` | `get` reads `/_api/app/bootstrap`; `set` posts to `/_api/config/update` with a `type:` discriminator (`cache`, `feed`, `debug`, `i18n`, etc.) |
+| `automad_site` | `info` `search` | `info` from bootstrap; `search` via `/_api/search/search-replace` (read-only when `replace` is omitted) |
+| `automad_theme` | `list` `install` `activate` `uninstall` `scaffold` `build` `read` `write` `files` | Local-FS theme tooling — requires `AUTOMAD_THEMES_PATH` |
+
+### What v2 does NOT expose (intentionally omitted)
+
+- `pages.duplicate` — no v2 endpoint, throws `UNSUPPORTED` with a hint (read source + `page/add`)
+- `pages.move` (rename) — v2's `page/move` is **sibling reordering**; rename isn't supported, throws `UNSUPPORTED`
+- `media.delete/rename` — no v2 endpoints
+- `snippets`, `templates`, `theme.activate` (v2 has no `/_api/theme/*`) — old v1 tools, gone
+- `site.backup/restore` — no v2 endpoints
+- `config.validate` — no v2 endpoint
+- `/_api/public/pagelist` — exists in v2 but currently 500s (Automad-internal bug, `PublicController.php:107` on 2.0.0-beta.15)
 
 ### Example: confirm-token flow
 
 ```jsonc
 // 1. destructive call → returns a pending token (nothing deleted yet)
-{ "action": "delete", "path": "/blog/old-post" }
+{ "action": "delete", "url": "/blog/old-post" }
 // → { "allowed": "pending", "confirmToken": "a1b2…", "expiresAt": "…" }
 
 // 2. replay with the token → executes
-{ "action": "delete", "path": "/blog/old-post", "confirm_token": "a1b2…" }
+{ "action": "delete", "url": "/blog/old-post", "confirm_token": "a1b2…" }
 // → { "ok": true }
+```
+
+### Example: theme scaffold + build
+
+```jsonc
+// 1. Scaffold a new theme from the starter kit
+{ "action": "scaffold", "name": "My Theme", "author": "me" }
+// → { "path": "/app/packages/my-theme", "files": 56, "manifest": { "name": "My Theme", ... } }
+
+// 2. Edit a block layout
+{ "action": "write", "theme": "my-theme", "path": "blocks/grid.php", "content": "<?php /* edited via MCP */ ?>" }
+
+// 3. Install npm deps + run the esbuild pipeline
+{ "action": "build", "theme": "my-theme" }
+// → { "install": { "ok": true, "durationMs": 12000, ... }, "build": { "ok": true, "durationMs": 850, ... } }
+
+// 4. Try to activate via v2 (best-effort — v2 may not pick it up automatically on every setup)
+{ "action": "activate", "theme": "my-theme" }
+// → { "activated": true, "remote": { "code": 200 } }   or   { "activated": false, "remote": {...} }
 ```
 
 ## Host setup
@@ -87,6 +123,8 @@ Add to `claude_desktop_config.json` (macOS: `~/Library/Application Support/Claud
         "AUTOMAD_URL": "https://blog.example.com",
         "AUTOMAD_USER": "admin",
         "AUTOMAD_PASS": "your-password",
+        "AUTOMAD_THEMES_PATH": "/app/packages",
+        "AUTOMAD_STARTER_KIT_PATH": "/path/to/automad-theme-starter-kit",
         "AUTOMAD_WRITE_MODE": "confirm-destructive"
       }
     }
@@ -103,8 +141,9 @@ Point the MCP server `command` at the built `dist/index.js` (run `npm run build`
 ```bash
 npm install
 npm run build       # tsc → dist/
-npm test            # vitest
+npm test            # vitest, 108 tests
 npm run test:coverage
+npm run lint        # eslint
 npm run dev         # tsx src/index.ts
 ```
 
@@ -112,17 +151,23 @@ Project layout:
 
 ```
 src/
-  index.ts          entry point — config, stdio transport, graceful shutdown
-  server.ts         McpServer + 7 tool registrations
+  index.ts          entry: config, stdio transport, graceful shutdown
+  server.ts         McpServer + 6 tool registrations
   config.ts         env loader + write-mode validation
-  auth.ts           dashboard login + session-cookie manager
-  client.ts         HTTP client: retry, auth, status→error mapping
+  auth.ts           session login + cookie jar + CSRF scrape
+  client.ts         HTTP client: /_api envelope unwrap, multipart __csrf__+__json__, retry + re-CSRF
   errors.ts         typed AutomadMcpError
-  logger.ts         pino logger with credential redaction
-  write-guard.ts    multi-tier write protection + confirm-token flow
+  logger.ts         pino with credential redaction
   schemas.ts        Zod input schemas for all tools
-  page-format.ts    parse/serialize Automad page format (vars + Editor.js blocks)
-  domains/          one router per domain (pages, media, snippets, ...)
+  write-guard.ts    multi-tier write protection + confirm-token flow
+  domains/          one router per tool: pages, media, shared, config, site, theme
+  theme/            theme tool internals
+    fs.ts           ThemeFs interface + LocalThemeFs (ssh-swappable later)
+    build.ts        spawn npm install + npm run build with timeout
+    manager.ts      list / install / activate / uninstall / build
+    scaffold.ts     copy starter kit into themes/<slug> + rewrite manifest
+    editor.ts       read / write / files (with path-traversal guard)
+tests/unit/         108 vitest tests
 ```
 
 ## License

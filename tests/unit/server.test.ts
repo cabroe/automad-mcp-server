@@ -12,6 +12,7 @@ const TOOL_NAMES = [
   "automad_pages",
   "automad_shared",
   "automad_site",
+  "automad_theme",
 ] as const;
 
 function mockClient(): HttpClient {
@@ -25,11 +26,19 @@ function mockClient(): HttpClient {
 }
 
 function cfg(): Config {
-  return { url: "https://x", username: "u", password: "p", writeMode: "unrestricted", logLevel: "error" };
+  return {
+    url: "https://x",
+    username: "u",
+    password: "p",
+    writeMode: "unrestricted",
+    logLevel: "error",
+    themesPath: "/tmp/themes-x",
+    starterKitPath: "/tmp/starter-x",
+  };
 }
 
-async function connect(client: HttpClient, guard: WriteGuard) {
-  const server = createAutomadServer({ client, guard });
+async function connect(client: HttpClient, guard: WriteGuard, config = cfg()) {
+  const server = createAutomadServer({ client, guard, config });
   const mcp = new Client({ name: "test", version: "0" }, { capabilities: {} });
   const [t1, t2] = InMemoryTransport.createLinkedPair();
   await Promise.all([server.connect(t1), mcp.connect(t2)]);
@@ -37,7 +46,7 @@ async function connect(client: HttpClient, guard: WriteGuard) {
 }
 
 describe("createAutomadServer (v2)", () => {
-  it("registers the five v2 tools", async () => {
+  it("registers the six tools (5 v2 API + 1 theme)", async () => {
     const { server, mcp } = await connect(mockClient(), new WriteGuard(cfg()));
     const list = await mcp.listTools();
     expect(list.tools.map((t) => t.name).sort()).toEqual([...TOOL_NAMES].sort());

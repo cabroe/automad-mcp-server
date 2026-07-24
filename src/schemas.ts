@@ -4,10 +4,7 @@ export const writeMode = z.enum(["read-only", "confirm-destructive", "unrestrict
 
 const urlSchema = z.string().min(1).regex(/^\//, "url must start with /");
 
-const editorJsBlock = z.object({
-  type: z.string(),
-  data: z.record(z.unknown()),
-});
+
 
 /** Pages: list, get, create, update, delete, move, duplicate. */
 export const pagesInput = z.object({
@@ -87,5 +84,34 @@ export type SharedInput = z.infer<typeof sharedInput>;
 export type ConfigInput = z.infer<typeof configInput>;
 export type SiteInput = z.infer<typeof siteInput>;
 
-// Kept for downstream tasks (page format unchanged from v1).
-export { editorJsBlock };
+/**
+ * Theme tooling: list, install (clone/copy), activate (v2 _api/package-manager),
+ * uninstall, scaffold (new theme from starter kit), build (npm install + build),
+ * read/write/files (theme file operations).
+ */
+export const themeInput = z.object({
+  action: z.enum([
+    "list", "install", "activate", "uninstall",
+    "scaffold", "build",
+    "read", "write", "files",
+  ]),
+  /** Theme slug (directory name under AUTOMAD_THEMES_PATH). */
+  theme: z.string().optional(),
+  /** Install: git URL or local path. */
+  source: z.string().optional(),
+  /** Scaffold: theme display name. */
+  name: z.string().optional(),
+  description: z.string().optional(),
+  author: z.string().optional(),
+  license: z.string().optional(),
+  version: z.string().optional(),
+  /** Read/write/files: path relative to the theme root (forward slashes). */
+  path: z.string().optional(),
+  /** Write: file content. */
+  content: z.string().optional(),
+  /** Build: run `npm install` first (default true). */
+  install: z.boolean().optional(),
+  confirm_token: z.string().optional(),
+});
+
+export type ThemeInput = z.infer<typeof themeInput>;

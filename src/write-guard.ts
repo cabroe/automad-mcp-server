@@ -1,7 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { Config, WriteMode } from "./config.js";
 
-/** v2-only action whitelist. Endpoints that don't exist in v2 are simply absent. */
 export type WriteAction =
   | "pages.list"
   | "pages.get"
@@ -17,7 +16,16 @@ export type WriteAction =
   | "config.get"
   | "config.set"
   | "site.info"
-  | "site.search";
+  | "site.search"
+  | "theme.list"
+  | "theme.install"
+  | "theme.activate"
+  | "theme.uninstall"
+  | "theme.scaffold"
+  | "theme.build"
+  | "theme.read"
+  | "theme.write"
+  | "theme.files";
 
 export type Permit =
   | { allowed: true }
@@ -38,11 +46,20 @@ const READ_ACTIONS: ReadonlySet<WriteAction> = new Set<WriteAction>([
   "config.get",
   "site.info",
   "site.search",
+  "theme.list",
+  "theme.read",
+  "theme.files",
 ]);
 
 const DESTRUCTIVE_ACTIONS: ReadonlySet<WriteAction> = new Set<WriteAction>([
   "pages.delete",
   "pages.move",
+  "theme.install",
+  "theme.activate",
+  "theme.uninstall",
+  "theme.scaffold",
+  "theme.build",
+  "theme.write",
 ]);
 
 export interface WriteGuardOptions {

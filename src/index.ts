@@ -16,7 +16,7 @@ async function main(): Promise<void> {
     retryDelayMs: 250,
   });
   const guard = new WriteGuard(cfg);
-  const server = createAutomadServer({ client, guard });
+  const server = createAutomadServer({ client, guard, config: cfg });
 
   const transport = new StdioServerTransport();
   await server.connect(transport);

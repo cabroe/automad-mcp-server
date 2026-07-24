@@ -55,7 +55,18 @@ export async function handlePages(
       };
       if (input.template) payload["theme_template"] = input.template;
       if (input.private !== undefined) payload["private"] = input.private;
-      return client.post(`${API_BASE}/page/add`, payload);
+      const created = (await client.post(`${API_BASE}/page/add`, payload)) as { redirect?: string };
+      // page/add produces a draft. v2's read endpoints only see published pages,
+      // so publish the new draft to make subsequent get/list/move/delete behave intuitively.
+      const slug = extractSlugFromRedirect(created.redirect) ?? input.url;
+      if (slug) {
+        try {
+          await client.post(`${API_BASE}/page/publish`, { url: slug });
+        } catch {
+          /* best-effort: publish failure shouldn't fail the create */
+        }
+      }
+      return { ok: true, url: slug, ...created };
     }
     case "update": {
       if (!input.url) throw new AutomadMcpError("VALIDATION", "url is required for update");
@@ -66,31 +77,55 @@ export async function handlePages(
       if (input.fields) Object.assign(data, input.fields);
       const payload: Record<string, unknown> = { url: input.url, data };
       if (input.template) payload["theme_template"] = input.template;
-      return client.post(`${API_BASE}/page/data`, payload);
+      const updated = (await client.post(`${API_BASE}/page/data`, payload)) as { slug?: string };
+      // page/data save produces a draft. v2's `page/publish` takes the page's
+      // *directory* URL (not the draft slug) and applies the pending draft —
+      // including renaming the directory to the new slug if the title changed.
+      try {
+        await client.post(`${API_BASE}/page/publish`, { url: input.url });
+      } catch {
+        /* best-effort */
+      }
+      return { ...updated, url: input.url };
     }
     case "delete": {
       if (!input.url) throw new AutomadMcpError("VALIDATION", "url is required for delete");
       return client.post(`${API_BASE}/page/delete`, { url: input.url });
     }
     case "move": {
-      if (!input.url || !input.target_url) {
-        throw new AutomadMcpError("VALIDATION", "url and target_url required");
+      if (!input.url) throw new AutomadMcpError("VALIDATION", "url is required for move");
+      // v2's page/move is **sibling reordering**, not path-rename: it takes a
+      // `layout` array describing the new order of sibling URLs. There is no
+      // v2 endpoint to "rename" or "move a page to a different path".
+      if (!input.layout) {
+        throw new AutomadMcpError(
+          "UNSUPPORTED",
+          "v2 page/move is sibling reordering: pass `layout` as a JSON array of sibling URLs in the new order. " +
+            "There is no v2 endpoint to rename or relocate a page; recreate via page/add + page/delete instead.",
+        );
       }
-      const payload: Record<string, unknown> = { url: input.url, targetPage: input.target_url };
-      if (input.layout) payload["layout"] = input.layout;
-      return client.post(`${API_BASE}/page/move`, payload);
+      return client.post(`${API_BASE}/page/move`, {
+        url: input.url,
+        layout: input.layout,
+      });
     }
     case "duplicate": {
-      if (!input.url || !input.target_url) {
-        throw new AutomadMcpError("VALIDATION", "url and target_url required for duplicate");
-      }
-      // v2 has no dedicated duplicate endpoint; semantics = create a new page
-      // at target_url using the source's content. The cleanest v2 expression is
-      // to surface this as a constrained create with the same field set.
       throw new AutomadMcpError(
         "UNSUPPORTED",
         "duplicate has no dedicated /_api endpoint in v2; read the source page and POST /_api/page/add with its fields",
       );
     }
+  }
+}
+
+/** Parse `page?url=%2Fblog%2Fhello` -> `/blog/hello`. */
+function extractSlugFromRedirect(redirect: string | undefined): string | undefined {
+  if (!redirect) return undefined;
+  const m = /[?&]url=([^&]+)/.exec(redirect);
+  if (!m || !m[1]) return undefined;
+  try {
+    return decodeURIComponent(m[1]);
+  } catch {
+    return undefined;
   }
 }

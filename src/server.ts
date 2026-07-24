@@ -2,6 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import type { HttpClient } from "./client.js";
 import type { WriteGuard } from "./write-guard.js";
+import type { Config } from "./config.js";
 import { errorToJson } from "./errors.js";
 import { logger } from "./logger.js";
 
@@ -11,37 +12,44 @@ import {
   sharedInput,
   configInput,
   siteInput,
+  themeInput,
 } from "./schemas.js";
 import { handlePages } from "./domains/pages.js";
 import { handleMedia } from "./domains/media.js";
 import { handleShared } from "./domains/shared.js";
 import { handleConfig } from "./domains/config.js";
 import { handleSite } from "./domains/site.js";
+import { handleTheme } from "./domains/theme.js";
 
 export const SERVER_NAME = "automad-mcp";
-export const SERVER_VERSION = "0.2.0";
+export const SERVER_VERSION = "0.3.0";
 
 export interface ServerDeps {
   client: HttpClient;
   guard: WriteGuard;
+  /** Required for the `automad_theme` tool (themesPath, starterKitPath). */
+  config: Config;
 }
 
 /**
  * Automad v2 MCP bridge. Each tool takes an `action` parameter and dispatches
  * to a domain router against the real `/_api/{controller}/{method}` contract.
  *
- * Tools reflect what v2 actually exposes:
- *   pages (list/get/create/update/delete/move/duplicate),
- *   media (list/upload),
- *   shared (get/set — site-wide data; replaces v1 snippets/templates),
- *   config (get from bootstrap, set via /_api/config/update),
- *   site  (info from bootstrap, search via /_api/search/search-replace).
+ * Tools:
+ *   pages  (list/get/create/update/delete/move/duplicate)
+ *   media  (list/upload)
+ *   shared (get/set — site-wide data; replaces v1 snippets/templates)
+ *   config (get from bootstrap, set via /_api/config/update)
+ *   site   (info from bootstrap, search via /_api/search/search-replace)
+ *   theme  (list/install/activate/uninstall/scaffold/build/read/write/files —
+ *           local-FS theme tooling against AUTOMAD_THEMES_PATH)
  *
  * Destructive actions return a confirmToken; replay the call with
  * `confirm_token` to execute.
  */
 export function createAutomadServer(deps: ServerDeps): McpServer {
-  const { client, guard } = deps;
+  const { client, guard, config } = deps;
+  const themeDeps = { client, guard, themesPath: config.themesPath, starterKitPath: config.starterKitPath };
 
   const server = new McpServer(
     { name: SERVER_NAME, version: SERVER_VERSION },
@@ -49,7 +57,8 @@ export function createAutomadServer(deps: ServerDeps): McpServer {
       instructions:
         "Automad v2 MCP bridge (serves only Automad v2, https://automad.org/version-2). " +
         "Each tool takes an `action` parameter and talks to the v2 /_api JSON dispatch layer " +
-        "via session-cookie + CSRF authentication. Destructive actions return a confirmToken; " +
+        "via session-cookie + CSRF authentication. The `automad_theme` tool works on the " +
+        "local filesystem (requires AUTOMAD_THEMES_PATH). Destructive actions return a confirmToken; " +
         "replay the call with `confirm_token` to execute.",
     },
   );
@@ -118,6 +127,18 @@ export function createAutomadServer(deps: ServerDeps): McpServer {
       inputSchema: siteInput,
     },
     (input) => run(() => handleSite(input, client, guard)),
+  );
+
+  server.registerTool(
+    "automad_theme",
+    {
+      title: "Theme",
+      description: "Local-filesystem theme tooling (requires AUTOMAD_THEMES_PATH). " +
+        "list/install/activate/uninstall/scaffold/build, plus read/write/files for theme files (theme.json, .php, blocks/, .ts). " +
+        "Scaffold copies the starter kit into a new theme dir; build runs `npm install` + `npm run build`.",
+      inputSchema: themeInput,
+    },
+    (input) => run(() => handleTheme(input, themeDeps)),
   );
 
   return server;

@@ -51,25 +51,27 @@ export class HttpClient {
   /**
    * Single-chunk file upload via `/_api/file-collection/upload` (Dropzone contract).
    * v2 requires chunking metadata but a single-chunk payload (dztotalchunkcount=1) is valid.
+   *
+   * Note: this endpoint does NOT use the `__json__` wrapper — the upload path
+   * skips `RequestHandler::convertJsonPost` (RequestHandler.php:145), so any
+   * `__json__` field will be ignored. The destination URL is sent as a plain
+   * `url` form field.
    */
   async upload<T>(
     path: string,
     file: { base64: string; filename: string; mimeType: string; url?: string },
     opts?: RequestOptions,
   ): Promise<T> {
-    const size = byteLength(file.base64);
-    const csrf = await this.auth.getCsrfToken();
-    const fdata = new FormData();
-    fdata.set("__csrf__", csrf);
-    fdata.set(
-      "__json__",
-      JSON.stringify({
-        url: file.url ?? "",
-        file: { name: file.filename, type: file.mimeType, size },
-      }),
-    );
     const buf = Buffer.from(file.base64, "base64");
-    fdata.set("file", new File([new Blob([buf], { type: file.mimeType })], file.filename, { type: file.mimeType }));
+    const size = buf.byteLength;
+    const fdata = new FormData();
+    // CSRF is refreshed inside the request() retry loop (see below).
+    fdata.set("__csrf__", await this.auth.getCsrfToken());
+    if (file.url) fdata.set("url", file.url);
+    fdata.set(
+      "file",
+      new File([new Blob([buf], { type: file.mimeType })], file.filename, { type: file.mimeType }),
+    );
     fdata.set("dzuuid", cryptoRandomId());
     fdata.set("dzchunkindex", "0");
     fdata.set("dztotalchunkcount", "1");
@@ -92,19 +94,29 @@ export class HttpClient {
     let attempt = 0;
     let forceReauth = false;
     let forceRescrape = false;
+    let lastStatus: number | undefined;
 
     while (true) {
       attempt++;
       const cookie = await this.auth.getCookie(forceReauth);
       forceReauth = false;
-      const csrf = opts?.skipCsrf ? undefined : await this.auth.getCsrfToken(forceRescrape);
+      // For multipart bodies, csrf is already set in the FormData (upload()).
+      // On rescrape, refresh it in place so the next attempt carries the new token.
+      let csrf = opts?.skipCsrf ? undefined : await this.auth.getCsrfToken(forceRescrape);
       forceRescrape = false;
+      if (opts?.skipCsrf && isMultipart && opts?.body instanceof FormData && attempt > 1) {
+        try {
+          csrf = await this.auth.getCsrfToken(true);
+          opts.body.set("__csrf__", csrf);
+        } catch { /* fall through; error surfaces on next response */ }
+      }
 
       const headers: Record<string, string> = {
         Accept: "application/json",
         ...(opts?.headers ?? {}),
       };
       if (cookie) headers["Cookie"] = cookie;
+
       let body: BodyInit | undefined;
       if (isMultipart) {
         body = opts?.body as BodyInit;
@@ -114,6 +126,7 @@ export class HttpClient {
         fdata.set("__json__", JSON.stringify(opts.body));
         body = fdata;
       }
+
       logger.debug({ method, url, attempt }, "HTTP request");
       const init: RequestInit = { method, headers };
       if (body !== undefined) init.body = body;
@@ -139,8 +152,10 @@ export class HttpClient {
         continue;
       }
 
-      if (res.status >= 500 && attempt <= maxRetries) {
+      // 5xx retry: only once, and only if status changes (otherwise we're hammering a broken endpoint).
+      if (res.status >= 500 && attempt <= maxRetries && lastStatus !== res.status) {
         logger.warn({ url, status: res.status, attempt }, "5xx, retrying");
+        lastStatus = res.status;
         await sleep(retryDelay * attempt);
         continue;
       }
@@ -193,11 +208,6 @@ export async function safeJson(
       return undefined;
     }
   }
-}
-
-function byteLength(b64: string): number {
-  const pad = b64.endsWith("==") ? 2 : b64.endsWith("=") ? 1 : 0;
-  return Math.floor((b64.length * 3) / 4) - pad;
 }
 
 function cryptoRandomId(): string {
