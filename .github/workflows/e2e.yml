@@ -1,0 +1,80 @@
+name: Live E2E
+
+on:
+  schedule:
+    # Daily at 06:00 UTC — catches v2 regressions early.
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    name: Live E2E against automad/automad:v2
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Start Automad v2 Docker container
+        run: |
+          docker run -dp 8899:80 --name automad-e2e automad/automad:v2
+          # Wait for the container to be ready (max 60s)
+          for i in $(seq 1 30); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8899/_api/session/validate 2>/dev/null || echo "000")
+            if [ "$code" = "200" ]; then
+              echo "Automad v2 ready after ${i}s"
+              break
+            fi
+            sleep 2
+          done
+          # Final check — fail if still not ready
+          code=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8899/_api/session/validate 2>/dev/null || echo "000")
+          if [ "$code" != "200" ]; then
+            echo "::error::Automad v2 container failed to start (HTTP $code)"
+            docker logs automad-e2e 2>&1 | tail -20
+            exit 1
+          fi
+
+      - name: Extract dashboard credentials
+        id: creds
+        run: |
+          USER=$(docker logs automad-e2e 2>&1 | grep 'Name:' | head -1 | sed 's/.*Name:\s*//')
+          PASS=$(docker logs automad-e2e 2>&1 | grep 'Password:' | head -1 | sed 's/.*Password:\s*//')
+          if [ -z "$USER" ] || [ -z "$PASS" ]; then
+            echo "::error::Could not extract credentials from container logs"
+            docker logs automad-e2e 2>&1 | tail -20
+            exit 1
+          fi
+          echo "user=$USER" >> "$GITHUB_OUTPUT"
+          echo "pass=$PASS" >> "$GITHUB_OUTPUT"
+          echo "Credentials extracted: user=${USER}"
+
+      - name: Run live E2E tests
+        env:
+          AUTOMAD_E2E_URL: http://localhost:8899
+          AUTOMAD_E2E_USER: ${{ steps.creds.outputs.user }}
+          AUTOMAD_E2E_PASS: ${{ steps.creds.outputs.pass }}
+        run: npm run test:e2e
+
+      - name: Dump server logs on failure
+        if: failure()
+        run: docker logs automad-e2e 2>&1 | tail -40
+
+      - name: Cleanup container
+        if: always()
+        run: docker rm -f automad-e2e || true

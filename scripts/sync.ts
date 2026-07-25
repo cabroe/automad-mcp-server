@@ -76,8 +76,18 @@ export function syncReadme(): { changed: boolean; reason: string } {
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
+  const isCheck = process.argv.includes("--check");
   const { changed, reason } = syncReadme();
-  // eslint-disable-next-line no-console
-  console.log(`docs:sync: ${changed ? "updated" : "no change"} (${reason})`);
-  if (!changed) process.exit(0);
+  if (isCheck) {
+    if (changed) {
+      // eslint-disable-next-line no-console
+      console.error(`docs:sync --check: FAILED — README is out of date (${reason}). Run \`npm run docs:sync\` and commit.`);
+      process.exit(1);
+    }
+    // eslint-disable-next-line no-console
+    console.log(`docs:sync --check: OK (${reason})`);
+  } else {
+    // eslint-disable-next-line no-console
+    console.log(`docs:sync: ${changed ? "updated" : "no change"} (${reason})`);
+  }
 }
