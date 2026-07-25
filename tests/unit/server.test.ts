@@ -8,6 +8,7 @@ import type { Config } from "../../src/config.js";
 
 const TOOL_NAMES = [
   "automad_config",
+  "automad_discover",
   "automad_docs",
   "automad_media",
   "automad_pages",
@@ -49,7 +50,7 @@ async function connect(client: HttpClient, guard: WriteGuard, config = cfg()) {
 }
 
 describe("createAutomadServer (v2)", () => {
-  it("registers the seven tools (5 v2 API + theme + docs)", async () => {
+  it("registers the eight tools (5 v2 API + theme + docs + discover)", async () => {
     const { server, mcp } = await connect(mockClient(), new WriteGuard(cfg()));
     const list = await mcp.listTools();
     expect(list.tools.map((t) => t.name).sort()).toEqual([...TOOL_NAMES].sort());
@@ -127,6 +128,28 @@ describe("createAutomadServer (v2)", () => {
     const noArgs = await mcp.getPrompt({ name: "check_headless_setup", arguments: {} });
     const noArgsContent = noArgs.messages[0]!.content;
     if (noArgsContent.type === "text") expect(noArgsContent.text).toContain("health");
+    await mcp.close();
+    await server.close();
+  });
+
+  it("automad_discover works even when live-API tools are disabled (docs mode)", async () => {
+    const docsConfig: Config = { ...cfg(), mode: "docs", liveEnabled: false };
+    const { server, mcp } = await connect(mockClient(), new WriteGuard(docsConfig), docsConfig);
+
+    const list = await mcp.callTool({ name: "automad_discover", arguments: { action: "list" } });
+    expect(list.isError).toBeFalsy();
+    const listPayload = JSON.parse((list.content as [{ text: string }])[0].text);
+    expect(listPayload.capabilities.length).toBeGreaterThan(30);
+
+    const described = await mcp.callTool({
+      name: "automad_discover",
+      arguments: { action: "describe", tool: "automad_pages", target_action: "delete" },
+    });
+    const describedPayload = JSON.parse((described.content as [{ text: string }])[0].text);
+    expect(describedPayload.tool).toBe("automad_pages");
+    expect(Object.keys(describedPayload.actions)).toEqual(["delete"]);
+    expect(describedPayload.inputSchema.properties.action).toBeDefined();
+
     await mcp.close();
     await server.close();
   });

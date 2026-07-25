@@ -39,7 +39,9 @@ export type WriteAction =
   | "site.health"
   | "docs.list"
   | "docs.search"
-  | "docs.get";
+  | "docs.get"
+  | "discover.list"
+  | "discover.describe";
 
 export type Permit =
   | { allowed: true }
@@ -72,6 +74,8 @@ export const READ_ACTIONS: ReadonlySet<WriteAction> = new Set<WriteAction>([
   "docs.list",
   "docs.search",
   "docs.get",
+  "discover.list",
+  "discover.describe",
 ]);
 /** Destructive actions — require a confirm token in `confirm-destructive` mode (the default). Exported for drift tests. */
 export const DESTRUCTIVE_ACTIONS: ReadonlySet<WriteAction> = new Set<WriteAction>([

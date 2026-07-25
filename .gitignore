@@ -3,6 +3,7 @@
 node_modules/
 dist/
 coverage/
+.vitest-sync-report.json
 .env
 .env.local
 *.log

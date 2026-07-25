@@ -37,6 +37,7 @@
     "lint": "eslint src tests",
     "format": "prettier --write src tests",
     "docs:sync": "node --import tsx scripts/sync.ts",
+    "docs:sync:tests": "node --import tsx scripts/sync.ts --tests",
     "release:patch": "node --import tsx scripts/release.ts patch --tag",
     "release:minor": "node --import tsx scripts/release.ts minor --tag",
     "release:major": "node --import tsx scripts/release.ts major --tag",
@@ -47,7 +48,8 @@
     "pino": "^9.0.0",
     "undici": "^6.0.0",
     "yaml": "^2.5.0",
-    "zod": "^3.23.0"
+    "zod": "^3.23.0",
+    "zod-to-json-schema": "^3.25.2"
   },
   "devDependencies": {
     "@eslint/js": "^9.0.0",

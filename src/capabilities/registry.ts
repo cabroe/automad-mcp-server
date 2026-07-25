@@ -25,6 +25,7 @@ export const EXPECTED_ACTIONS: ExpectedActions = {
   automad_theme: [
     "list", "install", "activate", "uninstall", "scaffold", "build", "read", "write", "files", "analyze", "validate", "schema", "diff", "generate",
   ],
+  automad_discover: ["list", "describe"],
 };
 
 /** Map tool name → WriteAction prefix (e.g. "automad_pages" → "pages"). */
@@ -36,6 +37,7 @@ export const WRITE_ACTION_PREFIX: Readonly<Record<string, string>> = Object.free
   automad_site: "site",
   automad_docs: "docs",
   automad_theme: "theme",
+  automad_discover: "discover",
 });
 
 export const CAPABILITY_REGISTRY: readonly CapabilityDefinition[] = [
@@ -122,6 +124,15 @@ export const CAPABILITY_REGISTRY: readonly CapabilityDefinition[] = [
       schema: read("Build a normalized theme schema."),
       diff: read("Preview a file change without writing."),
       generate: read("Generate a snippet, block, or component."),
+    },
+  },
+  {
+    name: "automad_discover",
+    title: "Discover",
+    description: "Introspect available tools and actions.",
+    actions: {
+      list: read("List every tool+action with read-only/destructive flags and a one-line summary."),
+      describe: read("Return the input schema and action metadata for one tool, optionally narrowed to one action."),
     },
   },
 ] as const;

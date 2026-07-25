@@ -13,6 +13,7 @@ const expectedNames = [
   "automad_site",
   "automad_docs",
   "automad_theme",
+  "automad_discover",
 ];
 
 describe("capability registry", () => {
@@ -30,6 +31,7 @@ describe("capability registry", () => {
     expect(Object.keys(getCapability("automad_theme").actions).sort()).toEqual([
       "activate", "analyze", "build", "diff", "files", "generate", "install", "list", "read", "scaffold", "schema", "uninstall", "validate", "write",
     ]);
+    expect(Object.keys(getCapability("automad_discover").actions).sort()).toEqual(["describe", "list"]);
   });
 
   it("has descriptions and non-contradictory action flags", () => {

@@ -41,7 +41,9 @@ describe("CLAUDE.md ↔ code drift", () => {
   it("destructive-action count in CLAUDE.md matches DESTRUCTIVE_ACTIONS set", () => {
     const n = DESTRUCTIVE_ACTIONS.size;
     // Accept the digit or the spelled-out word; both forms appear in prose.
-    const expected = new RegExp(`\\b(${n}|${numberWord(n)})\\b\\s+destructive`, "i");
+    // Tolerate an AUTOGEN end-marker comment between the number/word and
+    // "destructive" (scripts/sync.ts wraps it in <!-- AUTOGEN:... --> tags).
+    const expected = new RegExp(`\\b(${n}|${numberWord(n)})\\b(?:<!--[^>]*-->)?\\s+destructive`, "i");
     expect(CLAUDE_MD).toMatch(expected);
   });
 

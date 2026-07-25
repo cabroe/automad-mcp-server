@@ -167,6 +167,21 @@ export const docsInput = z.object({
 
 export type DocsInput = z.infer<typeof docsInput>;
 
+/**
+ * Discover: introspect the tool/action surface instead of holding every
+ * action's details in context up front (discovery-facade pattern).
+ */
+export const discoverInput = z.object({
+  action: z.enum(["list", "describe"]),
+  /** describe: tool name, e.g. "automad_pages". list: optional filter to one tool. */
+  tool: z.string().optional(),
+  /** describe: narrow to one action within `tool` (omit to describe the whole tool). */
+  target_action: z.string().optional(),
+  confirm_token: z.string().optional(),
+});
+
+export type DiscoverInput = z.infer<typeof discoverInput>;
+
 export const PageListResponse = z.array(z.object({
   url: z.string(),
   title: z.string().optional(),

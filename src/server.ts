@@ -20,6 +20,7 @@ import {
   siteInput,
   themeInput,
   docsInput,
+  discoverInput,
 } from "./schemas.js";
 import { handlePages } from "./domains/pages.js";
 import { handleMedia } from "./domains/media.js";
@@ -28,6 +29,7 @@ import { handleConfig } from "./domains/config.js";
 import { handleSite } from "./domains/site.js";
 import { handleTheme } from "./domains/theme.js";
 import { handleDocs } from "./domains/docs.js";
+import { handleDiscover } from "./domains/discover.js";
 
 export const SERVER_NAME = "automad-mcp";
 
@@ -50,6 +52,7 @@ export interface ServerDeps {
  *   site   (info from bootstrap, search via /_api/search/search-replace)
  *   theme  (list/install/activate/uninstall/scaffold/build/read/write/files —
  *           local-FS theme tooling, requires AUTOMAD_THEMES_PATH)
+ *   discover (list/describe — introspects the tool/action surface itself)
  *
  * Resources:
  *   automad://themes
@@ -179,6 +182,18 @@ export function createAutomadServer(deps: ServerDeps): McpServer {
       inputSchema: docsInput,
     },
     (input) => run(() => handleDocs(input, guard)),
+  );
+
+  server.registerTool(
+    "automad_discover",
+    {
+      title: "Discover",
+      description: "Introspect available tools and actions: `list` every tool+action with read-only/destructive flags, " +
+        "`describe` a tool's full input schema (optionally narrowed to one action). Works without a live instance " +
+        "(also in AUTOMAD_MODE=docs) — useful when the full action surface doesn't need to sit in context up front.",
+      inputSchema: discoverInput,
+    },
+    (input) => run(() => handleDiscover(input, guard)),
   );
 
   server.registerResource(

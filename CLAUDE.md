@@ -14,7 +14,7 @@ also works on the local filesystem (where Automad's theme packages live).
 
 ```bash
 npm run build            # tsc → dist/  (ESM, strict; reads package.json#version at compile time)
-npm test                 # vitest run (242 tests, 30 files; live E2E auto-skips)
+npm test                 # vitest run (<!-- AUTOGEN:TESTCOUNT -->303 tests, 31 files<!-- /AUTOGEN:TESTCOUNT -->; live E2E auto-skips)
 npm run test:coverage    # vitest + v8 coverage (gate: 80% stmts / 70% branches)
 npm run lint             # eslint src tests
 npm run dev              # tsx src/index.ts  (run the server locally)
@@ -32,7 +32,7 @@ client + guard + McpServer over stdio.
 ```
 src/
   index.ts          entry: config + stdio transport + graceful shutdown
-  server.ts         McpServer + 7 tool + 4 resource + 5 prompt registrations (createAutomadServer)
+  server.ts         McpServer + 8 tool + 4 resource + 5 prompt registrations (createAutomadServer)
   config.ts         env loader; exports API_BASE = "/_api"
   auth.ts           AuthManager: POST /_api/session/login + cookie jar + CSRF scrape
   client.ts         HttpClient: multipart __csrf__+__json__ POST, envelope unwrap, retry
@@ -56,6 +56,7 @@ src/
     site.ts         /_api/app/bootstrap (info) + /_api/search/search-replace
     theme.ts        local-FS theme tooling (delegates to src/theme/*)
     docs.ts         offline knowledge base (list/search/get; no HTTP, works in docs mode)
+    discover.ts     discovery facade over capabilities/registry.ts (list/describe; no HTTP, works in docs mode)
   theme/            (theme tool internals — kept separate from domains/)
     fs.ts           ThemeFs interface + LocalThemeFs (swap point for SSH later)
     build.ts        runCommand + npmInstall + npmBuild with timeout
@@ -65,9 +66,9 @@ src/
     diff.ts         unifiedDiff: LCS line diff for theme.diff preview
     generate.ts     snippet/block/component generator (theme.generate)
 scripts/                 # build-time helpers, run via `npm run <name>`
-  sync.ts                # regenerates the AUTOGEN tool table in README from src/capabilities/registry.ts
+  sync.ts                # regenerates the AUTOGEN tool table + fenced number markers in README/CLAUDE.md (--tests refreshes TESTCOUNT via a live vitest run)
   release.ts             # version-bump + CHANGELOG skeleton + git tag (`--tag` / `--dry-run`)
-tests/unit/              242 vitest tests, 30 files (drift test pins capability-registry ↔ write-guard; docs-drift test pins CLAUDE.md/README/CHANGELOG against code reality; server test pins mcp.getServerVersion() ↔ package.json)
+tests/unit/              <!-- AUTOGEN:TESTCOUNT -->303 tests, 31 files<!-- /AUTOGEN:TESTCOUNT --> (drift test pins capability-registry ↔ write-guard; docs-drift test pins CLAUDE.md/README/CHANGELOG against code reality; server test pins mcp.getServerVersion() ↔ package.json)
 tests/e2e/               opt-in live E2E vs. real Automad (skipped unless AUTOMAD_E2E_* set; `npm run test:e2e`)
 
 ## Configuration
@@ -128,26 +129,29 @@ exactly `__csrf__` and `__json__` fields — the canonical v2 wire format
   to `{code, message, details?}` JSON in the result's `text` field.
 - **Dependency injection** — handlers take `(input, client, guard, ...deps)`;
  the HTTP client, auth, and ThemeFs are injectable so tests mock them.
-- **Auto-generated docs are fenced, not free-form.** README sections that
- are derived from the capability registry (currently: the tool table) sit
- between `<!-- AUTOGEN:TOOLS:START/END -->` markers and are regenerated
- by `npm run docs:sync` (see `scripts/sync.ts`). Do not edit the body
- between the markers by hand — re-running the script clobbers it. The
- drift test (`tests/unit/docs-drift.test.ts`) pins the
- destructive-action count, the beta version, and the AUTOGEN block
- contents to the code reality.
+- **Auto-generated docs are fenced, not free-form.** The README tool table
+ sits between `<!-- AUTOGEN:TOOLS:START/END -->` markers; individual numbers
+ that drift with the code (tool count, read/destructive-action counts, test
+ count) are each wrapped inline in their own `<!-- AUTOGEN:NAME -->...<!--
+ /AUTOGEN:NAME -->` pair in README.md and/or CLAUDE.md. Both are regenerated
+ by `npm run docs:sync` (see `scripts/sync.ts`); the TESTCOUNT marker also
+ needs `npm run docs:sync:tests` (spawns a full `vitest run`) after the test
+ suite changes. Do not edit fenced content by hand — re-running the script
+ clobbers it. The drift test (`tests/unit/docs-drift.test.ts`) additionally
+ pins the destructive-action count and the beta version by regex, as a
+ second, independent check on top of the fenced markers.
 
 ## Safety model (write-guard)
 
 Three modes via `AUTOMAD_WRITE_MODE`:
 
-- **`read-only`** — only non-mutating actions succeed. Read-only set (19):
-  `docs.list/search/get`, `pages.list/get`, `media.list`, `shared.get`,
-  `config.get`, `site.info/search/health`, `theme.list/read/files/analyze/
-  validate/schema/diff/generate`.
+- **`read-only`** — only non-mutating actions succeed. Read-only set (<!-- AUTOGEN:READCOUNT -->21<!-- /AUTOGEN:READCOUNT -->):
+  `docs.list/search/get`, `discover.list/describe`, `pages.list/get`,
+  `media.list`, `shared.get`, `config.get`, `site.info/search/health`,
+  `theme.list/read/files/analyze/validate/schema/diff/generate`.
 - **`confirm-destructive`** *(default)* — ordinary writes run directly
   (`pages.create/update/duplicate/publish/batch_update`, `media.upload/delete`,
-  `shared.set`, `config.set`). The eleven destructive actions (`pages.delete`,
+  `shared.set`, `config.set`). The <!-- AUTOGEN:DESTRUCTIVECOUNT_WORD -->eleven<!-- /AUTOGEN:DESTRUCTIVECOUNT_WORD --> destructive actions (`pages.delete`,
   `pages.move`, `pages.update_rename` *(internal: title change inside
   `pages.update` / `pages.batch_update`)*, `media.delete`, `site.search_replace`
   *(internal: `site.search` with a `replace` value)*, `theme.install`,
@@ -209,7 +213,7 @@ implementation; treat them as load-bearing constraints:
   error codes come back as `AutomadMcpError` with the expected `code`.
 - **`server.ts`**: use `InMemoryTransport.createLinkedPair()` + the MCP `Client`
   to exercise the full `registerTool → handler → result` path without a real
-  Automad backend. Assert `tools/list` enumerates all 7 tools and that every
+  Automad backend. Assert `tools/list` enumerates all <!-- AUTOGEN:TOOLCOUNT -->8<!-- /AUTOGEN:TOOLCOUNT --> tools and that every
   tool's `inputSchema` exposes an `action.enum`. A separate assertion pins
   `mcp.getServerVersion()` to `package.json#version` to catch version drift.
 - **`client.ts`**: `vi.stubGlobal("fetch", ...)`; assert status→error-code
@@ -231,8 +235,6 @@ implementation; treat them as load-bearing constraints:
   `initialize` → JSON-RPC calls; assert results. See `/tmp/mcp-live-themes/`
   setup in git history for the full sandbox layout.
 
-| `automad_media` | `list` `upload` `delete` | `/_api/file-collection/list`, `/upload` (single-chunk Dropzone), `delete` (destructive) |
-
 | Tool | Actions | Endpoint |
 |---|---|---|
 | `automad_pages` | `list` `get` `create` `update` `delete` `move` `duplicate` `publish` `batch_update` | `/_api/page/*` (create/update auto-publish unless `publish:false`; `batch_update` runs items sequentially) |
@@ -242,10 +244,11 @@ implementation; treat them as load-bearing constraints:
 | `automad_site` | `info` `search` `health` | `/_api/app/bootstrap` (info/health), `/_api/search/search-replace` (`search` becomes `site.search_replace` and requires a confirm token when `replace` is set) |
 | `automad_docs` | `list` `search` `get` | offline bundled KB (`docs/kb.ts`); no HTTP, works in docs mode |
 | `automad_theme` | `list` `install` `activate` `uninstall` `scaffold` `build` `read` `write` `files` `analyze` `validate` `schema` `diff` `generate` | local FS (`AUTOMAD_THEMES_PATH`); `diff` previews a write, `generate` returns snippet/block content, `build` runs composer (if present) + npm |
+| `automad_discover` | `list` `describe` | reads `capabilities/registry.ts` in-process; no HTTP, works in docs mode |
 
 `automad_theme` is **disabled** (returns `isError code=UNSUPPORTED`) when
 `AUTOMAD_THEMES_PATH` is unset. The five live-API tools are disabled in
-`AUTOMAD_MODE=docs`. `automad_docs` always works.
+`AUTOMAD_MODE=docs`. `automad_docs` and `automad_discover` always work.
 
 ### Resources
 
