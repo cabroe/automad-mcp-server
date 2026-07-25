@@ -13,8 +13,8 @@ also works on the local filesystem (where Automad's theme packages live).
 ## Commands
 
 ```bash
-npm run build            # tsc → dist/  (ESM, strict)
-npm test                 # vitest run
+npm run build            # tsc → dist/  (ESM, strict; reads package.json#version at compile time)
+npm test                 # vitest run (237 tests, 25 files; live E2E auto-skips)
 npm run test:coverage    # vitest + v8 coverage (gate: 80% stmts / 70% branches)
 npm run lint             # eslint src tests
 npm run dev              # tsx src/index.ts  (run the server locally)
@@ -41,7 +41,7 @@ src/
   schemas.ts        Zod input schemas (one per tool)
   write-guard.ts    multi-tier write protection + confirm-token flow
   prompts.ts        MCP workflow prompts (create_blog_post, scaffold_theme, analyze_theme, check_headless_setup, find_docs)
-  page-format.ts    legacy — currently unused; consider removing
+  page-format.ts    parsePage / serializePage (used by tests/unit/page-format.test.ts; not wired into the live HTTP path)
   docs/
     kb.ts           bundled offline Automad knowledge base (automad_docs source)
   capabilities/
@@ -65,8 +65,7 @@ src/
     diff.ts         unifiedDiff: LCS line diff for theme.diff preview
     generate.ts     snippet/block/component generator (theme.generate)
     scaffold.ts     copy starter kit + rewrite theme.json + package.json
-    editor.ts       readFile / writeFile / listFiles with path-traversal guard
-tests/unit/         207 vitest tests, 27 files
+tests/unit/         237 vitest tests, 25 files (drift test pins capability-registry ↔ write-guard; server test pins mcp.getServerVersion() ↔ package.json)
 tests/e2e/          opt-in live E2E vs. real Automad (skipped unless AUTOMAD_E2E_* set; `npm run test:e2e`)
 ```
 
@@ -81,7 +80,7 @@ tests/e2e/          opt-in live E2E vs. real Automad (skipped unless AUTOMAD_E2E
 | `AUTOMAD_THEMES_PATH` | optional | Absolute path to the local themes directory (enables `automad_theme`) |
 | `AUTOMAD_STARTER_KIT_PATH` | optional | Starter-kit template path for `theme.scaffold` (defaults to `AUTOMAD_THEMES_PATH`) |
 | `AUTOMAD_WRITE_MODE` | no | `read-only` \| `confirm-destructive` (default) \| `unrestricted` |
-| `LOG_LEVEL` | no | Pino log level (default `info`); validated against pino levels |
+| `LOG_LEVEL` | no | Pino log level (default `info`); validated in `config.ts` against the static `VALID_LOG_LEVELS` set (`trace`/`debug`/`info`/`warn`/`error`/`fatal`/`silent`) |
 
 `config.ts` sets `liveEnabled = (mode === "full")`. In `docs` mode the live-API
 tools throw `UNSUPPORTED` (gated in `server.ts` via `liveGate()`); `automad_docs`
@@ -138,11 +137,14 @@ Three modes via `AUTOMAD_WRITE_MODE`:
   `config.get`, `site.info/search/health`, `theme.list/read/files/analyze/
   validate/schema/diff/generate`.
 - **`confirm-destructive`** *(default)* — ordinary writes run directly
-  (`pages.create/update/duplicate/publish/batch_update`, `media.upload`,
-  `shared.set`, `config.set`). The eight destructive actions (`pages.delete`,
-  `pages.move`, `theme.install`, `theme.activate`, `theme.uninstall`,
-  `theme.scaffold`, `theme.build`, `theme.write`) return a `confirmToken`
-  (5-min TTL). The LLM replays the same call with `confirm_token` set to execute.
+  (`pages.create/update/duplicate/publish/batch_update`, `media.upload/delete`,
+  `shared.set`, `config.set`). The eleven destructive actions (`pages.delete`,
+  `pages.move`, `pages.update_rename` *(internal: title change inside
+  `pages.update` / `pages.batch_update`)*, `media.delete`, `site.search_replace`
+  *(internal: `site.search` with a `replace` value)*, `theme.install`,
+  `theme.activate`, `theme.uninstall`, `theme.scaffold`, `theme.build`,
+  `theme.write`) return a `confirmToken` (5-min TTL). The LLM replays the
+  same call with `confirm_token` set to execute.
 - **`unrestricted`** — everything runs immediately.
 
 A token is bound to its `(action, target)` pair — both are checked on
@@ -152,7 +154,10 @@ The DESTRUCTIVE_ACTIONS whitelist in `write-guard.ts` is the single source of
 truth for confirmation. Adding a new destructive action = adding to the
 `WriteAction` union, the DESTRUCTIVE_ACTIONS set, **and** the matching
 `destructive(...)` entry in `capabilities/registry.ts` (validated at boot by
-`validateCapabilityRegistry()`, which also cross-checks every tool's action list).
+`validateCapabilityRegistry()`, which also cross-checks every tool's action
+list). Internal-only actions that exist for fine-grained confirmation
+(`pages.update_rename`, `site.search_replace`) live in the `INTERNAL_ACTIONS`
+set in `tests/unit/drift.test.ts` so the drift test accepts them.
 
 ## v2 contract notes (live-verified, not reverse-engineered)
 
@@ -195,27 +200,37 @@ implementation; treat them as load-bearing constraints:
   error codes come back as `AutomadMcpError` with the expected `code`.
 - **`server.ts`**: use `InMemoryTransport.createLinkedPair()` + the MCP `Client`
   to exercise the full `registerTool → handler → result` path without a real
-  Automad backend. Assert `tools/list` enumerates all 6 tools and that every
-  tool's `inputSchema` exposes an `action.enum`.
-- **`client.ts`**: `vi.stubGlobal("fetch", ...)`; assert status→error-code mapping.
+  Automad backend. Assert `tools/list` enumerates all 7 tools and that every
+  tool's `inputSchema` exposes an `action.enum`. A separate assertion pins
+  `mcp.getServerVersion()` to `package.json#version` to catch version drift.
+- **`client.ts`**: `vi.stubGlobal("fetch", ...)`; assert status→error-code
+  mapping (including the `looksLikeServerValidation` heuristic for v2's
+  200+error envelope).
 - **`auth.ts`**: stub `fetch` to return a Set-Cookie + a dashboard HTML with
-  the `<meta name="csrf">` tag; assert cookie/CSRF handling.
+  the `<meta name="csrf">` tag; assert cookie/CSRF handling. `collectCookie`
+  must tolerate Headers objects without `getSetCookie()`.
 - **`theme/*`**: use `node:fs.mkdtemp(os.tmpdir(), "mcp-")` for an isolated
   theme sandbox; copy the real starter kit from `/tmp/sk-analysis/...` for
   end-to-end coverage.
+- **Drift tests** (`tests/unit/drift.test.ts`): every action declared in
+  `capabilities/registry.ts` must also exist in the `WriteAction` union and
+  the `READ_ACTIONS`/`DESTRUCTIVE_ACTIONS` sets in `write-guard.ts`, with
+  consistent `readOnly`/`destructive` flags. Internal-only actions
+  (`pages.update_rename`, `site.search_replace`) are listed in
+  `INTERNAL_ACTIONS` so the test accepts them.
 - **Live e2e**: spawn the built server with `dist/index.js`; pipe
   `initialize` → JSON-RPC calls; assert results. See `/tmp/mcp-live-themes/`
   setup in git history for the full sandbox layout.
 
-## Tool behavior summary
+| `automad_media` | `list` `upload` `delete` | `/_api/file-collection/list`, `/upload` (single-chunk Dropzone), `delete` (destructive) |
 
 | Tool | Actions | Endpoint |
 |---|---|---|
 | `automad_pages` | `list` `get` `create` `update` `delete` `move` `duplicate` `publish` `batch_update` | `/_api/page/*` (create/update auto-publish unless `publish:false`; `batch_update` runs items sequentially) |
-| `automad_media` | `list` `upload` | `/_api/file-collection/list`, `/upload` (single-chunk Dropzone) |
+| `automad_media` | `list` `upload` `delete` | `/_api/file-collection/list`, `/upload` (single-chunk Dropzone), `delete` (destructive) |
 | `automad_shared` | `get` `set` | `/_api/shared/data` |
 | `automad_config` | `get` `set` | `/_api/app/bootstrap`, `/_api/config/update` (type discriminator) |
-| `automad_site` | `info` `search` `health` | `/_api/app/bootstrap` (info/health), `/_api/search/search-replace` |
+| `automad_site` | `info` `search` `health` | `/_api/app/bootstrap` (info/health), `/_api/search/search-replace` (`search` becomes `site.search_replace` and requires a confirm token when `replace` is set) |
 | `automad_docs` | `list` `search` `get` | offline bundled KB (`docs/kb.ts`); no HTTP, works in docs mode |
 | `automad_theme` | `list` `install` `activate` `uninstall` `scaffold` `build` `read` `write` `files` `analyze` `validate` `schema` `diff` `generate` | local FS (`AUTOMAD_THEMES_PATH`); `diff` previews a write, `generate` returns snippet/block content, `build` runs composer (if present) + npm |
 
@@ -253,10 +268,11 @@ model through real tool actions:
 
 These are v2 quirks we work around but didn't fix:
 
-- **`/_api/public/pagelist` is currently 500 in `2.0.0-beta.15`** (Automad
-  internal bug: `Cannot use object of type Automad\Models\Page as array`,
-  `PublicController.php:107`). The MCP surfaces this as `isError code=NETWORK`.
-  Pages still work via `/_api/page/data` (post+slug).
+- **`/_api/public/pagelist` currently 500s on `2.0.0-beta.51`** (Automad
+ internal bug: `Cannot use object of type Automad\Models\Page as array`,
+ `PublicController.php:107`). The MCP surfaces this as `isError code=NETWORK`.
+ `pages.list` works around it by using `/_api/page-collection/get-recently-edited`
+ (the same endpoint the dashboard's "Recently edited" list uses) instead.
 - **`/_api/config/update` with unknown `type` → v2 500** (no input validation
   on v2's side). The MCP uses a Zod-enum for `type`, so callers shouldn't
   hit this, but raw HTTP callers might.
