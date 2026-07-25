@@ -204,7 +204,7 @@ describe("HttpClient (v2 /_api)", () => {
     expect(f2.get("__csrf__")).toBe("new-token");
   });
 
-  it("401 -> re-auth + retry once, then surface FORBIDDEN", async () => {
+  it("401 -> re-auth + retry once, then surface AUTH", async () => {
     fetchMock
       .mockResolvedValueOnce({
         status: 401,
@@ -220,7 +220,7 @@ describe("HttpClient (v2 /_api)", () => {
       });
     const auth = mockAuth();
     const client = new HttpClient({ baseUrl: "https://x" }, auth, { maxRetries: 1 });
-    await expect(client.get("/_api/page/data")).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(client.get("/_api/page/data")).rejects.toMatchObject({ code: "AUTH" });
     expect(auth.getCookie).toHaveBeenCalledTimes(2);
   });
 
@@ -266,5 +266,98 @@ describe("HttpClient (v2 /_api)", () => {
     });
     const client = new HttpClient({ baseUrl: "https://x" }, mockAuth(), { maxRetries: 1 });
     await expect(client.get("/_api/x")).rejects.toMatchObject({ code: "NETWORK" });
+  });
+
+  it("CSRF-mismatch loop after session timeout -> force re-auth then surface AUTH", async () => {
+    // Scenario: the session cookie is dead (e.g. server restart, long idle).
+    // v2 returns 403 + "CSRF token mismatch" because the old session is invalid.
+    // Rescraping the CSRF token with the dead session cannot recover — the
+    // request must force re-auth, get a fresh session, and try again.
+    fetchMock
+      // 1st: initial request, 403 + CSRF mismatch (dead session)
+      .mockResolvedValueOnce({
+        status: 403, ok: false,
+        json: async () => ({ error: "CSRF token mismatch" }),
+        text: async () => "",
+      })
+      // 2nd: CSRF rescrape with dead session, still 403 + CSRF mismatch
+      .mockResolvedValueOnce({
+        status: 403, ok: false,
+        json: async () => ({ error: "CSRF token mismatch" }),
+        text: async () => "",
+      })
+      // 3rd: re-authenticated request succeeds
+      .mockResolvedValueOnce({
+        status: 200, ok: true,
+        json: async () => ({ data: { ok: 1 } }),
+        text: async () => '{"data":{"ok":1}}',
+      });
+    const auth: AuthProvider = {
+      getCookie: vi.fn().mockResolvedValue("sid=stale"),
+      getCsrfToken: vi.fn().mockResolvedValue("tok-csrf"),
+    };
+    const client = new HttpClient({ baseUrl: "https://x" }, auth, { maxRetries: 2 });
+    const result = await client.get("/_api/page/data");
+    expect(result).toEqual({ ok: 1 });
+    // The cookie getter must have been called with force=true after the
+    // CSRF-loop was detected, triggering a re-login.
+    expect((auth.getCookie as ReturnType<typeof vi.fn>).mock.calls.some((c) => c[0] === true)).toBe(true);
+  });
+
+  it("CSRF-mismatch loop with dead session AND dead re-auth -> AUTH (not 403)", async () => {
+    // Even re-auth can't recover (e.g. creds rotated, user disabled). The
+    // client must surface this as AUTH so the caller can react, not as a
+    // confusing 403 / FORBIDDEN that suggests transient CSRF trouble.
+    fetchMock
+      .mockResolvedValueOnce({ status: 403, ok: false, json: async () => ({ error: "CSRF token mismatch" }), text: async () => "" })
+      .mockResolvedValueOnce({ status: 403, ok: false, json: async () => ({ error: "CSRF token mismatch" }), text: async () => "" })
+      .mockResolvedValueOnce({ status: 401, ok: false, json: async () => ({ error: "unauthenticated" }), text: async () => "" });
+    const auth = mockAuth();
+    const client = new HttpClient({ baseUrl: "https://x" }, auth, { maxRetries: 2 });
+    await expect(client.get("/_api/page/data")).rejects.toMatchObject({ code: "AUTH" });
+  });
+
+  it("v2 'No session' marker (HTTP 200 + body) -> force re-auth and recover", async () => {
+    // v2's friendly dead-session response: HTTP 200 with
+    // `{data: {message: "No session"}}`. Without detection we'd return the
+    // misleading message payload as success. With detection we force re-auth.
+    fetchMock
+      .mockResolvedValueOnce({
+        status: 200, ok: true,
+        json: async () => ({ data: { message: "No session" } }),
+        text: async () => '{"data":{"message":"No session"}}',
+      })
+      .mockResolvedValueOnce({
+        status: 200, ok: true,
+        json: async () => ({ data: { url: "/", template: "page.php" } }),
+        text: async () => '{"data":{"url":"/","template":"page.php"}}',
+      });
+    const auth: AuthProvider = {
+      getCookie: vi.fn().mockResolvedValue("sid=stale"),
+      getCsrfToken: vi.fn().mockResolvedValue("tok-csrf"),
+    };
+    const client = new HttpClient({ baseUrl: "https://x" }, auth, { maxRetries: 2 });
+    const result = await client.get("/_api/page/data");
+    expect(result).toEqual({ url: "/", template: "page.php" });
+    expect((auth.getCookie as ReturnType<typeof vi.fn>).mock.calls.some((c) => c[0] === true)).toBe(true);
+  });
+
+  it("v2 'No session' after re-auth -> AUTH", async () => {
+    // Re-auth itself fails to recover (e.g. credentials rotated). The client
+    // must surface this as AUTH so the caller doesn't see the stale payload.
+    fetchMock
+      .mockResolvedValueOnce({
+        status: 200, ok: true,
+        json: async () => ({ data: { message: "No session" } }),
+        text: async () => '{"data":{"message":"No session"}}',
+      })
+      .mockResolvedValueOnce({
+        status: 200, ok: true,
+        json: async () => ({ data: { message: "No session" } }),
+        text: async () => '{"data":{"message":"No session"}}',
+      });
+    const auth = mockAuth();
+    const client = new HttpClient({ baseUrl: "https://x" }, auth, { maxRetries: 1 });
+    await expect(client.get("/_api/page/data")).rejects.toMatchObject({ code: "AUTH" });
   });
 });

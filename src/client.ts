@@ -98,6 +98,7 @@ export class HttpClient {
     let attempt = 0;
     let forceReauth = false;
     let forceRescrape = false;
+    let csrfRescrapes = 0;
     let lastStatus: number | undefined;
 
     while (true) {
@@ -142,12 +143,47 @@ export class HttpClient {
       }
       const res = await fetch(url, init);
 
+      // Detect v2's "session is dead" marker BEFORE the regular retry/error
+      // handling. v2 returns 200 OK with `{data: {message: "No session"}}` when
+      // the session cookie is invalid (server restart, manual logout, expired).
+      // Without this we'd either treat it as success (returning a misleading
+      // `{message: "No session"}` payload) or hammer the API with a stale CSRF.
+      if (res.ok && attempt <= maxRetries) {
+        const peek = await safeJson(res);
+        const peekData = peek && typeof peek === "object" ? (peek as { data?: unknown }).data : undefined;
+        const peekMsg = peekData && typeof peekData === "object" && typeof (peekData as { message?: unknown }).message === "string"
+          ? ((peekData as { message: string }).message)
+          : undefined;
+        if (peekMsg && /^No session$/i.test(peekMsg)) {
+          logger.warn({ url, attempt }, "session expired (v2 'No session' marker), forcing re-auth");
+          forceReauth = true;
+          await sleep(retryDelay);
+          continue;
+        }
+        // Not a session marker — surface it through the normal envelope path.
+        // Reconstruct a Response-like object so unwrap can re-parse the body.
+        // (safeJson consumes the stream; we re-stringify to avoid a second read.)
+        const rebuilt = new Response(JSON.stringify(peek), { status: res.status, headers: res.headers });
+        return unwrap<T>(rebuilt as Response, method, path);
+      }
+
       if (res.status === 403 && attempt <= maxRetries) {
         const detail = await safeJson(res);
         const error = (detail && typeof detail === "object" && "error" in detail && typeof detail.error === "string") ? detail.error : "";
         if (/csrf/i.test(error)) {
-          logger.warn({ url }, "CSRF mismatch, rescrape + retry");
-          forceRescrape = true;
+          // If we've already rescraped the CSRF once and still get 403+CSRF,
+          // the session itself is dead (e.g. server restart, long idle, manual
+          // logout). Rescraping the CSRF with a dead session cannot recover —
+          // we must force a re-auth so the next attempt carries a fresh session.
+          if (csrfRescrapes >= 1) {
+            logger.warn({ url, csrfRescrapes }, "CSRF mismatch persists after rescrape — session likely dead, forcing re-auth");
+            forceReauth = true;
+            csrfRescrapes = 0;
+          } else {
+            logger.warn({ url }, "CSRF mismatch, rescrape + retry");
+            forceRescrape = true;
+            csrfRescrapes++;
+          }
           await new Promise<void>((r) => setTimeout(r, retryDelay));
           continue;
         }
@@ -166,6 +202,29 @@ export class HttpClient {
         lastStatus = res.status;
         await sleep(retryDelay * attempt);
         continue;
+      }
+
+      // We've exhausted retries. If the last response was 401, 403+CSRF, or
+      // v2's friendly "No session" marker (200 OK + body) after we already
+      // tried to force a re-auth, the credentials are dead — surface this as
+      // AUTH so the caller can react (bad creds, user disabled, rotated
+      // password) instead of a confusing 403/FORBIDDEN or a misleading
+      // `{message: "No session"}` success payload.
+      if (attempt > maxRetries) {
+        let authFailed = false;
+        if (res.status === 401) authFailed = true;
+        else if (res.status === 403 && csrfRescrapes >= 1) authFailed = true;
+        else if (res.ok) {
+          const body = await safeJson(res).catch(() => undefined);
+          const data = body && typeof body === "object" ? (body as { data?: unknown }).data : undefined;
+          const msg = data && typeof data === "object" && typeof (data as { message?: unknown }).message === "string"
+            ? (data as { message: string }).message
+            : undefined;
+          if (msg && /^No session$/i.test(msg)) authFailed = true;
+        }
+        if (authFailed) {
+          throw new AutomadMcpError("AUTH", `Authentication failed after re-auth attempt: HTTP ${res.status}`, { status: res.status });
+        }
       }
 
       return unwrap<T>(res, method, path);
