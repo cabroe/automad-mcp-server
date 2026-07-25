@@ -51,7 +51,9 @@ export async function handlePages(
 
   switch (input.action) {
     case "list": {
-      const result = await client.post(`${API_BASE}/page-collection/get-recently-edited`);
+      // Must pass a body ({}) so the client attaches __csrf__ + __json__;
+      // a body-less POST omits __csrf__ and v2 rejects with "CSRF token mismatch".
+      const result = await client.post(`${API_BASE}/page-collection/get-recently-edited`, {});
       return PageListResponse.parse(result);
     }
     case "get": {

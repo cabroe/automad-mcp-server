@@ -15,6 +15,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Automad v2 instance; skipped unless `AUTOMAD_E2E_*` is set. Verified green
   against `automad/automad:v2` (beta.51).
 
+### Fixed
+- **`pages.list` returned `FORBIDDEN` "CSRF token mismatch"** against live v2.
+  The body-less POST to `/_api/page-collection/get-recently-edited` omitted the
+  `__csrf__` field; it now sends an empty JSON body so the CSRF token is attached
+  like every other endpoint. Found via full-tool testing against a real instance.
+
 ## [0.4.0]
 
 ### Added

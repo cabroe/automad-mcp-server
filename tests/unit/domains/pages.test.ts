@@ -17,14 +17,14 @@ describe("handlePages (v2 /_api)", () => {
     (c.post as ReturnType<typeof vi.fn>).mockResolvedValueOnce([{ url: "/" }]);
     const out = await handlePages({ action: "list" }, c, new WriteGuard(cfg()));
     expect(out).toEqual([{ url: "/" }]);
-    expect(c.post).toHaveBeenCalledWith("/_api/page-collection/get-recently-edited");
+    expect(c.post).toHaveBeenCalledWith("/_api/page-collection/get-recently-edited", {});
   });
 
   it("list ignores context and fields_csv (v2 uses authenticated endpoint)", async () => {
     const c = mockClient();
     (c.post as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]);
     await handlePages({ action: "list", context: "/blog", fields_csv: "title,url" }, c, new WriteGuard(cfg()));
-    expect(c.post).toHaveBeenCalledWith("/_api/page-collection/get-recently-edited");
+    expect(c.post).toHaveBeenCalledWith("/_api/page-collection/get-recently-edited", {});
   });
 
   it("get requires url and POSTs /_api/page/data", async () => {
