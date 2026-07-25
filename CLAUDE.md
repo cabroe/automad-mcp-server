@@ -68,7 +68,7 @@ src/
     generate.ts     snippet/block/component generator (theme.generate)
 scripts/                 # build-time helpers, run via `npm run <name>`
   sync.ts                # regenerates the AUTOGEN tool table + fenced number markers in README/CLAUDE.md (--tests refreshes TESTCOUNT via a live vitest run)
-  release.ts             # version-bump + CHANGELOG skeleton + git tag (`--tag` / `--dry-run`)
+  release.ts             # version-bump + CHANGELOG skeleton + git tag (`--tag` / `--dry-run`); the skeleton is an *empty* section inserted above the newest one — when the changelog already carries a filled `## [Unreleased]`, rename that heading to the new version instead of running the script
 tests/unit/              <!-- AUTOGEN:TESTCOUNT -->321 tests, 32 files<!-- /AUTOGEN:TESTCOUNT --> (drift test pins the registry's runtime derivations: Zod action enums, guard sets, bindings, guard behavior; docs-drift test pins CLAUDE.md/README/CHANGELOG against code reality; server test pins mcp.getServerVersion() ↔ package.json)
 tests/e2e/               opt-in live E2E vs. real Automad (skipped unless AUTOMAD_E2E_* set; `npm run test:e2e`)
 
@@ -346,4 +346,5 @@ These are *known* boundaries. Don't try to "fix" them in this repo.
   be the right path.
 - **In-place media rename.** v2's `/_api/file-collection/list` supports
   `action: "move"` (file → different directory) but no in-place rename.
-  Documented in CHANGELOG under 0.5.1 "future work".
+  All three boundaries are also listed in CHANGELOG.md's trailing
+  "Known limitations / future work" section (not tied to a release).

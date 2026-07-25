@@ -37,19 +37,23 @@ manage pages, media, shared data, config, local themes, and an offline docs know
 ```mermaid
 flowchart LR
   AI["AI agent<br/>(MCP client)"] -- "stdio JSON-RPC" --> S["automad-mcp"]
+  REG["capability registry<br/>(single source of truth)"] -.->|"tools + schemas"| S
+  REG -.->|"read-only /<br/>destructive flags"| G
   S --> G["write-guard<br/>(read-only / confirm / unrestricted)"]
   G --> R{"router by action"}
   R -->|"pages · media · shared<br/>config · site"| C["HttpClient"]
   C -- "session cookie + __csrf__" --> V[("Automad v2<br/>/_api/*")]
   R -->|"theme"| FS[("local themes dir")]
   R -->|"docs"| KB["bundled knowledge base"]
-  R -->|"discover"| REG["capability registry<br/>(introspection)"]
+  R -->|"discover"| REG
   R -->|"prompts"| P["bundled<br/>workflow prompts"]
   R -->|"resources<br/>(4 URIs)"| X["resources/<br/>themes + docs/kb"]
 ```
 
 
 Each tool takes an `action` and dispatches to a domain router. Live-API actions map to real, live-verified `/_api/{controller}/{method}` endpoints; `automad_theme` works on the local filesystem; `automad_docs` and `automad_discover` are fully offline.
+
+The dashed edges are the point: tools, their titles, their `action` enums and the write-guard's read-only/destructive classification are all *derived* from `src/capabilities/registry.ts`. Adding a tool means adding one registry entry plus one binding — `server.ts` holds no per-tool knowledge, and `automad_discover` can't advertise a surface that doesn't exist.
 
 ## Requirements
 
@@ -495,9 +499,9 @@ npm run docs:sync -- --check   # same, exits 1 if anything was stale (used in CI
 npm run docs:sync:tests
 
 # Version-bump helpers (commit + tag locally; you push manually):
-npm run release:patch  # 0.5.x → 0.5.(x+1)
-npm run release:minor  # 0.5.x → 0.6.0
-npm run release:major  # 0.5.x → 1.0.0
+npm run release:patch  # 0.6.x → 0.6.(x+1)
+npm run release:minor  # 0.6.x → 0.7.0
+npm run release:major  # 0.6.x → 1.0.0
 # Add `--dry-run` to any of the above to preview without writing files.
 
 # Opt-in live E2E against a real Automad v2 instance:
@@ -511,14 +515,14 @@ AUTOMAD_E2E_URL=http://localhost:8899 AUTOMAD_E2E_USER=admin \
 ```
 src/
   index.ts          entry: config, stdio transport, graceful shutdown
-  server.ts         McpServer + 8 tool + 4 resource + 5 prompt registrations
+  server.ts         McpServer: registry-driven tool loop + 4 resource + 5 prompt registrations
   config.ts         env loader: mode split, URL/log-level validation, write-mode
   auth.ts           session login + cookie jar + CSRF scrape (cold-start retry)
   client.ts         HTTP client: /_api envelope unwrap, multipart __csrf__+__json__, retry + re-CSRF
   errors.ts         typed AutomadMcpError
   logger.ts         pino with credential redaction
-  schemas.ts        Zod input schemas for all tools
-  write-guard.ts    multi-tier write protection + confirm-token flow
+  schemas.ts        Zod input schemas for all tools (`action` enums built from the registry)
+  write-guard.ts    multi-tier write protection + confirm-token flow (action sets derived from the registry)
   prompts.ts        MCP workflow prompts
   docs/kb.ts        bundled offline knowledge base (automad_docs)
   domains/          one router per tool: pages, media, shared, config, site, theme, docs, discover
@@ -527,7 +531,11 @@ src/
     diff.ts         unified-diff preview for theme.diff
     generate.ts     snippet/block/component generator
   resources/        MCP resource backers (themes)
-  capabilities/     internal router/action metadata and invariant validation
+  capabilities/
+    registry.ts     single source of truth: one entry per tool/action; derives the
+                    WriteAction union, the write-guard sets, the Zod action enums,
+                    automad_discover and the generated docs table
+    tools.ts        wiring layer: one binding per tool (schema + gate + dispatch)
 tests/unit/         Vitest unit and domain tests
 tests/e2e/          opt-in live E2E vs. a real Automad instance (npm run test:e2e)
 scripts/            TypeScript build-time helpers (run via `npm run <name>`)
