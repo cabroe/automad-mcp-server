@@ -43,7 +43,10 @@ flowchart LR
   C -- "session cookie + __csrf__" --> V[("Automad v2<br/>/_api/*")]
   R -->|"theme"| FS[("local themes dir")]
   R -->|"docs"| KB["bundled knowledge base"]
+  R -->|"prompts"| P["bundled<br/>workflow prompts"]
+  R -->|"resources<br/>(4 URIs)"| X["resources/<br/>themes + docs/kb"]
 ```
+
 
 Each tool takes an `action` and dispatches to a domain router. Live-API actions map to real, live-verified `/_api/{controller}/{method}` endpoints; `automad_theme` works on the local filesystem; `automad_docs` is fully offline.
 
@@ -364,20 +367,30 @@ Provide the `AUTOMAD_*` variables via Zed's environment.
 <details>
 <summary>Supported vs. not exposed</summary>
 
-**Supported with real endpoints:**
+**Every `/_api/*` call in the [tool table above](#tools) is a real v2 endpoint** (live-verified
+against `automad/automad:v2` `2.0.0-beta.51`). A few need a special note:
 
-- `pages.duplicate` → `/_api/page/duplicate`
-- `pages.move` → `/_api/page/move` (**sibling reordering / reparenting**, not a title rename; renames happen implicitly during `page/publish`)
-- `theme.activate` → best-effort via `/_api/package-manager/install`; if v2 declines, the theme is still on disk (`activated: false`, not an error)
+- `pages.move` → `/_api/page/move` is **sibling-reordering / reparenting**, not a
+  title rename; renames happen implicitly during `page/publish` when the title
+  changes.
+- `theme.activate` is best-effort via `/_api/package-manager/install`; if v2
+  declines, the theme is still on disk (`activated: false`, not an error).
+- `site.search` becomes `site.search_replace` (a separate destructive action,
+  requiring a confirm token) when the caller supplies a `replace` value.
+- `pages.update` / `pages.batch_update` switch to the destructive
+  `pages.update_rename` action when they carry a title change — see the
+  [destructive actions list](#write-protection) above.
 
 **Not exposed (no v2 endpoint):**
 
-- `media.rename` — v2 has no in-place rename; the closest is `action: "move"` (between directories). `media.delete` is exposed (destructive in the default write mode).
-- `snippets`, `templates` — v1-era; in v2 these are components / shared data
+- `media.rename` — v2 has no in-place rename; the closest is `action: "move"`
+  (between directories). `media.delete` is exposed (destructive in the default
+  write mode).
+- `snippets`, `templates` — v1-era; in v2 these are components / shared data.
 - `site.backup` / `site.restore`
 - `config.validate`
 
-- **Known v2-side issue:** `/_api/public/pagelist` currently 500s on
+**Known v2-side issue:** `/_api/public/pagelist` currently 500s on
 `2.0.0-beta.51` (Automad bug, `PublicController.php:107`); `automad_pages.list`
 uses `/_api/page-collection/get-recently-edited` instead.
 </details>
@@ -386,13 +399,22 @@ uses `/_api/page-collection/get-recently-edited` instead.
 
 ```bash
 npm install
-npm run build          # tsc → dist/
+npm run build          # tsc → dist/ (also reads package.json#version)
 npm test               # vitest (unit + domain; live E2E auto-skips)
 npm run test:coverage
 npm run lint           # eslint
 npm run dev            # tsx src/index.ts
 
-# opt-in live E2E against a real Automad v2 instance:
+# Keep the auto-generated tool table in sync with src/capabilities/registry.ts:
+npm run docs:sync
+
+# Version-bump helpers (commit + tag locally; you push manually):
+npm run release:patch  # 0.5.x → 0.5.(x+1)
+npm run release:minor  # 0.5.x → 0.6.0
+npm run release:major  # 0.5.x → 1.0.0
+# Add `--dry-run` to any of the above to preview without writing files.
+
+# Opt-in live E2E against a real Automad v2 instance:
 AUTOMAD_E2E_URL=http://localhost:8899 AUTOMAD_E2E_USER=admin \
   AUTOMAD_E2E_PASS=secret npm run test:e2e
 ```
@@ -422,6 +444,9 @@ src/
   capabilities/     internal router/action metadata and invariant validation
 tests/unit/         Vitest unit and domain tests
 tests/e2e/          opt-in live E2E vs. a real Automad instance (npm run test:e2e)
+scripts/            TypeScript build-time helpers (run via `npm run <name>`)
+  sync.ts           regenerates the AUTOGEN tool table in README from the capability registry
+  release.ts        version-bump + CHANGELOG skeleton + git tag (`--tag` / `--dry-run`)
 ```
 </details>
 

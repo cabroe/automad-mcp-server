@@ -14,7 +14,7 @@ also works on the local filesystem (where Automad's theme packages live).
 
 ```bash
 npm run build            # tsc → dist/  (ESM, strict; reads package.json#version at compile time)
-npm test                 # vitest run (237 tests, 25 files; live E2E auto-skips)
+npm test                 # vitest run (242 tests, 30 files; live E2E auto-skips)
 npm run test:coverage    # vitest + v8 coverage (gate: 80% stmts / 70% branches)
 npm run lint             # eslint src tests
 npm run dev              # tsx src/index.ts  (run the server locally)
@@ -64,10 +64,11 @@ src/
     schema.ts       ThemeSchemaBuilder: analysis → normalized theme schema
     diff.ts         unifiedDiff: LCS line diff for theme.diff preview
     generate.ts     snippet/block/component generator (theme.generate)
-    scaffold.ts     copy starter kit + rewrite theme.json + package.json
-tests/unit/         237 vitest tests, 25 files (drift test pins capability-registry ↔ write-guard; server test pins mcp.getServerVersion() ↔ package.json)
-tests/e2e/          opt-in live E2E vs. real Automad (skipped unless AUTOMAD_E2E_* set; `npm run test:e2e`)
-```
+scripts/                 # build-time helpers, run via `npm run <name>`
+  sync.ts                # regenerates the AUTOGEN tool table in README from src/capabilities/registry.ts
+  release.ts             # version-bump + CHANGELOG skeleton + git tag (`--tag` / `--dry-run`)
+tests/unit/              242 vitest tests, 30 files (drift test pins capability-registry ↔ write-guard; docs-drift test pins CLAUDE.md/README/CHANGELOG against code reality; server test pins mcp.getServerVersion() ↔ package.json)
+tests/e2e/               opt-in live E2E vs. real Automad (skipped unless AUTOMAD_E2E_* set; `npm run test:e2e`)
 
 ## Configuration
 
@@ -126,7 +127,15 @@ exactly `__csrf__` and `__json__` fields — the canonical v2 wire format
   never swallow. The server wraps tool results; `errorToJson` serializes failures
   to `{code, message, details?}` JSON in the result's `text` field.
 - **Dependency injection** — handlers take `(input, client, guard, ...deps)`;
-  the HTTP client, auth, and ThemeFs are injectable so tests mock them.
+ the HTTP client, auth, and ThemeFs are injectable so tests mock them.
+- **Auto-generated docs are fenced, not free-form.** README sections that
+ are derived from the capability registry (currently: the tool table) sit
+ between `<!-- AUTOGEN:TOOLS:START/END -->` markers and are regenerated
+ by `npm run docs:sync` (see `scripts/sync.ts`). Do not edit the body
+ between the markers by hand — re-running the script clobbers it. The
+ drift test (`tests/unit/docs-drift.test.ts`) pins the
+ destructive-action count, the beta version, and the AUTOGEN block
+ contents to the code reality.
 
 ## Safety model (write-guard)
 
