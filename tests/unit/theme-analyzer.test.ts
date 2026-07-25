@@ -184,4 +184,23 @@ describe("ThemeAnalyzer", () => {
       expect.objectContaining({ code: "STARTER_BUILD_INCOMPLETE", severity: "warning" }),
     ]));
   });
+  it("emits the page-data template+theme info hint when root templates exist", async () => {
+    // B6 from IMPROVEMENT-PROMPT.md: every page's data file must set BOTH `theme`
+    // AND `template` to be renderable. Emit an info-level reminder.
+    await writeTheme("ok", validTheme);
+    const result = await analyzer().validate("ok");
+    const codes = result.findings.map((finding) => finding.code);
+    expect(codes).toContain("PAGE_DATA_TEMPLATE_REQUIRED");
+    expect(result.findings.find((finding) => finding.code === "PAGE_DATA_TEMPLATE_REQUIRED")?.severity).toBe("info");
+  });
+
+  it("does NOT emit the page-data hint when the theme has no root templates", async () => {
+    await writeTheme("bare", {
+      "theme.json": JSON.stringify({ name: "Bare" }),
+      "components/page.php": "<main>x</main>",
+    });
+    const result = await analyzer().validate("bare");
+    const codes = result.findings.map((finding) => finding.code);
+    expect(codes).not.toContain("PAGE_DATA_TEMPLATE_REQUIRED");
+  });
 });

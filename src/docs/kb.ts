@@ -374,6 +374,301 @@ packages/my/theme/
 \`\`\`
 `;
 
+const COMMON_PITFALLS = `# Common pitfalls (v2 themes)
+
+Hard-won lessons from real theme builds. Read this before chasing a "why does my
+page render empty?" mystery.
+
+## 1. Include paths are relative to the calling file
+\`<@ include @>\` resolves relative to the *directory of the calling file*, NOT the
+theme root. See \`include-path-resolution\` for the full rule.
+
+## 2. Plain PHP functions are NOT callable from templates
+\`function t() {}\` in \`lib/functions.php\` is invisible to the template engine. The
+engine looks names up via a registry. See \`custom-functions\` for the
+registration pattern.
+
+## 3. \`:lang\` is a system runtime variable, not a page field
+Setting \`textLanguage: "en"\` on a page does not change \`@{ :lang }\`. The
+runtime \`:lang\` is set by Automad's \`I18n\` class from URL prefix
+(\`/de/\`, \`/en/\`) when \`AM_I18N_ENABLED = true\` and the page lives under
+\`pages/de/\` or \`pages/en/\`. See \`runtime-lang\`.
+
+## 4. Page data must set BOTH \`theme\` AND \`template\`
+Setting only \`theme: "my/theme"\` produces \`Template missing! my/theme/.php\`
+(empty template name). Every page's \`data\` file must set both keys to be
+renderable.
+
+## 5. \`<@ main @>\` needs a snippet definition
+If a template invokes \`<@ main @>\`, at least one \`<@~ snippet main ~@>\` must be
+reachable in the call graph. The starter kit's pattern: \`default.php\` is the
+document shell, page templates (e.g. \`default.php\`, \`pagelist.php\`) redefine
+\`main\` to inject their content. See \`snippet-inheritance\`.
+
+## 6. \`php-fpm\` ships with \`error_log = /dev/null\`
+Container debug sessions that produce a 500 with empty body are usually an FPM
+error that went nowhere. Patch \`/usr/local/etc/php-fpm.conf\` (or wherever the
+image puts it) to a writable path like \`/tmp/php-fpm.log\` and tail it.
+
+## 7. NEVER overwrite container files via heredoc
+Running \`sh -c 'cat > /app/automad/init.php <<EOF ... EOF'\` inside a container
+silently clobbers files with the heredoc body if the shell parses it
+differently than expected. Use \`docker cp\` or \`docker exec -i ... bash -c "cat
+> /path"\` (read from stdin) instead.
+
+## 8. FPM workers cache edits under OPcache
+After editing \`components/page.php\` the response may stay unchanged for >5s
+even with \`revalidate_freq=2\`. Force worker respawn with
+\`pkill -9 -f "php-fpm: pool"\` from inside the container.
+
+## 9. The Automad docs URL has changed
+Older blog posts and tooling link to \`https://automad.org/version-2/blocks\`
+and friends — these all return 404. The real docs live at
+\`/developer-guide/building-themes/*\` and \`/user-guide/*\`. Always check
+\`https://automad.org/\` first.
+`;
+
+const INCLUDE_PATH_RESOLUTION = `# Include path resolution
+
+The single biggest source of "my template renders empty" bugs is misunderstanding
+where \`<@ include @>\` looks.
+
+## The rule
+
+The include path is \`<directory of the calling file>/<include path>\`. Always.
+
+\`\`\`
+// theme/default.php  (calling file is at theme root)
+<@ components/page.php @>     // -> theme/components/page.php  ✓
+<@ page.php @>                // -> theme/page.php              ✓
+<@ ../shared/foo.php @>       // -> ERROR: .. not allowed       ✗
+\`\`\`
+
+## Inside snippets: the path is from the defining file
+
+When an include is inside a \`<@~ snippet name ~@> ... <@~ end ~@>\` body, the path
+resolves relative to the directory where the snippet was **defined**, not where
+it is invoked. This is the Automad-specific gotcha:
+
+\`\`\`
+// theme/default.php
+<@ components/page.php @>          // call a component
+<@~ snippet main ~@>
+    <@ components/home.php @>      // ✓ resolves to theme/components/home.php
+                                    //   (the snippet is defined HERE, in default.php)
+<@~ end ~@>
+\`\`\`
+
+\`\`\`
+// theme/components/page.php
+<@~ snippet main ~@>                // re-define 'main' here
+    <@ home.php @>                  // ✗ ERROR: looking for theme/components/home.php
+                                    //   instead of theme/components/home.php — works
+                                    //   here only by accident. From a snippet
+                                    //   *defined in default.php* this would fail.
+<@~ end ~@>
+\`\`\`
+
+## Worked example
+
+From the starter kit's canonical layout:
+
+\`\`\`
+// theme/default.php
+<@ components/page.php @>          // include the shell
+<@~ snippet main ~@>
+    <@ components/home.php @>      // resolves to theme/components/home.php
+<@~ end ~@>
+\`\`\`
+
+## Lint rule (when writing the analyzer)
+
+For an \`<@ include @>\` inside a \`<@~ snippet ~@>\` body, resolve the path against
+the *defining* file's directory, not the calling template. Two-pass snippet
+processing means the defining directory is what matters.
+
+## Practical advice
+
+- Keep snippets near the files that use them, in the same directory.
+- If a snippet needs to include something from a sibling directory, use the full
+  path from the snippet's defining file.
+- The starter kit's \`components/page.php\` includes \`<@ layout.php @>\` from the
+  theme root — only works because \`layout.php\` lives there. Move \`page.php\`
+  into a subdirectory and the include silently breaks.
+`;
+
+const CUSTOM_FUNCTIONS = `# Custom functions
+
+The Automad template engine looks up \`<@ myFn { ... } @>\` via a **registry**, not
+the global PHP function table. Plain PHP \`function myFn() {}\` in
+\`lib/functions.php\` is **invisible** to templates.
+
+## Registration pattern
+
+\`\`\`php
+<?php
+// theme/lib/functions.php
+defined('AUTOMAD') or die('Direct access not permitted!');
+
+\\\\Automad\\\\Engine\\\\CustomFunction::add('t', function (array $options): string {
+    $key = $options['key'] ?? '';
+    $lang = $options['lang'] ?? '@{ :lang }';   // can be a template expression
+    $strings = require __DIR__ . '/../i18n/strings.php';
+    return $strings[$lang][$key] ?? $key;
+});
+\`\`\`
+
+Then in a template:
+\`\`\`
+<@ t { key: 'welcome', lang: 'de' } @>
+\`\`\`
+
+## Loading order
+
+- The registration must happen **before** Automad renders any template that
+  uses the function. The safe place is \`lib/functions.php\` (loaded by the theme
+  on every request).
+- \`require\` at the top of \`lib/functions.php\` re-evaluates on every page load
+  (cheap, fine for small \`i18n/strings.php\` arrays).
+- For larger translation tables, lazy-load inside the closure:
+  \`$strings = require __DIR__ . '/../i18n/strings.php';\` inside the function
+  body keeps the table out of every request's memory until needed.
+
+## Why the registry?
+
+The template engine parses \`<@ name { ... } @>\` tokens and dispatches by name.
+Without \`CustomFunction::add\`, the parser would have to inspect every defined
+PHP function in scope — a global lookup that's both slow and unsafe (any
+function in any namespace would become template-callable).
+
+## Verifying your registration works
+
+Quick smoke test: \`automad_theme.analyze\` on your theme should NOT warn about
+unrecognized function names. If you see "function \`t\` not registered", the
+registration didn't run before the analyzer.
+`;
+
+const RUNTIME_LANG = `# Runtime \`:lang\` vs per-page \`textLanguage\`
+
+A common confusion: setting \`textLanguage\` on a page does NOT change
+\`@{ :lang }\` in the template.
+
+## What \`:lang\` is
+
+\`:lang\` is a **system runtime variable** (note the leading colon). Automad
+sets it from the URL prefix (\`/de/\`, \`/en/\`) when:
+
+1. \`AM_I18N_ENABLED = true\` is set in \`config/config.php\`
+2. The page lives under \`pages/de/\` or \`pages/en/\` (or another configured
+   language tree)
+
+## What \`textLanguage\` is
+
+\`textLanguage\` is a **page data field** — just a regular page variable you can
+read via \`@{ textLanguage }\`. It's not connected to \`:lang\` at all. It's
+useful for content-level language hints (e.g. "this page's body is in English
+even on the German site"), but the runtime language is still \`:lang\`.
+
+## Per-page language override
+
+To override the runtime \`:lang\` for a specific page, do it in the calling
+template:
+
+\`\`\`
+<@ set { :lang: @{ textLanguage | def(@{ :lang }) } } @>
+\`\`\`
+
+Or via a custom function (see \`custom-functions\`):
+
+\`\`\`
+<@ t { key: 'welcome', lang: @{ :lang } } @>
+\`\`\`
+
+## Multilingual recipe
+
+1. Create \`pages/de/\` and \`pages/en/\` directory trees under \`pages/\`
+2. In \`config/config.php\`: \`define('AM_I18N_ENABLED', true);\`
+3. In your theme, create \`i18n/strings.php\` returning
+   \`['de' => ['key' => 'Wert'], 'en' => ['key' => 'Value']]\`
+4. Register a \`t\` helper via \`CustomFunction::add\` (see \`custom-functions\`)
+5. Call \`<@ t { key: 'welcome' } @>\` from templates
+
+## Analyzer warning
+
+\`automad_theme.analyze\` warns when a template uses \`@{ :lang }\` but the
+theme has no \`i18n/\` directory (likely forgotten step 3), or vice versa.
+`;
+
+const SNIPPET_INHERITANCE = `# Snippet inheritance (the \`main\` pattern)
+
+If a template invokes \`<@ main @>\` but no \`<@~ snippet main ~@>\` is reachable,
+the page renders with an empty \`<main>\` — silently, with HTTP 200.
+
+## Canonical pattern
+
+The Automad Theme Starter Kit's layout:
+
+\`\`\`
+// theme/default.php
+<@ components/page.php @>          // include the document shell
+<@~ snippet main ~@>                // define 'main' here (or override)
+    <h1>Welcome to the site</h1>
+    @{ +main }
+<@~ end ~@>
+\`\`\`
+
+\`\`\`
+// theme/components/page.php  (the document shell)
+<!DOCTYPE html>
+<html lang="@{ :lang | def('en') }">
+  <head>...</head>
+  <body>
+    <main><@ main @></main>          // ← invokes the snippet
+    @{ +footer }
+  </body>
+</html>
+\`\`\`
+
+Page templates (\`pagelist.php\`, \`galerie.php\`) redefine \`main\` to inject
+their specific content:
+
+\`\`\`
+// theme/pagelist.php
+<@~ snippet main ~@>
+    <h1>All pages</h1>
+    <@ newPagelist { type: 'children' } @>
+<@~ end ~@>
+\`\`\`
+
+## Two-pass processing
+
+The template engine runs in **two passes**:
+
+1. **First pass**: collect all \`<@~ snippet name ~@> ... <@~ end ~@>\` definitions
+   into a registry. No output is produced.
+2. **Second pass**: render the template, looking up snippets from the registry
+   when \`<@ snippetName @>\` or \`<@ path/to/file @>\` (which expands to a
+   \`<@~ snippet main ~@>\` lookup) is encountered.
+
+**This means:** the order of \`<@~ snippet ~@>\` vs \`<@ include @>\` in your
+template does not matter for correctness — both passes run over the whole
+template file regardless of position.
+
+## Common bug: custom theme puts HTML directly in page.php
+
+A theme that doesn't use the starter kit's indirection and puts the full HTML
+in \`page.php\` directly has no \`main\` snippet registered. If any layout file
+or shared component invokes \`<@ main @>\`, that section is empty. Either:
+
+- Register \`main\` explicitly somewhere reachable, OR
+- Remove all \`<@ main @>\` invocations and inline the content.
+
+## Lint check
+
+\`automad_theme.analyze\` walks the call graph from \`default.php\` (and any
+other root templates) and reports any \`<@ main @>\` invocation that has no
+reachable \`<@~ snippet main ~@>\` definition.
+`;
 export const DOC_PAGES: readonly DocPage[] = [
   {
     slug: "template-syntax",
@@ -430,6 +725,41 @@ export const DOC_PAGES: readonly DocPage[] = [
     tags: ["install", "docker", "packages", "setup", "requirements"],
     reference: "https://automad.org/getting-started",
     body: GETTING_STARTED,
+  },
+  {
+    slug: "common-pitfalls",
+    title: "Common pitfalls (v2 themes)",
+    tags: ["pitfalls", "debug", "gotchas", "include", "snippet", "lang", "fpm"],
+    reference: "https://automad.org/developer-guide",
+    body: COMMON_PITFALLS,
+  },
+  {
+    slug: "include-path-resolution",
+    title: "Include path resolution",
+    tags: ["include", "path", "snippet", "resolve", "directory"],
+    reference: "https://automad.org/developer-guide/building-themes/template-language/includes",
+    body: INCLUDE_PATH_RESOLUTION,
+  },
+  {
+    slug: "custom-functions",
+    title: "Custom functions (CustomFunction registry)",
+    tags: ["function", "CustomFunction", "registry", "t", "i18n"],
+    reference: "https://automad.org/developer-guide/developing-extensions",
+    body: CUSTOM_FUNCTIONS,
+  },
+  {
+    slug: "runtime-lang",
+    title: "Runtime :lang vs per-page textLanguage",
+    tags: ["lang", "i18n", "textLanguage", "AM_I18N_ENABLED"],
+    reference: "https://automad.org/developer-guide/building-themes/template-language/multilingual-content",
+    body: RUNTIME_LANG,
+  },
+  {
+    slug: "snippet-inheritance",
+    title: "Snippet inheritance (the `main` pattern)",
+    tags: ["snippet", "main", "inheritance", "two-pass", "page.php", "layout.php"],
+    reference: "https://automad.org/developer-guide/building-themes/template-language/inheritance",
+    body: SNIPPET_INHERITANCE,
   },
 ];
 

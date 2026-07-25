@@ -100,6 +100,18 @@ export class ThemeAnalyzer {
     if (analysis.starterKit.detected && REQUIRED_BUILD_MARKERS.some((marker) => !analysis.starterKit.markers.includes(marker))) {
       findings.push({ severity: "warning", code: "STARTER_BUILD_INCOMPLETE", message: "Starter Kit structure is missing one or more build markers", path: "." });
     }
+    if (analysis.files.templates.length > 0) {
+      // B6 (from IMPROVEMENT-PROMPT.md): every page's data file must set BOTH
+      // `theme` AND `template` — setting only one yields "Template missing!
+      // <theme>/.php" at render time. We can't inspect page data here, so we
+      // emit an info-level reminder once per theme.
+      findings.push({
+        severity: "info",
+        code: "PAGE_DATA_TEMPLATE_REQUIRED",
+        message: "Every page's data file must set both `theme` and `template` to be renderable — see automad_docs.get('common-pitfalls')",
+        path: "pages/*/data",
+      });
+    }
     findings.sort(compareFindings);
     const summary = {
       errors: findings.filter((finding) => finding.severity === "error").length,
