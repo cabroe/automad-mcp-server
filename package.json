@@ -36,6 +36,10 @@
     "test:e2e": "vitest run tests/e2e",
     "lint": "eslint src tests",
     "format": "prettier --write src tests",
+    "docs:sync": "node --import tsx scripts/sync.ts",
+    "release:patch": "node --import tsx scripts/release.ts patch --tag",
+    "release:minor": "node --import tsx scripts/release.ts minor --tag",
+    "release:major": "node --import tsx scripts/release.ts major --tag",
     "prepublishOnly": "npm run build && npm test"
   },
   "dependencies": {
