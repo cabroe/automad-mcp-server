@@ -1,50 +1,63 @@
 import { AutomadMcpError } from "../errors.js";
 
+/**
+ * Single source of truth for the whole tool surface.
+ *
+ * Everything downstream is *derived* from `CAPABILITY_SPECS` below — there is
+ * no second list to keep in sync:
+ *
+ *   - `WriteAction` (the guard's action union)      → type-level derivation
+ *   - `READ_ACTIONS` / `DESTRUCTIVE_ACTIONS`        → `actionsWhere()`
+ *   - each tool's Zod `action` enum                 → `advertisedActions()` (schemas.ts)
+ *   - MCP tool registration (title/description/gate) → capabilities/tools.ts
+ *   - `automad_discover` list/describe output       → domains/discover.ts
+ *   - the README tool table + count markers         → scripts/sync.ts
+ *
+ * Adding a tool = one entry here + one binding in `capabilities/tools.ts`.
+ * Adding an action = one entry here; the compiler then points at every
+ * `Record<Action, WriteAction>` map that still needs a case.
+ */
+
 export interface CapabilityAction {
   readonly readOnly: boolean;
   readonly destructive: boolean;
   readonly description: string;
+  /**
+   * Guard-only action: raised by a domain handler for fine-grained
+   * confirmation (e.g. a title change inside `pages.update`), never callable
+   * on its own. Internal actions stay out of every advertised surface — the
+   * tool's `action` enum, `automad_discover`, and the docs table.
+   */
+  readonly internal?: true;
 }
 
-export interface CapabilityDefinition {
-  readonly name: string;
+/** Guard-only variant — the literal `internal: true` is what `AdvertisedAction` filters on. */
+export type InternalCapabilityAction = CapabilityAction & { readonly internal: true };
+
+/** Runtime prerequisite of a tool — checked once per call before dispatch. */
+export type ToolRequirement = "none" | "live" | "themes";
+
+export interface CapabilitySpec {
   readonly title: string;
+  /** One-liner for the docs table and `discover.list`. */
+  readonly summary: string;
+  /** Full prose shown to the model as the MCP tool description. */
   readonly description: string;
+  readonly requires: ToolRequirement;
   readonly actions: Readonly<Record<string, CapabilityAction>>;
 }
 
-type ExpectedActions = Readonly<Record<string, readonly string[]>>;
-/** Tool → every action name it advertises. Exported for drift tests against write-guard.ts. */
-export const EXPECTED_ACTIONS: ExpectedActions = {
-  automad_pages: ["list", "get", "create", "update", "delete", "move", "duplicate", "publish", "batch_update"],
-  automad_media: ["list", "upload", "delete"],
-  automad_shared: ["get", "set"],
-  automad_config: ["get", "set"],
-  automad_site: ["info", "search", "health"],
-  automad_docs: ["list", "search", "get"],
-  automad_theme: [
-    "list", "install", "activate", "uninstall", "scaffold", "build", "read", "write", "files", "analyze", "validate", "schema", "diff", "generate",
-  ],
-  automad_discover: ["list", "describe"],
-};
+export interface CapabilityDefinition extends CapabilitySpec {
+  readonly name: string;
+}
 
-/** Map tool name → WriteAction prefix (e.g. "automad_pages" → "pages"). */
-export const WRITE_ACTION_PREFIX: Readonly<Record<string, string>> = Object.freeze({
-  automad_pages: "pages",
-  automad_media: "media",
-  automad_shared: "shared",
-  automad_config: "config",
-  automad_site: "site",
-  automad_docs: "docs",
-  automad_theme: "theme",
-  automad_discover: "discover",
-});
-
-export const CAPABILITY_REGISTRY: readonly CapabilityDefinition[] = [
-  {
-    name: "automad_pages",
+const CAPABILITY_SPECS = {
+  automad_pages: {
     title: "Pages",
-    description: "Manage Automad pages.",
+    summary: "Manage Automad pages.",
+    description:
+      "Manage Automad v2 pages: list, get, create, update, delete, move, duplicate. Uses /_api/page/* and /_api/public/pagelist.",
+    requires: "live",
     actions: {
       list: read("List pages."),
       get: read("Read one page."),
@@ -55,60 +68,78 @@ export const CAPABILITY_REGISTRY: readonly CapabilityDefinition[] = [
       duplicate: write("Duplicate a page (creates a copy; non-destructive)."),
       publish: write("Publish a page (draft to live)."),
       batch_update: write("Update multiple pages sequentially."),
+      update_rename: internal("Rename a page — raised by update/batch_update when the title changes."),
     },
   },
-  {
-    name: "automad_media",
+  automad_media: {
     title: "Media",
-    description: "Manage Automad media.",
+    summary: "Manage Automad media.",
+    description:
+      "Manage Automad v2 media: list files for a page/shared directory, upload (single-chunk). Uses /_api/file-collection/*.",
+    requires: "live",
     actions: {
       list: read("List media files."),
       upload: write("Upload a media file."),
       delete: destructive("Delete a media file."),
     },
   },
-  {
-    name: "automad_shared",
+  automad_shared: {
     title: "Shared data",
-    description: "Manage site-wide shared data.",
+    summary: "Manage site-wide shared data.",
+    description:
+      "Site-wide shared data (sitename, consent, custom fields): get and set. Uses /_api/shared/data.",
+    requires: "live",
     actions: {
       get: read("Read shared data."),
       set: write("Update shared data."),
     },
   },
-  {
-    name: "automad_config",
+  automad_config: {
     title: "Config",
-    description: "Manage Automad configuration.",
+    summary: "Manage Automad configuration.",
+    description:
+      "Site config: `get` returns envKeys/sitename/version from /_api/app/bootstrap; `set` posts to /_api/config/update with a type discriminator (cache, feed, debug, etc.).",
+    requires: "live",
     actions: {
       get: read("Read configuration data."),
       set: write("Update configuration data."),
     },
   },
-  {
-    name: "automad_site",
+  automad_site: {
     title: "Site",
-    description: "Inspect and search the site.",
+    summary: "Inspect and search the site.",
+    description:
+      "Site-level: `info` returns bootstrap data; `search` queries /_api/search/search-replace (read-only when `replace` is omitted).",
+    requires: "live",
     actions: {
       info: read("Read site information."),
       search: read("Search site content."),
       health: read("Check live-instance connectivity and status."),
+      search_replace: internal("Replace across the whole site — raised by search when `replace` is set."),
     },
   },
-  {
-    name: "automad_docs",
+  automad_docs: {
     title: "Docs",
-    description: "Offline Automad v2 knowledge base.",
+    summary: "Offline Automad v2 knowledge base.",
+    description:
+      "Offline Automad v2 knowledge base: `list` pages, `search` by query, `get` a page by slug. " +
+      "Works without a live instance (also in AUTOMAD_MODE=docs). Covers template syntax, control structures, " +
+      "navigation, i18n, blocks, theme.json, headless/REST API, and getting started.",
+    requires: "none",
     actions: {
       list: read("List documentation pages."),
       search: read("Search the knowledge base."),
       get: read("Read a documentation page."),
     },
   },
-  {
-    name: "automad_theme",
+  automad_theme: {
     title: "Theme",
-    description: "Manage and inspect local themes.",
+    summary: "Manage and inspect local themes.",
+    description:
+      "Local-filesystem theme tooling (requires AUTOMAD_THEMES_PATH). " +
+      "list/install/activate/uninstall/scaffold/build, plus read/write/files for theme files (theme.json, .php, blocks/, .ts). " +
+      "Scaffold copies the starter kit into a new theme dir; build runs `npm install` + `npm run build`.",
+    requires: "themes",
     actions: {
       list: read("List themes."),
       install: destructive("Install a theme."),
@@ -126,57 +157,145 @@ export const CAPABILITY_REGISTRY: readonly CapabilityDefinition[] = [
       generate: read("Generate a snippet, block, or component."),
     },
   },
-  {
-    name: "automad_discover",
+  automad_discover: {
     title: "Discover",
-    description: "Introspect available tools and actions.",
+    summary: "Introspect available tools and actions.",
+    description:
+      "Introspect available tools and actions: `list` every tool+action with read-only/destructive flags, " +
+      "`describe` a tool's full input schema (optionally narrowed to one action). Works without a live instance " +
+      "(also in AUTOMAD_MODE=docs) — useful when the full action surface doesn't need to sit in context up front.",
+    requires: "none",
     actions: {
       list: read("List every tool+action with read-only/destructive flags and a one-line summary."),
       describe: read("Return the input schema and action metadata for one tool, optionally narrowed to one action."),
     },
   },
-] as const;
+} as const satisfies Readonly<Record<string, CapabilitySpec>>;
 
-export function validateCapabilityRegistry(
-  registry: readonly CapabilityDefinition[] = CAPABILITY_REGISTRY,
-): void {
-  const names = new Set<string>();
-  for (const capability of registry) {
-    if (!capability.name) throw new Error("Capability name must not be empty");
-    if (names.has(capability.name)) throw new Error(`Duplicate capability name: ${capability.name}`);
-    names.add(capability.name);
-    if (!capability.title) throw new Error(`Capability title must not be empty: ${capability.name}`);
-    if (!capability.description) throw new Error(`Capability description must not be empty: ${capability.name}`);
+type CapabilitySpecs = typeof CAPABILITY_SPECS;
 
-    for (const [actionName, action] of Object.entries(capability.actions)) {
-      if (!actionName) throw new Error(`Capability action name must not be empty: ${capability.name}`);
-      if (!action.description) throw new Error(`Capability action description must not be empty: ${capability.name}.${actionName}`);
-      if (action.readOnly && action.destructive) {
-        throw new Error(`Capability action ${capability.name}.${actionName} cannot be both readOnly and destructive`);
-      }
+/** Registered MCP tool names, e.g. `"automad_pages"`. */
+export type ToolName = keyof CapabilitySpecs & string;
+
+/** Every action a tool declares — including internal, guard-only ones. */
+export type ActionName<T extends ToolName> = keyof CapabilitySpecs[T]["actions"] & string;
+
+type CallableKeys<A> = { [K in keyof A]-?: A[K] extends { internal: true } ? never : K }[keyof A];
+
+/** The actions a tool actually exposes — `ActionName` minus the internal ones. */
+export type AdvertisedAction<T extends ToolName> = CallableKeys<CapabilitySpecs[T]["actions"]> & string;
+
+/** `"automad_pages"` → `"pages"`. Enforced by `validateCapabilityRegistry`. */
+export const TOOL_NAME_PREFIX = "automad_";
+type ToolPrefix<T extends string> = T extends `${typeof TOOL_NAME_PREFIX}${infer P}` ? P : never;
+
+/**
+ * Guard action union — `"pages.delete" | "media.upload" | …` — derived from
+ * the registry, so a new registry action is immediately a valid `WriteAction`
+ * (and a removed one immediately stops compiling).
+ */
+export type WriteAction = { [T in ToolName]: `${ToolPrefix<T>}.${ActionName<T>}` }[ToolName];
+
+/** Tool names in registration order. `Object.keys` erases the literal keys the record was built from. */
+export const TOOL_NAMES = Object.keys(CAPABILITY_SPECS) as readonly ToolName[];
+
+export const CAPABILITY_REGISTRY: readonly CapabilityDefinition[] = Object.entries(CAPABILITY_SPECS).map(
+  ([name, spec]) => ({ name, ...spec }),
+);
+
+/** `"automad_pages"` → `"pages"`. */
+export function toolPrefix(name: string): string {
+  return name.startsWith(TOOL_NAME_PREFIX) ? name.slice(TOOL_NAME_PREFIX.length) : name;
+}
+
+/** `("automad_pages", "delete")` → `"pages.delete"`. */
+export function writeActionOf(name: string, action: string): WriteAction {
+  // Both halves come from the registry the union is derived from.
+  return `${toolPrefix(name)}.${action}` as WriteAction;
+}
+
+/**
+ * Callable actions of a tool — everything except internal, guard-only ones.
+ * Backs each tool's Zod `action` enum and the discovery facade.
+ */
+export function advertisedActions<T extends ToolName>(tool: T): readonly AdvertisedAction<T>[] {
+  // Keys of the registry entry are `AdvertisedAction<T>` once internals are filtered.
+  return callableActions(getCapability(tool)).map(([action]) => action) as AdvertisedAction<T>[];
+}
+
+/**
+ * A capability's public `[action, metadata]` pairs — internal, guard-only
+ * actions filtered out. The one place that filter lives; the discovery facade
+ * and the docs generator both go through it.
+ */
+export function callableActions(capability: CapabilityDefinition): readonly [string, CapabilityAction][] {
+  return Object.entries(capability.actions).filter(([, meta]) => !meta.internal);
+}
+
+/** Every `WriteAction` whose metadata matches `predicate` (internal actions included). */
+export function actionsWhere(predicate: (action: CapabilityAction) => boolean): ReadonlySet<WriteAction> {
+  const matches = new Set<WriteAction>();
+  for (const capability of CAPABILITY_REGISTRY) {
+    for (const [action, meta] of Object.entries(capability.actions)) {
+      if (predicate(meta)) matches.add(writeActionOf(capability.name, action));
     }
   }
-
-  for (const expectedName of Object.keys(EXPECTED_ACTIONS)) {
-    if (!names.has(expectedName)) throw new Error(`Missing capability: ${expectedName}`);
-  }
-  for (const capability of registry) {
-    if (!(capability.name in EXPECTED_ACTIONS)) throw new Error(`Unexpected capability: ${capability.name}`);
-    const expected = EXPECTED_ACTIONS[capability.name] ?? [];
-    const actual = Object.keys(capability.actions);
-    for (const action of expected) {
-      if (!actual.includes(action)) throw new Error(`Missing action ${capability.name}.${action}`);
-    }
-    for (const action of actual) {
-      if (!expected.includes(action)) throw new Error(`Unexpected action ${capability.name}.${action}`);
-    }
-  }
+  return matches;
 }
 
 export function getCapability(name: string): CapabilityDefinition {
   const capability = CAPABILITY_REGISTRY.find((entry) => entry.name === name);
   if (!capability) throw new AutomadMcpError("NOT_FOUND", `Unknown capability: ${name}`);
   return capability;
+}
+
+const VALID_REQUIREMENTS: Record<ToolRequirement, true> = { none: true, live: true, themes: true };
+
+/**
+ * Structural invariants of the registry, checked at import time (and again at
+ * server boot). These are the rules the derivations above rely on — unique
+ * names and prefixes, a non-empty callable action set per tool, and flags that
+ * don't contradict each other.
+ */
+export function validateCapabilityRegistry(
+  registry: readonly CapabilityDefinition[] = CAPABILITY_REGISTRY,
+): void {
+  const names = new Set<string>();
+  const prefixes = new Set<string>();
+  for (const capability of registry) {
+    if (!capability.name) throw new Error("Capability name must not be empty");
+    if (names.has(capability.name)) throw new Error(`Duplicate capability name: ${capability.name}`);
+    names.add(capability.name);
+    if (!capability.name.startsWith(TOOL_NAME_PREFIX)) {
+      throw new Error(`Capability name must start with "${TOOL_NAME_PREFIX}": ${capability.name}`);
+    }
+    const prefix = toolPrefix(capability.name);
+    if (prefixes.has(prefix)) throw new Error(`Duplicate capability prefix: ${prefix}`);
+    prefixes.add(prefix);
+    if (!capability.title) throw new Error(`Capability title must not be empty: ${capability.name}`);
+    if (!capability.summary) throw new Error(`Capability summary must not be empty: ${capability.name}`);
+    if (!capability.description) throw new Error(`Capability description must not be empty: ${capability.name}`);
+    if (!VALID_REQUIREMENTS[capability.requires]) {
+      throw new Error(`Capability requires must be none|live|themes: ${capability.name}`);
+    }
+
+    let callable = 0;
+    for (const [actionName, action] of Object.entries(capability.actions)) {
+      if (!actionName) throw new Error(`Capability action name must not be empty: ${capability.name}`);
+      if (!action.description) throw new Error(`Capability action description must not be empty: ${capability.name}.${actionName}`);
+      if (action.readOnly && action.destructive) {
+        throw new Error(`Capability action ${capability.name}.${actionName} cannot be both readOnly and destructive`);
+      }
+      if (action.internal) {
+        if (action.readOnly) {
+          throw new Error(`Internal action ${capability.name}.${actionName} must not be read-only`);
+        }
+      } else {
+        callable++;
+      }
+    }
+    if (callable === 0) throw new Error(`Capability declares no callable actions: ${capability.name}`);
+  }
 }
 
 function read(description: string): CapabilityAction {
@@ -189,6 +308,11 @@ function write(description: string): CapabilityAction {
 
 function destructive(description: string): CapabilityAction {
   return { readOnly: false, destructive: true, description };
+}
+
+/** Guard-only, always destructive: exists so a sub-case of a write can be confirmed separately. */
+function internal(description: string): InternalCapabilityAction {
+  return { readOnly: false, destructive: true, internal: true, description };
 }
 
 validateCapabilityRegistry();

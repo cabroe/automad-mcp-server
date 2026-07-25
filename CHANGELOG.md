@@ -1,3 +1,43 @@
+## [Unreleased]
+
+### Changed
+- **The capability registry is now the actual single source of truth, and the
+ discovery facade scales with it.** `src/capabilities/registry.ts` declares each
+ tool once (title, summary, description, runtime requirement, actions with
+ `readOnly`/`destructive`/`internal` flags); everything else is derived from it:
+ - `WriteAction` is a type-level derivation of the registry (no hand-written
+   union), and `READ_ACTIONS`/`DESTRUCTIVE_ACTIONS` in `write-guard.ts` are
+   built with `actionsWhere(...)` instead of being maintained by hand.
+ - Each tool's Zod `action` enum comes from `actionEnum("automad_<tool>")`, so
+   a registry action is callable without touching `schemas.ts`, and the literal
+   union makes every domain router's `Record<Action, WriteAction>` map fail to
+   compile until the new action is handled.
+ - `server.ts` no longer spells out eight `registerTool` calls: it loops over
+   `TOOL_BINDINGS` (`src/capabilities/tools.ts`), taking title, description and
+   the runtime gate (`requires: live | themes | none`) from the registry.
+ - The two internal, guard-only actions (`pages.update_rename`,
+   `site.search_replace`) are declared in the registry via `internal(...)`
+   instead of living only in `write-guard.ts` plus a test-side allowlist. They
+   stay out of the Zod enums, `automad_discover` and the generated docs table.
+ - `EXPECTED_ACTIONS` and `WRITE_ACTION_PREFIX` are gone — both duplicated data
+   the registry already carries (the prefix is derived from the `automad_` tool
+   name, validated at boot).
+- **`automad_discover` describes every tool, including itself.** `describe`
+ reads `TOOL_INPUT_SCHEMAS` (the same schemas the server registers), so
+ `automad_discover` is no longer a `NOT_FOUND` hole in its own output. `list`
+ and `describe` additionally report `writeAction` and `requires`, and
+ `describe` returns the tool's `title`/`summary` alongside the full description.
+
+### Added
+- `validateToolBindings()` — boot-time check that every registry tool has a
+ binding under its own name using its registered input schema.
+- `tests/unit/capabilities-tools.test.ts` — covers the binding layer's gates
+ (`requires: live` in docs mode, `requires: themes` without a themes path),
+ schema validation before dispatch, and dispatch into the domain routers.
+- `tests/unit/drift.test.ts` rewritten around the derivations: Zod enum values
+ vs. advertised actions, guard sets vs. registry flags, internal actions hidden
+ from every advertised surface, and real `WriteGuard` behavior per write mode.
+
 ## [0.5.3]
 
 ### Fixed

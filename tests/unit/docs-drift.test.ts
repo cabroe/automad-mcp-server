@@ -1,8 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { CAPABILITY_REGISTRY, WRITE_ACTION_PREFIX } from "../../src/capabilities/registry.js";
-import { DESTRUCTIVE_ACTIONS, type WriteAction } from "../../src/write-guard.js";
+import { CAPABILITY_REGISTRY, callableActions, writeActionOf } from "../../src/capabilities/registry.js";
+import { DESTRUCTIVE_ACTIONS, READ_ACTIONS } from "../../src/write-guard.js";
 
 /**
  * Regression guard: prevent CLAUDE.md from quietly drifting away from the
@@ -47,18 +47,14 @@ describe("CLAUDE.md ↔ code drift", () => {
     expect(CLAUDE_MD).toMatch(expected);
   });
 
-  it("every registry action is also a valid WriteAction (or an internal action we already track)", () => {
-    // Internal actions (pages.update_rename, site.search_replace) are
-    // declared in write-guard.ts as WriteAction literals but not public,
-    // so they won't appear in CAPABILITY_REGISTRY — that's expected.
+  it("every registry action classifies into the guard sets the docs describe", () => {
+    // Ordinary writes (create, update, …) are intentionally in neither set:
+    // they run directly in `confirm-destructive` mode.
     for (const cap of CAPABILITY_REGISTRY) {
-      const prefix = WRITE_ACTION_PREFIX[cap.name];
-      for (const actionName of Object.keys(cap.actions)) {
-        const full = `${prefix}.${actionName}` as WriteAction;
-        // No "in set" assertion: ordinary writes (create, update, etc.)
-        // are intentionally outside both sets. We just record the
-        // declaration exists.
-        expect(typeof full).toBe("string");
+      for (const [actionName, meta] of Object.entries(cap.actions)) {
+        const full = writeActionOf(cap.name, actionName);
+        expect(READ_ACTIONS.has(full), full).toBe(meta.readOnly);
+        expect(DESTRUCTIVE_ACTIONS.has(full), full).toBe(meta.destructive);
       }
     }
   });
@@ -75,6 +71,13 @@ describe("README ↔ code drift", () => {
     const block = README.slice(start, end);
     for (const cap of CAPABILITY_REGISTRY) {
       expect(block, `missing tool ${cap.name} in AUTOGEN block`).toContain(`\`${cap.name}\``);
+      for (const [action] of callableActions(cap)) {
+        expect(block, `missing action ${cap.name}.${action} in AUTOGEN block`).toContain(`\`${action}\``);
+      }
+      for (const [action, meta] of Object.entries(cap.actions)) {
+        // Internal, guard-only actions must never leak into the generated table.
+        if (meta.internal) expect(block, `internal ${action} leaked into AUTOGEN block`).not.toContain(`\`${action}\``);
+      }
     }
   });
 });

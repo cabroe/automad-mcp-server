@@ -14,7 +14,7 @@ also works on the local filesystem (where Automad's theme packages live).
 
 ```bash
 npm run build            # tsc → dist/  (ESM, strict; reads package.json#version at compile time)
-npm test                 # vitest run (<!-- AUTOGEN:TESTCOUNT -->303 tests, 31 files<!-- /AUTOGEN:TESTCOUNT -->; live E2E auto-skips)
+npm test                 # vitest run (<!-- AUTOGEN:TESTCOUNT -->321 tests, 32 files<!-- /AUTOGEN:TESTCOUNT -->; live E2E auto-skips)
 npm run test:coverage    # vitest + v8 coverage (gate: 80% stmts / 70% branches)
 npm run lint             # eslint src tests
 npm run dev              # tsx src/index.ts  (run the server locally)
@@ -32,20 +32,21 @@ client + guard + McpServer over stdio.
 ```
 src/
   index.ts          entry: config + stdio transport + graceful shutdown
-  server.ts         McpServer + 8 tool + 4 resource + 5 prompt registrations (createAutomadServer)
+  server.ts         McpServer: registry-driven tool loop + 4 resource + 5 prompt registrations (createAutomadServer)
   config.ts         env loader; exports API_BASE = "/_api"
   auth.ts           AuthManager: POST /_api/session/login + cookie jar + CSRF scrape
   client.ts         HttpClient: multipart __csrf__+__json__ POST, envelope unwrap, retry
   errors.ts         AutomadMcpError + errorToJson (codes: AUTH, FORBIDDEN, NOT_FOUND, VALIDATION, CONFLICT, NETWORK, RATE_LIMITED, UNSUPPORTED, UNKNOWN)
   logger.ts         pino logger, credentials redacted
-  schemas.ts        Zod input schemas (one per tool)
-  write-guard.ts    multi-tier write protection + confirm-token flow
+  schemas.ts        Zod input schemas (one per tool); `action` enums built from the registry + TOOL_INPUT_SCHEMAS
+  write-guard.ts    multi-tier write protection + confirm-token flow (READ/DESTRUCTIVE sets derived from the registry)
   prompts.ts        MCP workflow prompts (create_blog_post, scaffold_theme, analyze_theme, check_headless_setup, find_docs)
   page-format.ts    parsePage / serializePage (used by tests/unit/page-format.test.ts; not wired into the live HTTP path)
   docs/
     kb.ts           bundled offline Automad knowledge base (automad_docs source)
   capabilities/
-    registry.ts     single source of truth: tool+action metadata (readOnly/destructive), validated at boot via validateCapabilityRegistry()
+    registry.ts     single source of truth: tool+action metadata (title/summary/description, requires, readOnly/destructive/internal); derives ToolName, WriteAction, the guard sets, the Zod action enums and the docs table; validated at boot via validateCapabilityRegistry()
+    tools.ts        wiring layer: one binding per tool (schema + gate + domain dispatch); server.ts loops over TOOL_BINDINGS
   resources/
     themes.ts       theme MCP resources (docs resources are served inline from docs/kb.ts)
   domains/
@@ -68,7 +69,7 @@ src/
 scripts/                 # build-time helpers, run via `npm run <name>`
   sync.ts                # regenerates the AUTOGEN tool table + fenced number markers in README/CLAUDE.md (--tests refreshes TESTCOUNT via a live vitest run)
   release.ts             # version-bump + CHANGELOG skeleton + git tag (`--tag` / `--dry-run`)
-tests/unit/              <!-- AUTOGEN:TESTCOUNT -->303 tests, 31 files<!-- /AUTOGEN:TESTCOUNT --> (drift test pins capability-registry ↔ write-guard; docs-drift test pins CLAUDE.md/README/CHANGELOG against code reality; server test pins mcp.getServerVersion() ↔ package.json)
+tests/unit/              <!-- AUTOGEN:TESTCOUNT -->321 tests, 32 files<!-- /AUTOGEN:TESTCOUNT --> (drift test pins the registry's runtime derivations: Zod action enums, guard sets, bindings, guard behavior; docs-drift test pins CLAUDE.md/README/CHANGELOG against code reality; server test pins mcp.getServerVersion() ↔ package.json)
 tests/e2e/               opt-in live E2E vs. real Automad (skipped unless AUTOMAD_E2E_* set; `npm run test:e2e`)
 
 ## Configuration
@@ -163,14 +164,42 @@ Three modes via `AUTOMAD_WRITE_MODE`:
 A token is bound to its `(action, target)` pair — both are checked on
 confirmation. Re-using a token for a different target fails.
 
-The DESTRUCTIVE_ACTIONS whitelist in `write-guard.ts` is the single source of
-truth for confirmation. Adding a new destructive action = adding to the
-`WriteAction` union, the DESTRUCTIVE_ACTIONS set, **and** the matching
-`destructive(...)` entry in `capabilities/registry.ts` (validated at boot by
-`validateCapabilityRegistry()`, which also cross-checks every tool's action
-list). Internal-only actions that exist for fine-grained confirmation
-(`pages.update_rename`, `site.search_replace`) live in the `INTERNAL_ACTIONS`
-set in `tests/unit/drift.test.ts` so the drift test accepts them.
+`capabilities/registry.ts` is the single source of truth for confirmation:
+`READ_ACTIONS` and `DESTRUCTIVE_ACTIONS` in `write-guard.ts` are *derived* from
+it (`actionsWhere(...)`), and so is the `WriteAction` union. Marking an action
+`destructive(...)` in the registry is the whole change — there is no second list
+to update. Internal-only actions that exist for fine-grained confirmation
+(`pages.update_rename`, `site.search_replace`) are declared in the registry via
+`internal(...)`: they join the guard sets and the `WriteAction` union but stay
+out of every advertised surface (Zod `action` enums, `automad_discover`, the
+generated docs table).
+
+## Scaling pattern — adding a tool or an action
+
+The registry is the only place a capability is *declared*; everything else is
+derived from it, so the compiler drives the rest of the change.
+
+**New action** on an existing tool:
+1. Add one line to that tool's `actions` in `capabilities/registry.ts`
+   (`read` / `write` / `destructive` / `internal`).
+2. `npx tsc --noEmit` — the domain router's `Record<Action, WriteAction>` map
+   now fails to compile, and so does its non-exhaustive `switch`. Implement
+   both. The Zod enum, the guard classification, `automad_discover` and the
+   README table need no edits.
+3. `npm run docs:sync` for the count markers.
+
+**New tool**:
+1. Registry entry (title, summary, description, `requires`, actions).
+2. Zod schema in `schemas.ts` using `actionEnum("automad_<name>")`, added to
+   `TOOL_INPUT_SCHEMAS` (the record is total over `ToolName` — a missing entry
+   is a compile error).
+3. Domain router in `domains/`.
+4. One `bind(...)` entry in `capabilities/tools.ts` (also total over
+   `ToolName`). `server.ts` picks it up automatically — no edit there.
+
+`validateCapabilityRegistry()` + `validateToolBindings()` run at boot and in
+`tests/unit/drift.test.ts`, which pins the runtime derivations TypeScript can't
+see (actual Zod enum values, actual guard sets, actual guard behavior per mode).
 
 ## v2 contract notes (live-verified, not reverse-engineered)
 
@@ -225,12 +254,14 @@ implementation; treat them as load-bearing constraints:
 - **`theme/*`**: use `node:fs.mkdtemp(os.tmpdir(), "mcp-")` for an isolated
   theme sandbox; copy the real starter kit from `/tmp/sk-analysis/...` for
   end-to-end coverage.
-- **Drift tests** (`tests/unit/drift.test.ts`): every action declared in
-  `capabilities/registry.ts` must also exist in the `WriteAction` union and
-  the `READ_ACTIONS`/`DESTRUCTIVE_ACTIONS` sets in `write-guard.ts`, with
-  consistent `readOnly`/`destructive` flags. Internal-only actions
-  (`pages.update_rename`, `site.search_replace`) are listed in
-  `INTERNAL_ACTIONS` so the test accepts them.
+- **Drift tests** (`tests/unit/drift.test.ts`): pin the registry's *runtime*
+  derivations — each tool's Zod `action` enum equals its advertised registry
+  actions, `READ_ACTIONS`/`DESTRUCTIVE_ACTIONS` equal the registry's flagged
+  actions exactly, every tool has a binding using its registered schema,
+  internal actions stay out of every advertised surface, and a `WriteGuard` in
+  each mode really permits/pends what the flags claim.
+  `tests/unit/capabilities-tools.test.ts` covers the binding layer's gates
+  (`requires: live` in docs mode, `requires: themes` without a themes path).
 - **Live e2e**: spawn the built server with `dist/index.js`; pipe
   `initialize` → JSON-RPC calls; assert results. See `/tmp/mcp-live-themes/`
   setup in git history for the full sandbox layout.
@@ -244,7 +275,7 @@ implementation; treat them as load-bearing constraints:
 | `automad_site` | `info` `search` `health` | `/_api/app/bootstrap` (info/health), `/_api/search/search-replace` (`search` becomes `site.search_replace` and requires a confirm token when `replace` is set) |
 | `automad_docs` | `list` `search` `get` | offline bundled KB (`docs/kb.ts`); no HTTP, works in docs mode |
 | `automad_theme` | `list` `install` `activate` `uninstall` `scaffold` `build` `read` `write` `files` `analyze` `validate` `schema` `diff` `generate` | local FS (`AUTOMAD_THEMES_PATH`); `diff` previews a write, `generate` returns snippet/block content, `build` runs composer (if present) + npm |
-| `automad_discover` | `list` `describe` | reads `capabilities/registry.ts` in-process; no HTTP, works in docs mode |
+| `automad_discover` | `list` `describe` | reads `capabilities/registry.ts` + `TOOL_INPUT_SCHEMAS` in-process (same source the server registers from); no HTTP, works in docs mode |
 
 `automad_theme` is **disabled** (returns `isError code=UNSUPPORTED`) when
 `AUTOMAD_THEMES_PATH` is unset. The five live-API tools are disabled in

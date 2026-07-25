@@ -21,7 +21,7 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { execFileSync } from "node:child_process";
 
-import { CAPABILITY_REGISTRY } from "../src/capabilities/registry.js";
+import { CAPABILITY_REGISTRY, callableActions } from "../src/capabilities/registry.js";
 import { READ_ACTIONS, DESTRUCTIVE_ACTIONS } from "../src/write-guard.js";
 
 const ROOT = resolve(fileURLToPath(import.meta.url), "..", "..");
@@ -39,9 +39,9 @@ export function buildToolsTable(): string {
   ];
   const rows: string[] = [];
   for (const cap of CAPABILITY_REGISTRY) {
-    const actionNames = Object.keys(cap.actions);
-    const actions = actionNames.map((a) => `\`${a}\``).join(" ");
-    const desc = humanize(cap.description);
+    // Internal, guard-only actions aren't callable, so they aren't documented.
+    const actions = callableActions(cap).map(([action]) => `\`${action}\``).join(" ");
+    const desc = humanize(cap.summary);
     rows.push(`| \`${cap.name}\` | ${actions} | ${desc} |`);
   }
   return [header.join("\n"), ...rows].join("\n");

@@ -197,16 +197,26 @@ up front:
 
 ```jsonc
 { "action": "list" }
-// → { "capabilities": [{ "tool": "automad_pages", "action": "delete", "readOnly": false, "destructive": true, "summary": "Delete a page." }, …] }
+// → { "capabilities": [{ "tool": "automad_pages", "action": "delete", "writeAction": "pages.delete",
+//                        "readOnly": false, "destructive": true, "requires": "live", "summary": "Delete a page." }, …] }
 
 { "action": "describe", "tool": "automad_pages", "target_action": "delete" }
-// → { "tool": "automad_pages", "description": "Manage Automad pages.",
+// → { "tool": "automad_pages", "title": "Pages", "summary": "Manage Automad pages.",
+//     "description": "Manage Automad v2 pages: …", "requires": "live",
 //     "actions": { "delete": { "readOnly": false, "destructive": true, "description": "Delete a page." } },
 //     "inputSchema": { "type": "object", "properties": { "action": …, "url": …, … } } }
 ```
 
 Always read-only, works in every write mode and in `AUTOMAD_MODE=docs`, and
-reflects live-API tools' actions even when those tools are themselves disabled.
+reflects live-API tools' actions even when those tools are themselves disabled
+(`requires` says what a tool needs: `live`, `themes`, or `none`).
+
+The facade is not a parallel description of the server — it reads the same
+capability registry (`src/capabilities/registry.ts`) that the server registers
+tools from, that the write-guard classifies actions with, that every tool's Zod
+`action` enum is built from, and that this README's tool table is generated
+from. One entry per tool, one entry per action; everything else is derived, so
+discovery can't advertise a surface that doesn't exist.
 </details>
 
 <details>

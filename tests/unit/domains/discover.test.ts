@@ -22,8 +22,10 @@ describe("handleDiscover", () => {
     expect(out.capabilities).toContainEqual({
       tool: "automad_pages",
       action: "delete",
+      writeAction: "pages.delete",
       readOnly: false,
       destructive: true,
+      requires: "live",
       summary: "Delete a page.",
     });
   });
@@ -55,6 +57,17 @@ describe("handleDiscover", () => {
     expect(out.tool).toBe("automad_docs");
     expect(Object.keys(out.actions).sort()).toEqual(["get", "list", "search"]);
     expect(out.inputSchema.properties.action).toBeDefined();
+  });
+
+  it("describes itself — every registered tool has a schema", async () => {
+    const out = (await handleDiscover({ action: "describe", tool: "automad_discover" }, guard())) as {
+      tool: string;
+      requires: string;
+      inputSchema: { properties: { action: { enum: string[] } } };
+    };
+    expect(out.tool).toBe("automad_discover");
+    expect(out.requires).toBe("none");
+    expect(out.inputSchema.properties.action.enum).toEqual(["list", "describe"]);
   });
 
   it("describe can narrow to one action", async () => {

@@ -1,47 +1,9 @@
 import { randomUUID } from "node:crypto";
 import type { Config, WriteMode } from "./config.js";
+import { actionsWhere, type WriteAction } from "./capabilities/registry.js";
 
-export type WriteAction =
-  | "pages.list"
-  | "pages.get"
-  | "pages.create"
-  | "pages.update"
-  | "pages.delete"
-  | "pages.move"
-  | "pages.duplicate"
-  | "media.list"
-  | "media.upload"
-  | "media.delete"
-  | "shared.get"
-  | "shared.set"
-  | "config.get"
-  | "config.set"
-  | "site.info"
-  | "site.search"
-  | "theme.list"
-  | "theme.install"
-  | "theme.activate"
-  | "theme.uninstall"
-  | "theme.scaffold"
-  | "theme.build"
-  | "theme.read"
-  | "theme.write"
-  | "theme.files"
-  | "theme.analyze"
-  | "theme.validate"
-  | "theme.schema"
-  | "theme.diff"
-  | "theme.generate"
-  | "pages.publish"
-  | "pages.batch_update"
-  | "pages.update_rename"
-  | "site.search_replace"
-  | "site.health"
-  | "docs.list"
-  | "docs.search"
-  | "docs.get"
-  | "discover.list"
-  | "discover.describe";
+/** Re-exported for convenience: the union itself is derived from the capability registry. */
+export type { WriteAction };
 
 export type Permit =
   | { allowed: true }
@@ -53,44 +15,19 @@ export type Permit =
       expiresAt: string;
     }
   | { allowed: false; reason: string };
-/** Read-only actions — allowed in every write mode. Exported for drift tests against the capability registry. */
-export const READ_ACTIONS: ReadonlySet<WriteAction> = new Set<WriteAction>([
-  "pages.list",
-  "pages.get",
-  "media.list",
-  "shared.get",
-  "config.get",
-  "site.info",
-  "site.search",
-  "theme.list",
-  "theme.read",
-  "theme.files",
-  "theme.analyze",
-  "theme.validate",
-  "theme.schema",
-  "theme.diff",
-  "theme.generate",
-  "site.health",
-  "docs.list",
-  "docs.search",
-  "docs.get",
-  "discover.list",
-  "discover.describe",
-]);
-/** Destructive actions — require a confirm token in `confirm-destructive` mode (the default). Exported for drift tests. */
-export const DESTRUCTIVE_ACTIONS: ReadonlySet<WriteAction> = new Set<WriteAction>([
-  "pages.delete",
-  "pages.move",
-  "media.delete",
-  "theme.install",
-  "theme.activate",
-  "theme.uninstall",
-  "theme.scaffold",
-  "theme.build",
-  "pages.update_rename",
-  "site.search_replace",
-  "theme.write",
-]);
+/**
+ * Read-only actions — allowed in every write mode. Derived from the capability
+ * registry (`readOnly: true`), so the guard can never disagree with what
+ * `automad_discover` advertises.
+ */
+export const READ_ACTIONS: ReadonlySet<WriteAction> = actionsWhere((action) => action.readOnly);
+
+/**
+ * Destructive actions — require a confirm token in `confirm-destructive` mode
+ * (the default). Derived from the registry (`destructive: true`), including the
+ * internal, guard-only actions (`pages.update_rename`, `site.search_replace`).
+ */
+export const DESTRUCTIVE_ACTIONS: ReadonlySet<WriteAction> = actionsWhere((action) => action.destructive);
 
 export interface WriteGuardOptions {
   ttlMs?: number;

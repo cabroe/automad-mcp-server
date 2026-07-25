@@ -5,6 +5,7 @@ import { createAutomadServer } from "../../src/server.js";
 import { WriteGuard } from "../../src/write-guard.js";
 import type { HttpClient } from "../../src/client.js";
 import type { Config } from "../../src/config.js";
+import { CAPABILITY_REGISTRY, callableActions, getCapability } from "../../src/capabilities/registry.js";
 
 const TOOL_NAMES = [
   "automad_config",
@@ -128,6 +129,34 @@ describe("createAutomadServer (v2)", () => {
     const noArgs = await mcp.getPrompt({ name: "check_headless_setup", arguments: {} });
     const noArgsContent = noArgs.messages[0]!.content;
     if (noArgsContent.type === "text") expect(noArgsContent.text).toContain("health");
+    await mcp.close();
+    await server.close();
+  });
+
+  it("takes every tool's title and description from the capability registry", async () => {
+    const { server, mcp } = await connect(mockClient(), new WriteGuard(cfg()));
+    const list = await mcp.listTools();
+    expect(list.tools.map((t) => t.name)).toEqual(CAPABILITY_REGISTRY.map((cap) => cap.name));
+    for (const tool of list.tools) {
+      const capability = getCapability(tool.name);
+      expect(tool.title).toBe(capability.title);
+      expect(tool.description).toBe(capability.description);
+    }
+    await mcp.close();
+    await server.close();
+  });
+
+  it("gates live-API tools in docs mode, per the registry's `requires`", async () => {
+    const docsConfig: Config = { ...cfg(), mode: "docs", liveEnabled: false };
+    const { server, mcp } = await connect(mockClient(), new WriteGuard(docsConfig), docsConfig);
+    for (const capability of CAPABILITY_REGISTRY) {
+      if (capability.requires !== "live") continue;
+      const [action] = callableActions(capability)[0]!;
+      const result = await mcp.callTool({ name: capability.name, arguments: { action } });
+      expect(result.isError, capability.name).toBe(true);
+      const payload = JSON.parse((result.content as [{ text: string }])[0].text);
+      expect(payload.code).toBe("UNSUPPORTED");
+    }
     await mcp.close();
     await server.close();
   });
