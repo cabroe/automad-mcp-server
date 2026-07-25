@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { HttpClient } from "../../src/client.js";
+import { HttpClient, looksLikeServerValidation } from "../../src/client.js";
 import type { AuthProvider } from "../../src/client.js";
 
 function mockAuth(opts: { cookie?: string; csrf?: string } = {}): AuthProvider {
@@ -359,5 +359,76 @@ describe("HttpClient (v2 /_api)", () => {
     const auth = mockAuth();
     const client = new HttpClient({ baseUrl: "https://x" }, auth, { maxRetries: 1 });
     await expect(client.get("/_api/page/data")).rejects.toMatchObject({ code: "AUTH" });
+  });
+});
+
+describe("looksLikeServerValidation", () => {
+  // Real v2 server-side validation strings harvested from
+  // /app/automad/lang/english.json on automad/automad:v2.
+  const validationMessages = [
+    "Title missing!",
+    "Name is required.",
+    "Page not found!",
+    "Please enter a valid URL!",
+    "Please enter a valid email address",
+    "Invalid email address!",
+    "Invalid field",
+    "Invalid image provided.",
+    "Incomplete or incorrect data!<br />All fields are required and have to be completed as described!",
+    "Please select a page as destination!",
+    "A username must start and end with a letter or number and can only contain the characters \"a-z\", \"0-9\", \"_\" or \"-\".",
+    "Title is required.",
+    "URL is invalid.",
+    "Email is required.",
+    "Field is required.",
+    "Unsupported file type \"foo\"",
+    "Url required!",
+    "Url invalid!",
+  ];
+
+  // Strings that MUST NOT be misclassified as validation.
+  // These are real v2 error messages for other failure modes.
+  const nonValidationMessages = [
+    "Invalid username or password.",
+    "Sign-in temporarily blocked due to too many failed attempts. Please try again later.",
+    "CSRF token mismatch",
+    "No session",
+    "The request to the AI provider failed. This may be caused by an invalid API key, an unsupported model, or a network issue. Please review your AI provider configuration and try again.",
+    "Error fetching data from API!",
+    "Error while uploading the image.",
+    "Download of update failed!",
+    "Update failed! Please restore your installation from a backup.",
+    "The cache directory could not be purged!",
+    "The file import has failed!",
+    "The package is required by another package.",
+    "A similar repository or package already exists in your configuration",
+    "An error occurred while sending mail.",
+    "Permissions denied",
+    "Could not save the changes",
+    "Error getting list of supported AI models.",
+    "The API key for the currently selected AI provider is invalid.",
+    "The configured AI model is not supported by the selected provider.",
+    "Sign-in temporarily blocked due to too many failed attempts.",
+  ];
+
+  for (const msg of validationMessages) {
+    it(`flags VALIDATION: ${msg.slice(0, 60)}`, () => {
+      expect(looksLikeServerValidation(msg)).toBe(true);
+    });
+  }
+
+  for (const msg of nonValidationMessages) {
+    it(`does NOT flag as VALIDATION: ${msg.slice(0, 60)}`, () => {
+      expect(looksLikeServerValidation(msg)).toBe(false);
+    });
+  }
+
+  it("rejects too-short input", () => {
+    expect(looksLikeServerValidation("")).toBe(false);
+    expect(looksLikeServerValidation("ab")).toBe(false);
+  });
+
+  it("rejects too-long input", () => {
+    expect(looksLikeServerValidation("a".repeat(501))).toBe(false);
   });
 });

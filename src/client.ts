@@ -238,12 +238,53 @@ export class HttpClient {
  * server-side validation failures (e.g. missing required field, type mismatch).
  * Without this helper those surface as `UNKNOWN`, hiding that the issue is a
  * validation problem the caller can correct.
+ *
+ * The patterns below are derived from the real v2 message catalog in
+ * `/app/automad/lang/english.json` (live-verified on `automad/automad:v2`).
+ * Each entry is a specific signal that a user could correct the request for.
+ * We deliberately do NOT match generic "Invalid ..." / "Error ..." / "Failed ..."
+ * messages because those are used for non-validation failures (auth, network,
+ * upstream, etc.) and misclassifying them would mislead callers.
  */
-function looksLikeServerValidation(errorText: string): boolean {
+export function looksLikeServerValidation(errorText: string): boolean {
   if (errorText.length < 3 || errorText.length > 500) return false;
-  // Heuristics: known v2 server-side validation patterns.
-  return /^(title|page|url|name|filename|tag|path|field|searchValue|replaceValue) (?:is )?(?:required|missing|invalid|not found|cannot|too|empty|whitespace)|Missing required|Invalid (?:input|argument|value)|Title missing!|Page not found!|Title required!|Field required!|Url required!|Url invalid!|Not implemented!|Unsupported file type "/i.test(errorText);
+  for (const pattern of VALIDATION_PATTERNS) {
+    if (pattern.test(errorText)) return true;
+  }
+  return false;
 }
+
+const VALIDATION_PATTERNS: readonly RegExp[] = [
+  // "<Field> is required" / "<Field> missing" / "<Field> invalid" / "<Field> not found"
+  // / "<Field> cannot ..." / "<Field> too ..." / "<Field> empty" / "<Field> whitespace"
+  /^(?:title|page|url|name|filename|tag|path|field|email|username|password|image|file|target|search\s*value|replace\s*value)\b.{0,40}(?:required|missing|invalid|not found|cannot|too |empty|whitespace)/i,
+  // Specific known v2 validation strings
+  /^Title missing!$/i,
+  /^Page not found!$/i,
+  /^Name is required\.?$/i,
+  /^Title required!$/i,
+  /^Field required!$/i,
+  /^Url required!$/i,
+  /^Url invalid!$/i,
+  /^Title missing!$/i,
+  // "Please enter a valid <something>"
+  /^Please enter (?:a valid |twice the same )/i,
+  // "Please select a ..."
+  /^Please select /i,
+  /^Invalid (?:field|email|form|image|input|argument|value|page|file|tag|title|url)\b/i,
+  // "Incomplete or incorrect data" / form-validation banner
+  /^Incomplete or incorrect data/i,
+  // "A username must ..." (v2 username rule)
+  /^A username must /i,
+  // "All fields are required ..."
+  /^All fields are required/i,
+  // Unsupported file type
+  /^Unsupported file type "/i,
+  // "Not implemented!" — caller asked for something v2 doesn't support yet
+  /^Not implemented!?$/i,
+  // Required (form-field shorthand)
+  /^Required$/i,
+];
 /** Decode a v2 /_api JSON envelope: return `data` on success, throw on error. */
 async function unwrap<T>(res: Response, method: string, path: string): Promise<T> {
   const payload = (await safeJson(res)) as Record<string, unknown> | undefined;
