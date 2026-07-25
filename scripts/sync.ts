@@ -27,9 +27,14 @@ import { READ_ACTIONS, DESTRUCTIVE_ACTIONS } from "../src/write-guard.js";
 const ROOT = resolve(fileURLToPath(import.meta.url), "..", "..");
 const README = resolve(ROOT, "README.md");
 const CLAUDE_MD = resolve(ROOT, "CLAUDE.md");
+/** GitHub Pages landing page (served from /docs on main). */
+const HOMEPAGE = resolve(ROOT, "docs", "index.html");
 
 const START = "<!-- AUTOGEN:TOOLS:START -->";
 const END = "<!-- AUTOGEN:TOOLS:END -->";
+
+const HTML_START = "<!-- AUTOGEN:TOOLS_HTML:START -->";
+const HTML_END = "<!-- AUTOGEN:TOOLS_HTML:END -->";
 
 /** Build the auto-generated tool table from the capability registry. */
 export function buildToolsTable(): string {
@@ -47,12 +52,32 @@ export function buildToolsTable(): string {
   return [header.join("\n"), ...rows].join("\n");
 }
 
+/** Build the `<tr>` rows of the homepage's tool table from the same registry. */
+export function buildToolsTableHtml(): string {
+  const rows: string[] = [];
+  for (const cap of CAPABILITY_REGISTRY) {
+    const actions = callableActions(cap).map(([action]) => `<code>${escapeHtml(action)}</code>`).join(" ");
+    const desc = escapeHtml(humanize(cap.summary));
+    rows.push(`<tr><td><code>${escapeHtml(cap.name)}</code></td><td class="actions">${actions}</td><td>${desc}</td></tr>`);
+  }
+  return rows.join("\n");
+}
+
 /**
  * One-liner per tool. Strips a trailing period; the markdown table cell
  * is added by the caller, so the description ends without a dot.
  */
 function humanize(description: string): string {
   return description.replace(/\.\s*$/, "");
+}
+
+/** Registry text is authored in this repo, but the page is HTML — escape anyway. */
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 }
 
 export function syncReadme(): { changed: boolean; reason: string } {
@@ -82,6 +107,26 @@ export function syncReadme(): { changed: boolean; reason: string } {
   const next = original.slice(0, startIdx) + newBlock + original.slice(endIdx + END.length);
   writeFileSync(README, next, "utf-8");
   return { changed: true, reason: "tool table regenerated" };
+}
+
+/**
+ * Replace the homepage's tool rows. Simpler than the README case: everything
+ * between the markers is generated, there is no prose to preserve.
+ */
+export function syncHomepage(): { changed: boolean; reason: string } {
+  const original = readFileSync(HOMEPAGE, "utf-8");
+  const startIdx = original.indexOf(HTML_START);
+  const endIdx = original.indexOf(HTML_END);
+  if (startIdx < 0 || endIdx < 0 || endIdx <= startIdx) {
+    return { changed: false, reason: "AUTOGEN markers not found in docs/index.html" };
+  }
+  const newBlock = `${HTML_START}\n${buildToolsTableHtml()}\n${HTML_END}`;
+  if (original.includes(newBlock)) {
+    return { changed: false, reason: "already in sync" };
+  }
+  const next = original.slice(0, startIdx) + newBlock + original.slice(endIdx + HTML_END.length);
+  writeFileSync(HOMEPAGE, next, "utf-8");
+  return { changed: true, reason: "homepage tool table regenerated" };
 }
 
 const NUMBER_WORDS = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve"];
@@ -161,16 +206,18 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const withTests = process.argv.includes("--tests");
 
   const tableResult = syncReadme();
+  const homepageResult = syncHomepage();
   const values = computeStaticValues();
   if (withTests) {
     const totals = runVitestTotals();
     values.TESTCOUNT = `${totals.tests} tests, ${totals.files} files`;
   }
 
-  const numberResults = [README, CLAUDE_MD].map((file) => ({ file, ...syncMarkedNumbers(file, values) }));
-  const anyChanged = tableResult.changed || numberResults.some((r) => r.changed);
+  const numberResults = [README, CLAUDE_MD, HOMEPAGE].map((file) => ({ file, ...syncMarkedNumbers(file, values) }));
+  const anyChanged = tableResult.changed || homepageResult.changed || numberResults.some((r) => r.changed);
   const summary = [
     `tools table: ${tableResult.reason}`,
+    `homepage table: ${homepageResult.reason}`,
     ...numberResults.map((r) => `${r.file.split("/").pop()}: ${r.changed ? `updated (${r.names.join(", ")})` : "already in sync"}`),
   ].join("; ");
 

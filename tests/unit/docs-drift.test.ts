@@ -15,6 +15,7 @@ const ROOT = resolve(__dirname, "..", "..");
 const CLAUDE_MD = readFileSync(resolve(ROOT, "CLAUDE.md"), "utf-8");
 const README = readFileSync(resolve(ROOT, "README.md"), "utf-8");
 const CHANGELOG = readFileSync(resolve(ROOT, "CHANGELOG.md"), "utf-8");
+const HOMEPAGE = readFileSync(resolve(ROOT, "docs", "index.html"), "utf-8");
 
 /** Count non-overlapping matches of a regex in a string. */
 function countMatches(pattern: RegExp, source: string): number {
@@ -79,6 +80,33 @@ describe("README ↔ code drift", () => {
         if (meta.internal) expect(block, `internal ${action} leaked into AUTOGEN block`).not.toContain(`\`${action}\``);
       }
     }
+  });
+});
+
+describe("GitHub Pages homepage ↔ code drift", () => {
+  it("the AUTOGEN tool table lists every tool with its callable actions", () => {
+    const start = HOMEPAGE.indexOf("<!-- AUTOGEN:TOOLS_HTML:START -->");
+    const end = HOMEPAGE.indexOf("<!-- AUTOGEN:TOOLS_HTML:END -->");
+    expect(start).toBeGreaterThan(-1);
+    expect(end).toBeGreaterThan(start);
+    const block = HOMEPAGE.slice(start, end);
+    for (const cap of CAPABILITY_REGISTRY) {
+      expect(block, `missing tool ${cap.name} on the homepage`).toContain(`<code>${cap.name}</code>`);
+      for (const [action] of callableActions(cap)) {
+        expect(block, `missing action ${cap.name}.${action} on the homepage`).toContain(`<code>${action}</code>`);
+      }
+      for (const [action, meta] of Object.entries(cap.actions)) {
+        if (meta.internal) expect(block, `internal ${action} leaked onto the homepage`).not.toContain(`<code>${action}</code>`);
+      }
+    }
+  });
+
+  it("stays self-contained — no external scripts, styles, or images", () => {
+    // A strict, dependency-free page: everything inlined, nothing fetched at
+    // render time (privacy, offline-readability, no CDN rot).
+    expect(HOMEPAGE).not.toMatch(/<script/i);
+    expect(HOMEPAGE).not.toMatch(/<link[^>]+rel=["']stylesheet/i);
+    expect(HOMEPAGE).not.toMatch(/<img[^>]+src=["']https?:/i);
   });
 });
 

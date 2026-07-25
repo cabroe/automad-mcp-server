@@ -1,0 +1,285 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>@automadcms/mcp-server — MCP server for Automad v2</title>
+<meta name="description" content="A Model Context Protocol server for the Automad v2 CMS: manage pages, media, shared data, config and local themes — plus an offline docs knowledge base — from any AI agent, over stdio.">
+<meta property="og:title" content="@automadcms/mcp-server">
+<meta property="og:description" content="MCP server for Automad v2 — pages, media, themes and offline docs from any AI agent, over stdio.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://cabroe.github.io/automad-mcp-server/">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23ff6600'/%3E%3Cpath d='M8 23 16 9l8 14h-4.4L16 16.4 12.4 23z' fill='%23fff'/%3E%3C/svg%3E">
+<style>
+  :root {
+    color-scheme: light dark;
+    --accent: #f60;
+    --accent-ink: #fff;
+    --bg: #fbfbfa;
+    --bg-raised: #fff;
+    --ink: #14110f;
+    --ink-soft: #57514c;
+    --line: #e6e1dc;
+    --code-bg: #f2efec;
+    --shadow: 0 1px 2px rgb(20 17 15 / 6%), 0 8px 24px rgb(20 17 15 / 6%);
+    --radius: 12px;
+    --measure: 68rem;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --accent: #ff8534;
+      --bg: #14120f;
+      --bg-raised: #1c1917;
+      --ink: #f4f1ee;
+      --ink-soft: #a8a09a;
+      --line: #322c28;
+      --code-bg: #221e1b;
+      --shadow: 0 1px 2px rgb(0 0 0 / 40%), 0 8px 24px rgb(0 0 0 / 30%);
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 16px/1.65 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: inherit; text-underline-offset: 3px; text-decoration-color: color-mix(in srgb, var(--accent) 60%, transparent); }
+  a:hover { color: var(--accent); }
+  code, pre, .mono { font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace; }
+  code { background: var(--code-bg); padding: 0.12em 0.38em; border-radius: 5px; font-size: 0.88em; }
+  pre { background: var(--code-bg); border: 1px solid var(--line); border-radius: var(--radius); padding: 1rem 1.15rem; overflow-x: auto; font-size: 0.85rem; line-height: 1.6; }
+  pre code { background: none; padding: 0; font-size: 1em; }
+  .wrap { max-width: var(--measure); margin: 0 auto; padding: 0 1.5rem; }
+  header.hero { padding: clamp(3rem, 9vw, 6rem) 0 clamp(2rem, 5vw, 3.5rem); border-bottom: 1px solid var(--line); }
+  .eyebrow { display: inline-flex; align-items: center; gap: 0.5rem; font-size: 0.8rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-soft); }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
+  h1 { font-size: clamp(2rem, 5.5vw, 3.25rem); line-height: 1.1; letter-spacing: -0.025em; margin: 0.7rem 0 0.9rem; }
+  h1 .mono { font-size: 0.92em; }
+  .lede { font-size: clamp(1.05rem, 2.2vw, 1.28rem); color: var(--ink-soft); max-width: 46rem; margin: 0 0 1.6rem; }
+  .chips { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1.8rem; }
+  .chip { font-size: 0.78rem; padding: 0.28rem 0.7rem; border: 1px solid var(--line); border-radius: 999px; background: var(--bg-raised); color: var(--ink-soft); }
+  .chip strong { color: var(--ink); font-weight: 600; }
+  .cta { display: flex; flex-wrap: wrap; gap: 0.7rem; }
+  .btn { display: inline-block; padding: 0.62rem 1.15rem; border-radius: 9px; border: 1px solid var(--line); background: var(--bg-raised); font-size: 0.92rem; font-weight: 500; text-decoration: none; box-shadow: var(--shadow); }
+  .btn:hover { border-color: var(--accent); color: var(--accent); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+  .btn.primary:hover { color: var(--accent-ink); filter: brightness(1.06); }
+  section { padding: clamp(2.5rem, 6vw, 4rem) 0; border-bottom: 1px solid var(--line); }
+  h2 { font-size: clamp(1.35rem, 3vw, 1.7rem); letter-spacing: -0.015em; margin: 0 0 0.5rem; }
+  h2 + .sub { color: var(--ink-soft); margin: 0 0 1.8rem; max-width: 48rem; }
+  h3 { font-size: 1rem; margin: 0 0 0.4rem; }
+  .grid { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); }
+  .card { background: var(--bg-raised); border: 1px solid var(--line); border-radius: var(--radius); padding: 1.15rem 1.25rem; }
+  .card p { margin: 0; color: var(--ink-soft); font-size: 0.92rem; }
+  .table-scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg-raised); }
+  table { border-collapse: collapse; width: 100%; font-size: 0.88rem; min-width: 44rem; }
+  th, td { text-align: left; padding: 0.7rem 1rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-size: 0.75rem; letter-spacing: 0.05em; text-transform: uppercase; color: var(--ink-soft); font-weight: 600; }
+  tr:last-child td { border-bottom: 0; }
+  td.actions code { margin: 0 0.15rem 0.2rem 0; display: inline-block; }
+  .two-col { display: grid; gap: 1.5rem; grid-template-columns: repeat(auto-fit, minmax(19rem, 1fr)); align-items: start; }
+  .note { border-left: 3px solid var(--accent); padding: 0.15rem 0 0.15rem 1rem; color: var(--ink-soft); font-size: 0.92rem; }
+  ul.tight { margin: 0.4rem 0 0; padding-left: 1.15rem; color: var(--ink-soft); font-size: 0.92rem; }
+  ul.tight li { margin-bottom: 0.3rem; }
+  footer { padding: 2.5rem 0 3.5rem; color: var(--ink-soft); font-size: 0.88rem; }
+  footer .links { display: flex; flex-wrap: wrap; gap: 1.1rem; margin-bottom: 1rem; }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <span class="eyebrow"><span class="dot"></span> Model Context Protocol · beta</span>
+    <h1><span class="mono">@automadcms/mcp-server</span></h1>
+    <p class="lede">
+      An MCP server for the <a href="https://automad.org/">Automad v2</a> CMS. Point any MCP-capable
+      AI agent at your site and let it manage pages, media, shared data, config and local themes —
+      with an offline documentation knowledge base that works without a backend at all.
+    </p>
+    <div class="chips">
+      <span class="chip"><strong><!-- AUTOGEN:TOOLCOUNT -->8<!-- /AUTOGEN:TOOLCOUNT --></strong> tools</span>
+      <span class="chip"><strong>4</strong> resources</span>
+      <span class="chip"><strong>5</strong> prompts</span>
+      <span class="chip"><strong><!-- AUTOGEN:TESTCOUNT -->321 tests, 32 files<!-- /AUTOGEN:TESTCOUNT --></strong></span>
+      <span class="chip">Node <strong>≥ 20</strong></span>
+      <span class="chip">stdio transport</span>
+      <span class="chip">MIT</span>
+    </div>
+    <div class="cta">
+      <a class="btn primary" href="https://github.com/cabroe/automad-mcp-server">View on GitHub</a>
+      <a class="btn" href="https://github.com/cabroe/automad-mcp-server#install-for-your-ai-agent">Install guide</a>
+      <a class="btn" href="https://github.com/cabroe/automad-mcp-server/releases">Releases</a>
+    </div>
+  </div>
+</header>
+
+<section>
+  <div class="wrap">
+    <h2>What it does</h2>
+    <p class="sub">Every tool takes an <code>action</code> and dispatches to a domain router. Live-API actions map to real, live-verified <code>/_api/{controller}/{method}</code> endpoints on your Automad instance.</p>
+    <div class="grid">
+      <div class="card">
+        <h3>Two modes</h3>
+        <p><code>full</code> bridges a live instance over its JSON API. <code>docs</code> runs standalone — offline knowledge base plus local theme tooling, no instance and no credentials.</p>
+      </div>
+      <div class="card">
+        <h3>Safe by default</h3>
+        <p>Three write modes. Destructive actions return a confirm token bound to an <code>(action, target)</code> pair; the agent has to replay the call to execute it.</p>
+      </div>
+      <div class="card">
+        <h3>Theme tooling</h3>
+        <p>Scaffold from a starter kit, build (Composer + npm), analyze, validate, derive a normalized field schema, preview writes as a unified diff, generate snippets and blocks.</p>
+      </div>
+      <div class="card">
+        <h3>Offline docs</h3>
+        <p>A bundled Automad v2 knowledge base — template syntax, control structures, navigation, i18n, blocks, <code>theme.json</code>, headless usage — searchable with zero backend.</p>
+      </div>
+      <div class="card">
+        <h3>Discovery facade</h3>
+        <p><code>automad_discover</code> enumerates the whole tool/action surface, or returns one action's input schema on demand, so the full surface doesn't have to sit in context up front.</p>
+      </div>
+      <div class="card">
+        <h3>One source of truth</h3>
+        <p>Tools, action enums, the write-guard's classification and the docs tables are all derived from a single capability registry. Adding a tool is one entry plus one binding.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>Tools</h2>
+    <p class="sub">Generated from the capability registry — this table cannot drift from the code.</p>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Tool</th><th>Actions</th><th>What it does</th></tr></thead>
+        <tbody>
+<!-- AUTOGEN:TOOLS_HTML:START -->
+<tr><td><code>automad_pages</code></td><td class="actions"><code>list</code> <code>get</code> <code>create</code> <code>update</code> <code>delete</code> <code>move</code> <code>duplicate</code> <code>publish</code> <code>batch_update</code></td><td>Manage Automad pages</td></tr>
+<tr><td><code>automad_media</code></td><td class="actions"><code>list</code> <code>upload</code> <code>delete</code></td><td>Manage Automad media</td></tr>
+<tr><td><code>automad_shared</code></td><td class="actions"><code>get</code> <code>set</code></td><td>Manage site-wide shared data</td></tr>
+<tr><td><code>automad_config</code></td><td class="actions"><code>get</code> <code>set</code></td><td>Manage Automad configuration</td></tr>
+<tr><td><code>automad_site</code></td><td class="actions"><code>info</code> <code>search</code> <code>health</code></td><td>Inspect and search the site</td></tr>
+<tr><td><code>automad_docs</code></td><td class="actions"><code>list</code> <code>search</code> <code>get</code></td><td>Offline Automad v2 knowledge base</td></tr>
+<tr><td><code>automad_theme</code></td><td class="actions"><code>list</code> <code>install</code> <code>activate</code> <code>uninstall</code> <code>scaffold</code> <code>build</code> <code>read</code> <code>write</code> <code>files</code> <code>analyze</code> <code>validate</code> <code>schema</code> <code>diff</code> <code>generate</code></td><td>Manage and inspect local themes</td></tr>
+<tr><td><code>automad_discover</code></td><td class="actions"><code>list</code> <code>describe</code></td><td>Introspect available tools and actions</td></tr>
+<!-- AUTOGEN:TOOLS_HTML:END -->
+        </tbody>
+      </table>
+    </div>
+    <p class="note" style="margin-top:1.2rem">
+      Four MCP resources (<code>automad://themes</code>, <code>automad://themes/{slug}/schema</code>,
+      <code>automad://docs</code>, <code>automad://docs/{slug}</code>) and five workflow prompts
+      ship alongside the tools.
+    </p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>Quick start</h2>
+    <p class="sub">The package is not on npm yet — build it from source and point your MCP client at <code>dist/index.js</code>.</p>
+    <div class="two-col">
+      <div>
+        <h3>Build the server</h3>
+        <pre><code>git clone https://github.com/cabroe/automad-mcp-server.git
+cd automad-mcp-server
+npm install
+npm run build</code></pre>
+        <h3 style="margin-top:1.4rem">Try it without an Automad instance</h3>
+        <pre><code>AUTOMAD_MODE=docs node dist/index.js</code></pre>
+        <p class="note">Docs mode needs no URL, no credentials and no running site: the offline knowledge base, the discovery facade and (with a themes path) the theme tooling all work.</p>
+      </div>
+      <div>
+        <h3>Wire it into an MCP client</h3>
+        <pre><code>{
+  "mcpServers": {
+    "automad": {
+      "command": "node",
+      "args": ["/abs/path/automad-mcp-server/dist/index.js"],
+      "env": {
+        "AUTOMAD_URL": "https://your-site.example.com",
+        "AUTOMAD_USER": "admin",
+        "AUTOMAD_PASS": "••••••",
+        "AUTOMAD_THEMES_PATH": "/abs/path/automad/packages",
+        "AUTOMAD_WRITE_MODE": "confirm-destructive"
+      }
+    }
+  }
+}</code></pre>
+        <p class="note">Per-editor config paths for Claude Desktop, Claude Code, Cursor, Cline and Zed are in the README.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>Write protection</h2>
+    <p class="sub">Set with <code>AUTOMAD_WRITE_MODE</code>. The classification lives in the capability registry, so what the guard enforces is exactly what the tools advertise.</p>
+    <div class="grid">
+      <div class="card">
+        <h3><code>read-only</code></h3>
+        <p>Only the <!-- AUTOGEN:READCOUNT -->21<!-- /AUTOGEN:READCOUNT --> read actions succeed. Everything else returns <code>FORBIDDEN</code>.</p>
+      </div>
+      <div class="card">
+        <h3><code>confirm-destructive</code> <span style="color:var(--ink-soft);font-weight:400">· default</span></h3>
+        <p>Ordinary writes run directly. The <!-- AUTOGEN:DESTRUCTIVECOUNT -->11<!-- /AUTOGEN:DESTRUCTIVECOUNT --> destructive actions return a confirm token (5-minute TTL, bound to <code>(action, target)</code>) that has to be replayed.</p>
+      </div>
+      <div class="card">
+        <h3><code>unrestricted</code></h3>
+        <p>Everything runs immediately. Use it for scripted runs against a site you can restore.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>Requirements &amp; status</h2>
+    <div class="two-col">
+      <div>
+        <h3>You need</h3>
+        <ul class="tight">
+          <li>Node.js ≥ 20</li>
+          <li>An Automad <strong>v2</strong> instance for <code>full</code> mode (v1 is not supported) — or nothing at all for <code>docs</code> mode</li>
+          <li>Dashboard credentials: v2 has no API-token model, so the server authenticates with a session cookie and per-request CSRF token</li>
+          <li>An absolute themes path if you want the theme tooling</li>
+        </ul>
+      </div>
+      <div>
+        <h3>Status: beta</h3>
+        <ul class="tight">
+          <li>Verified against a live <code>automad/automad:v2</code> container</li>
+          <li>Covered by unit tests plus opt-in live E2E tests, on Node 20 and 22</li>
+          <li>stdio only — an HTTP transport is the orchestrator's job, by MCP convention</li>
+          <li>Not published to npm yet; install from source</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div class="links">
+      <a href="https://github.com/cabroe/automad-mcp-server">Repository</a>
+      <a href="https://github.com/cabroe/automad-mcp-server#readme">Documentation</a>
+      <a href="https://github.com/cabroe/automad-mcp-server/blob/main/CHANGELOG.md">Changelog</a>
+      <a href="https://github.com/cabroe/automad-mcp-server/releases">Releases</a>
+      <a href="https://github.com/cabroe/automad-mcp-server/issues">Issues</a>
+      <a href="https://modelcontextprotocol.io">Model Context Protocol</a>
+      <a href="https://automad.org/">Automad</a>
+    </div>
+    <p style="margin:0">
+      MIT licensed. Not affiliated with the Automad project — an independent integration built against
+      the live v2 API. Page content generated from the repository; tool table and counts are kept in
+      sync by <code>npm run docs:sync</code>.
+    </p>
+  </div>
+</footer>
+
+</body>
+</html>
