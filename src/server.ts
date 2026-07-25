@@ -8,6 +8,7 @@ import type { Config } from "./config.js";
 import { AutomadMcpError, errorToJson } from "./errors.js";
 import { logger } from "./logger.js";
 import { validateCapabilityRegistry } from "./capabilities/registry.js";
+import { registerPrompts } from "./prompts.js";
 
 import {
   pagesInput,
@@ -27,7 +28,7 @@ import { handleTheme } from "./domains/theme.js";
 import { handleDocs } from "./domains/docs.js";
 
 export const SERVER_NAME = "automad-mcp";
-export const SERVER_VERSION = "0.4.0";
+export const SERVER_VERSION = "0.5.0";
 
 export interface ServerDeps {
   client: HttpClient;
@@ -66,7 +67,7 @@ export function createAutomadServer(deps: ServerDeps): McpServer {
 
   const server = new McpServer(
     { name: SERVER_NAME, version: SERVER_VERSION },
-    { capabilities: { resources: { listChanged: false }, tools: { listChanged: false } } },
+    { capabilities: { resources: { listChanged: false }, tools: { listChanged: false }, prompts: { listChanged: false } } },
   );
 
   const run = async (fn: () => Promise<unknown>): Promise<CallToolResult> => {
@@ -249,6 +250,8 @@ export function createAutomadServer(deps: ServerDeps): McpServer {
       };
     },
   );
+
+  registerPrompts(server);
 
   return server;
 }

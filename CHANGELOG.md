@@ -4,6 +4,17 @@ All notable changes to `@automadcms/mcp-server` are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0]
+
+### Added
+- **MCP prompts** — five workflow prompts (`create_blog_post`, `scaffold_theme`,
+  `analyze_theme`, `check_headless_setup`, `find_docs`) that steer the model
+  through the real tool actions.
+- **Opt-in live E2E test** (`tests/e2e/live.test.ts`, `npm run test:e2e`) — spawns
+  the built server over stdio and exercises the page lifecycle against a real
+  Automad v2 instance; skipped unless `AUTOMAD_E2E_*` is set. Verified green
+  against `automad/automad:v2` (beta.51).
+
 ## [0.4.0]
 
 ### Added

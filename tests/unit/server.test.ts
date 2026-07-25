@@ -99,4 +99,24 @@ describe("createAutomadServer (v2)", () => {
     expect(toolNames).toEqual([...TOOL_NAMES].sort());
     await mcp.close();
   });
+
+  it("registers workflow prompts and renders them with arguments", async () => {
+    const { server, mcp } = await connect(mockClient(), new WriteGuard(cfg()));
+    const names = (await mcp.listPrompts()).prompts.map((p) => p.name).sort();
+    expect(names).toEqual(["analyze_theme", "check_headless_setup", "create_blog_post", "find_docs", "scaffold_theme"]);
+
+    const post = await mcp.getPrompt({ name: "create_blog_post", arguments: { title: "Hello World", parent: "/blog" } });
+    const postContent = post.messages[0]!.content;
+    expect(postContent.type).toBe("text");
+    if (postContent.type === "text") {
+      expect(postContent.text).toContain("Hello World");
+      expect(postContent.text).toContain("/blog");
+    }
+
+    const noArgs = await mcp.getPrompt({ name: "check_headless_setup", arguments: {} });
+    const noArgsContent = noArgs.messages[0]!.content;
+    if (noArgsContent.type === "text") expect(noArgsContent.text).toContain("health");
+    await mcp.close();
+    await server.close();
+  });
 });

@@ -125,6 +125,18 @@ The `{slug}` variable must match `^[a-z0-9._-]+$`. Invalid slugs return `NOT_FOU
 `automad_theme.schema` returns every locale together with the original base metadata. Locale entries are sparse overrides; missing translations fall back to `theme.json`. Only direct `i18n/<locale>.json` files are parsed. Partial invalid sections or values are reported as `INVALID_I18N_*` warnings, while the remaining valid values are retained. The action performs no build, network, or file mutation and is suitable for reuse as a future MCP Resource.
 Each field includes its Automad type (`text`, `checkbox`, `color`, `image`, `icon`, `select`, `url`, `format`, `label`, `filter`, or `block`), scope (`page`, `shared`, or `unmasked`), source files, and available labels, options, tooltips, and field order. Unknown prefixes fall back to `text` with an `UNKNOWN_FIELD_PREFIX` warning. The action performs no build, network request, or mutation and is designed for later reuse by an MCP Resource.
 
+### MCP prompts
+
+Five workflow prompts steer the model through the real tool actions. Prompt arguments are strings (per the MCP prompt contract).
+
+| Prompt | Arguments | Workflow |
+|---|---|---|
+| `create_blog_post` | `title`, `parent?`, `summary?` | draft → fill → publish a page |
+| `scaffold_theme` | `name`, `author?` | scaffold → generate → diff → write → build → activate |
+| `analyze_theme` | `theme` | analyze + validate + schema → a prioritized list of fixes |
+| `check_headless_setup` | — | `site.health` + config + headless docs |
+| `find_docs` | `topic` | search the knowledge base → get → summarize |
+
 ### Internal capability registry
 
 The server keeps the public domain-router tools unchanged and maintains a static internal capability registry for their action metadata. The registry records read-only/destructive behavior and validates router/action coverage during server construction (`validateCapabilityRegistry`). It is not exposed as one MCP tool per action and performs no filesystem, network, token, or audit work. Later scoped tokens, audit logging, and HTTP authorization can consume the same metadata without changing the public router contract.
@@ -326,10 +338,14 @@ Provide the `AUTOMAD_*` variables via Zed's environment (Zed passes `command.env
 ```bash
 npm install
 npm run build       # tsc → dist/
-npm test            # vitest
+npm test            # vitest (unit + domain; live E2E auto-skips)
 npm run test:coverage
 npm run lint        # eslint
 npm run dev         # tsx src/index.ts
+
+# opt-in live E2E against a real Automad v2 instance:
+AUTOMAD_E2E_URL=http://localhost:8899 AUTOMAD_E2E_USER=admin \
+  AUTOMAD_E2E_PASS=secret npm run test:e2e
 ```
 
 Project layout:
@@ -337,7 +353,7 @@ Project layout:
 ```
 src/
   index.ts          entry: config, stdio transport, graceful shutdown
-  server.ts         McpServer + 7 tool + 4 resource registrations
+  server.ts         McpServer + 7 tool + 4 resource + 5 prompt registrations
   config.ts         env loader: mode split, URL/log-level validation, write-mode
   auth.ts           session login + cookie jar + CSRF scrape
   client.ts         HTTP client: /_api envelope unwrap, multipart __csrf__+__json__, retry + re-CSRF
@@ -345,6 +361,7 @@ src/
   logger.ts         pino with credential redaction
   schemas.ts        Zod input schemas for all tools
   write-guard.ts    multi-tier write protection + confirm-token flow
+  prompts.ts        MCP workflow prompts
   docs/kb.ts        bundled offline knowledge base (automad_docs)
   domains/          one router per tool: pages, media, shared, config, site, theme, docs
   theme/            theme tooling, Starter-Kit analysis, normalized schemas
@@ -354,6 +371,7 @@ src/
   resources/        MCP resource backers (themes)
   capabilities/     internal router/action metadata and invariant validation
 tests/unit/         Vitest unit and domain tests
+tests/e2e/          opt-in live E2E vs. a real Automad instance (npm run test:e2e)
 ```
 
 ## License

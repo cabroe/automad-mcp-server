@@ -32,7 +32,7 @@ client + guard + McpServer over stdio.
 ```
 src/
   index.ts          entry: config + stdio transport + graceful shutdown
-  server.ts         McpServer + 7 tool + 4 resource registrations (createAutomadServer)
+  server.ts         McpServer + 7 tool + 4 resource + 5 prompt registrations (createAutomadServer)
   config.ts         env loader; exports API_BASE = "/_api"
   auth.ts           AuthManager: POST /_api/session/login + cookie jar + CSRF scrape
   client.ts         HttpClient: multipart __csrf__+__json__ POST, envelope unwrap, retry
@@ -40,6 +40,7 @@ src/
   logger.ts         pino logger, credentials redacted
   schemas.ts        Zod input schemas (one per tool)
   write-guard.ts    multi-tier write protection + confirm-token flow
+  prompts.ts        MCP workflow prompts (create_blog_post, scaffold_theme, analyze_theme, check_headless_setup, find_docs)
   page-format.ts    legacy — currently unused; consider removing
   docs/
     kb.ts           bundled offline Automad knowledge base (automad_docs source)
@@ -65,7 +66,8 @@ src/
     generate.ts     snippet/block/component generator (theme.generate)
     scaffold.ts     copy starter kit + rewrite theme.json + package.json
     editor.ts       readFile / writeFile / listFiles with path-traversal guard
-tests/unit/         205 vitest tests, 27 files
+tests/unit/         207 vitest tests, 27 files
+tests/e2e/          opt-in live E2E vs. real Automad (skipped unless AUTOMAD_E2E_* set; `npm run test:e2e`)
 ```
 
 ## Configuration
@@ -232,6 +234,20 @@ Four read-only MCP resources (registered in `server.ts`; themes backed by
 | `automad://themes/{slug}/schema` | Normalized theme schema (via `ThemeAnalyzer` → `ThemeSchemaBuilder`) |
 | `automad://docs` | JSON index of bundled knowledge-base pages |
 | `automad://docs/{slug}` | Markdown body of one knowledge-base page |
+
+### Prompts
+
+Five workflow prompts (`src/prompts.ts`, registered in `server.ts`). Arguments
+are strings (MCP prompt contract); each renders one user message steering the
+model through real tool actions:
+
+| Prompt | Args | Workflow |
+|---|---|---|
+| `create_blog_post` | `title`, `parent?`, `summary?` | draft → fill → publish a page |
+| `scaffold_theme` | `name`, `author?` | scaffold → generate → diff → write → build → activate |
+| `analyze_theme` | `theme` | analyze + validate + schema → prioritized fixes |
+| `check_headless_setup` | — | site.health + config + headless docs |
+| `find_docs` | `topic` | docs search → get → summarize |
 
 ## Live-verified known issues (v2-side, not us)
 
