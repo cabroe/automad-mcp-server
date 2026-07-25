@@ -38,6 +38,24 @@
  vs. advertised actions, guard sets vs. registry flags, internal actions hidden
  from every advertised surface, and real `WriteGuard` behavior per write mode.
 
+## [0.5.4] – [0.5.14]
+
+_Reconstructed from git history: these were tagged per commit without their own
+changelog sections (and without a `package.json` bump — the manifest stayed on
+0.5.3 until 0.6.0). One line per tag, from the tagged commit._
+
+- **0.5.14** — `automad_docs`: 5 v2-theme knowledge-base pages from a real-build bug report.
+- **0.5.13** — `automad_docs`: BLOCKS entry expanded with all 26 v2 block types + properties.
+- **0.5.12** — Dead `/version-2/*` doc URLs replaced with real automad.org URLs; CI matrix (Node 20/22), `docs:sync --check`, periodic live-E2E cron.
+- **0.5.11** — README: LLM-friendly install section; broken `npx` snippets dropped.
+- **0.5.10** — `client.ts`: `looksLikeServerValidation` split into targeted patterns.
+- **0.5.9** — `auth.ts`: robust CSRF extraction via per-tag scan + fallbacks.
+- **0.5.8** — `auth.ts`: session expiry recovered without a caller-visible 403.
+- **0.5.7** — README + CLAUDE.md brought up to date with 0.5.6.
+- **0.5.6** — `scripts/`: automated README + CHANGELOG + version bump (`docs:sync`, `release`).
+- **0.5.5** — CLAUDE.md up to date with 0.5.x.
+- **0.5.4** — README up to date with 0.5.x; repo description/topics.
+
 ## [0.5.3]
 
 ### Fixed
@@ -180,25 +198,6 @@
  cookie if v2 returns one. `collectCookie` also tolerates Headers objects
  that lack `getSetCookie()` (older runtimes / test mocks).
 
-## [Unreleased]
-
-### Known limitations / future work
-- **v2 has no API-token provider.** The MCP authenticates by scraping a
-  PHP session cookie and a `<meta name="csrf">` token from `/dashboard`.
-  This is fragile by design — v2 only ships session auth (with optional
-  TOTP). Upstream issue / feature request: a Bearer-token API for headless
-  integrations. The MCP can be hardened around scraping (already done in
-  0.5.0: `setSafeThemeSlug`, cold-start probe resilience, cookie-rotation
-  adoption) but cannot replace session auth without a v2-side change.
-- **`media.rename` not implemented.** v2's `/_api/file-collection/list`
-  supports `action: "move"` (file → different directory) but no in-place
-  rename. If added: model as download+delete+upload, or push for a v2
-  rename endpoint.
-- **MCP transport is stdio-only.** Per MCP convention, headless local tool
-  servers use stdio. An HTTP transport would be the responsibility of
-  the MCP framework (e.g. an orchestrator that wraps the stdio server),
-  not of this server itself. Out of scope here.
-
 ## [0.4.0]
 
 ### Added
@@ -233,3 +232,23 @@
 - README: copy-paste MCP configs for Claude Desktop/Code, Cursor, Cline, and Zed,
   plus a docs-only setup.
 - Server version bumped to `0.4.0`.
+
+## Known limitations / future work
+
+_Not tied to a release — long-standing constraints, mirrored in CLAUDE.md's "Out of scope"._
+
+- **v2 has no API-token provider.** The MCP authenticates by scraping a
+  PHP session cookie and a `<meta name="csrf">` token from `/dashboard`.
+  This is fragile by design — v2 only ships session auth (with optional
+  TOTP). Upstream issue / feature request: a Bearer-token API for headless
+  integrations. The MCP can be hardened around scraping (already done in
+  0.5.0: `setSafeThemeSlug`, cold-start probe resilience, cookie-rotation
+  adoption) but cannot replace session auth without a v2-side change.
+- **`media.rename` not implemented.** v2's `/_api/file-collection/list`
+  supports `action: "move"` (file → different directory) but no in-place
+  rename. If added: model as download+delete+upload, or push for a v2
+  rename endpoint.
+- **MCP transport is stdio-only.** Per MCP convention, headless local tool
+  servers use stdio. An HTTP transport would be the responsibility of
+  the MCP framework (e.g. an orchestrator that wraps the stdio server),
+  not of this server itself. Out of scope here.
