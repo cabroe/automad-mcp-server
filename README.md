@@ -5,7 +5,7 @@
 **A [Model Context Protocol](https://modelcontextprotocol.io) server for [Automad v2](https://automad.org/version-2)** —
 manage pages, media, shared data, config, local themes, and an offline docs knowledge base from any AI agent, over stdio.
 
-[![release](https://img.shields.io/github/v/release/cabroe/automad-mcp-server?include_prereleases&sort=semver)](https://github.com/cabroe/automad-mcp-server/releases)
+[![release](https://img.shields.io/github/v/release/cabroe/automad-mcp-server?include_prereleases)](https://github.com/cabroe/automad-mcp-server/releases)
 [![license](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 [![node](https://img.shields.io/badge/node-%E2%89%A520-brightgreen.svg)](https://nodejs.org)
 [![MCP](https://img.shields.io/badge/MCP-stdio-8A2BE2.svg)](https://modelcontextprotocol.io)
@@ -111,10 +111,10 @@ Set via `AUTOMAD_WRITE_MODE`:
 | Mode | Behavior |
 |---|---|
 | `read-only` | Only the **19 read actions** succeed (all `docs.*`; `pages.list/get`; `media.list`; `shared.get`; `config.get`; `site.info/search/health`; `theme.list/read/files/analyze/validate/schema/diff/generate`). Everything else → `FORBIDDEN`. |
-| `confirm-destructive` *(default)* | Ordinary writes run directly (`pages.create/update/duplicate/publish/batch_update`, `media.upload`, `shared.set`, `config.set`). The **8 destructive actions** return a `confirmToken` (5-min TTL, bound to `(action, target)`) — replay with `confirm_token` to execute. |
+| `confirm-destructive` *(default)* | Ordinary writes run directly (`pages.create/update/duplicate/publish/batch_update`, `media.upload/delete`, `shared.set`, `config.set`). The **11 destructive actions** return a `confirmToken` (5-min TTL, bound to `(action, target)`) — replay with `confirm_token` to execute. |
 | `unrestricted` | Everything runs immediately. |
 
-Destructive actions: `pages.delete` · `pages.move` · `theme.install` · `theme.activate` · `theme.uninstall` · `theme.scaffold` · `theme.build` · `theme.write`.
+Destructive actions: `pages.delete` · `pages.move` · `pages.update_rename` *(title-rename inside `pages.update`/`pages.batch_update`)* · `media.delete` · `site.search_replace` *(global replace inside `site.search`)* · `theme.install` · `theme.activate` · `theme.uninstall` · `theme.scaffold` · `theme.build` · `theme.write`.
 
 ## Tools
 
@@ -123,7 +123,7 @@ Seven tools, each dispatching on `action`:
 | Tool | Actions | What it does |
 |---|---|---|
 | `automad_pages` | `list` `get` `create` `update` `delete` `move` `duplicate` `publish` `batch_update` | `/_api/page/*`: read + save, add (draft; auto-publishes unless `publish:false`), publish, delete, move (sibling reordering — not rename), plus sequential batch updates |
-| `automad_media` | `list` `upload` | `/_api/file-collection/list` and `/upload` (single-chunk Dropzone) |
+| `automad_media` | `list` `upload` `delete` | `/_api/file-collection/list` and `/upload` (single-chunk Dropzone); `delete` is destructive (default-mode token required) |
 | `automad_shared` | `get` `set` | `/_api/shared/data` (sitename, consent, custom fields) |
 | `automad_config` | `get` `set` | `get` reads `/_api/app/bootstrap`; `set` posts `/_api/config/update` with a `type:` discriminator (`cache`, `feed`, `debug`, `i18n`, …) |
 | `automad_site` | `info` `search` `health` | `info`/`health` from bootstrap; `search` via `/_api/search/search-replace` (read-only when `replace` is omitted) |
@@ -368,12 +368,14 @@ Provide the `AUTOMAD_*` variables via Zed's environment.
 
 **Not exposed (no v2 endpoint):**
 
-- `media.delete` / `media.rename` — upload + list only
+- `media.rename` — v2 has no in-place rename; the closest is `action: "move"` (between directories). `media.delete` is exposed (destructive in the default write mode).
 - `snippets`, `templates` — v1-era; in v2 these are components / shared data
 - `site.backup` / `site.restore`
 - `config.validate`
 
-**Known v2-side issue:** `/_api/public/pagelist` currently 500s (Automad bug, `PublicController.php:107` on 2.0.0-beta.15); `automad_pages.list` uses `/_api/page-collection/get-recently-edited` instead.
+- **Known v2-side issue:** `/_api/public/pagelist` currently 500s on
+`2.0.0-beta.51` (Automad bug, `PublicController.php:107`); `automad_pages.list`
+uses `/_api/page-collection/get-recently-edited` instead.
 </details>
 
 ## Development
