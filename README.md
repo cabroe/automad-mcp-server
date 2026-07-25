@@ -11,7 +11,7 @@ manage pages, media, shared data, config, local themes, and an offline docs know
 [![MCP](https://img.shields.io/badge/MCP-stdio-8A2BE2.svg)](https://modelcontextprotocol.io)
 [![Automad](https://img.shields.io/badge/Automad-v2-f60.svg)](https://automad.org/version-2)
 
-[Features](#features) · [Quick start](#quick-start) · [Configuration](#configuration) · [Tools](#tools) · [Resources & prompts](#resources--prompts) · [Examples](#examples) · [Editor setup](#editor-setup) · [Development](#development)
+[Features](#features) · [Quick start](#quick-start) · [Install for your AI agent](#install-for-your-ai-agent) · [Configuration](#configuration) · [Tools](#tools) · [Resources & prompts](#resources--prompts) · [Examples](#examples) · [Editor setup](#editor-setup) · [Development](#development)
 
 </div>
 
@@ -58,14 +58,7 @@ Each tool takes an `action` and dispatches to a domain router. Live-API actions 
 
 ## Quick start
 
-Run directly with npx — no clone needed:
-
-```bash
-npx @automadcms/mcp-server
-```
-
-<details>
-<summary>Build from source instead</summary>
+The package isn't on npm yet, so install from source:
 
 ```bash
 git clone https://github.com/cabroe/automad-mcp-server.git
@@ -74,9 +67,65 @@ npm install
 npm run build        # outputs dist/index.js
 npm start            # or: node dist/index.js
 ```
-</details>
 
 Then wire it into your editor — see [Editor setup](#editor-setup).
+If you're driving the install from a coding agent (Claude Code, Cursor,
+etc.), jump to [Install for your AI agent](#install-for-your-ai-agent).
+
+## Install for your AI agent
+
+If you're using a coding agent (Claude Code, Cursor, Copilot, Cline, etc.)
+and want it to manage an Automad site end-to-end, give it these instructions
+verbatim — they cover the only working install path until the npm package is
+published:
+
+```bash
+# 1. Get the server
+git clone https://github.com/cabroe/automad-mcp-server.git
+cd automad-mcp-server
+npm install
+npm run build                 # outputs dist/index.js
+
+# 2. Make sure a running Automad v2 instance is reachable.
+#    Local-only:  docker run -d --name automad -p 8080:80 automad/automad:v2
+#    Remote:      ensure AUTOMAD_URL points to a reachable dashboard.
+#    First run on a fresh container:  docker exec automad \
+#      php /app/automad/console user:create --email you@example.com \
+#        --username admin --password CHANGEME
+
+# 3. Wire it into your MCP client config (see Editor setup below for per-editor paths).
+#    command = node  (NOT npx — the package is not on npm yet)
+#    args    = ["<absolute path to>/automad-mcp-server/dist/index.js"]
+#    env:
+#      AUTOMAD_URL             = https://your-site.example.com
+#      AUTOMAD_USER            = admin
+#      AUTOMAD_PASS            = <password>
+#      AUTOMAD_THEMES_PATH     = /absolute/path/to/automad/packages
+#      AUTOMAD_STARTER_KIT_PATH= /absolute/path/to/automad-theme-starter-kit
+#      AUTOMAD_WRITE_MODE      = confirm-destructive   # or: unrestricted | read-only
+
+# 4. Sanity-check the install: the server should start without crashing
+#    (it'll wait on stdio for MCP requests). Press Ctrl-C to exit.
+node /absolute/path/to/automad-mcp-server/dist/index.js
+```
+
+**Docs-only mode** (no live instance, no credentials — useful for offline
+knowledge-base work and theme scaffolding):
+
+```json
+{
+  "mcpServers": {
+    "automad-docs": {
+      "command": "node",
+      "args": ["/absolute/path/to/automad-mcp-server/dist/index.js"],
+      "env": { "AUTOMAD_MODE": "docs", "AUTOMAD_THEMES_PATH": "/absolute/path/to/automad/packages" }
+    }
+  }
+}
+```
+
+Once the install is verified, see [Tools](#tools) for what the agent can do,
+and [Examples](#examples) for typical workflows.
 
 ## Configuration
 
@@ -284,8 +333,8 @@ Add to `claude_desktop_config.json` (macOS: `~/Library/Application Support/Claud
 {
   "mcpServers": {
     "automad": {
-      "command": "npx",
-      "args": ["-y", "@automadcms/mcp-server"],
+      "command": "node",
+      "args": ["/absolute/path/to/automad-mcp-server/dist/index.js"],
       "env": {
         "AUTOMAD_URL": "https://blog.example.com",
         "AUTOMAD_USER": "admin",
@@ -307,8 +356,8 @@ To run a local build instead: `"command": "node", "args": ["/absolute/path/to/di
 {
   "mcpServers": {
     "automad-docs": {
-      "command": "npx",
-      "args": ["-y", "@automadcms/mcp-server"],
+      "command": "node",
+      "args": ["/absolute/path/to/automad-mcp-server/dist/index.js"],
       "env": { "AUTOMAD_MODE": "docs", "AUTOMAD_THEMES_PATH": "/app/packages" }
     }
   }
@@ -324,8 +373,8 @@ To run a local build instead: `"command": "node", "args": ["/absolute/path/to/di
 {
   "mcpServers": {
     "automad": {
-      "command": "npx",
-      "args": ["-y", "@automadcms/mcp-server"],
+      "command": "node",
+      "args": ["/absolute/path/to/automad-mcp-server/dist/index.js"],
       "env": { "AUTOMAD_URL": "https://blog.example.com", "AUTOMAD_USER": "admin", "AUTOMAD_PASS": "your-password" }
     }
   }
@@ -338,8 +387,8 @@ To run a local build instead: `"command": "node", "args": ["/absolute/path/to/di
 {
   "mcpServers": {
     "automad": {
-      "command": "npx",
-      "args": ["-y", "@automadcms/mcp-server"],
+      "command": "node",
+      "args": ["/absolute/path/to/automad-mcp-server/dist/index.js"],
       "env": { "AUTOMAD_URL": "https://blog.example.com", "AUTOMAD_USER": "admin", "AUTOMAD_PASS": "your-password" }
     }
   }
@@ -352,14 +401,12 @@ To run a local build instead: `"command": "node", "args": ["/absolute/path/to/di
 {
   "context_servers": {
     "automad": {
-      "command": { "path": "npx", "args": ["-y", "@automadcms/mcp-server"] },
+      "command": { "path": "node", "args": ["/absolute/path/to/automad-mcp-server/dist/index.js"] },
       "settings": {}
     }
   }
 }
 ```
-
-Provide the `AUTOMAD_*` variables via Zed's environment.
 </details>
 
 ## v2 reality
