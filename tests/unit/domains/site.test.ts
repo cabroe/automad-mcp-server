@@ -72,6 +72,44 @@ describe("handleSite (v2 /_api)", () => {
     expect(body).toEqual({ searchValue: "foo", isRegex: true, isCaseSensitive: false, replaceValue: "bar" });
   });
 
+  it("search with replace requires a confirm_token in confirm-destructive mode", async () => {
+    const c = mockClient();
+    const out = await handleSite(
+      { action: "search", query: "foo", replace: "bar" },
+      c,
+      new WriteGuard({ ...cfg(), writeMode: "confirm-destructive" }),
+    );
+    expect(out).toMatchObject({
+      allowed: "pending",
+      action: "site.search_replace",
+      confirmToken: expect.any(String),
+    });
+    expect(c.post).not.toHaveBeenCalled();
+  });
+
+  it("search with replace runs with the matching confirm_token", async () => {
+    const c = mockClient();
+    (c.post as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ data: [] });
+    const guard = new WriteGuard({ ...cfg(), writeMode: "confirm-destructive" });
+    const pending = await handleSite({ action: "search", query: "foo", replace: "bar" }, c, guard);
+    const token = (pending as { confirmToken?: string }).confirmToken!;
+    expect(token).toBeTruthy();
+    const out = await handleSite({ action: "search", query: "foo", replace: "bar", confirm_token: token }, c, guard);
+    expect(out).toEqual({ data: [] });
+  });
+
+  it("search without replace stays read-only in confirm-destructive mode", async () => {
+    const c = mockClient();
+    (c.post as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ data: [] });
+    const out = await handleSite(
+      { action: "search", query: "foo" },
+      c,
+      new WriteGuard({ ...cfg(), writeMode: "confirm-destructive" }),
+    );
+    expect(out).toEqual({ data: [] });
+    expect(c.post).toHaveBeenCalledTimes(1);
+  });
+
   it("health reports ok when bootstrap succeeds", async () => {
     const c = mockClient();
     (c.get as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ version: "2.0.0", sitename: "S" });

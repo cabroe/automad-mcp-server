@@ -34,6 +34,7 @@ export type WriteAction =
   | "pages.publish"
   | "pages.batch_update"
   | "pages.update_rename"
+  | "site.search_replace"
   | "site.health"
   | "docs.list"
   | "docs.search"
@@ -80,8 +81,9 @@ export const DESTRUCTIVE_ACTIONS: ReadonlySet<WriteAction> = new Set<WriteAction
   "theme.uninstall",
   "theme.scaffold",
   "theme.build",
-  "theme.write",
   "pages.update_rename",
+  "site.search_replace",
+  "theme.write",
 ]);
 
 export interface WriteGuardOptions {

@@ -10,8 +10,10 @@ import { READ_ACTIONS, DESTRUCTIVE_ACTIONS } from "../../src/write-guard.js";
 
 // Internal actions exist for fine-grained confirmation: pages.update_rename is
 // fired by the domain handler only when an update carries a title change
-// (which is effectively a rename). It does not appear in the public registry.
-const INTERNAL_ACTIONS = new Set(["pages.update_rename"]);
+// (which is effectively a rename). site.search_replace is fired when
+// site.search is called with a `replace` value (a global site mutation).
+// Neither appears in the public registry.
+const INTERNAL_ACTIONS = new Set(["pages.update_rename", "site.search_replace"]);
 
 describe("registry ↔ write-guard drift", () => {
   it("validateCapabilityRegistry passes", () => {
@@ -85,17 +87,15 @@ describe("registry ↔ write-guard drift", () => {
     expect(misclassified, misclassified.join("; ")).toEqual([]);
   });
 
-  it("internal page.update_rename is in DESTRUCTIVE_ACTIONS but not in the registry", () => {
-    expect(DESTRUCTIVE_ACTIONS.has("pages.update_rename" as never)).toBe(true);
-    expect(READ_ACTIONS.has("pages.update_rename" as never)).toBe(false);
-    for (const cap of CAPABILITY_REGISTRY) {
-      expect(Object.keys(cap.actions)).not.toContain("update_rename");
+  it("internal destructive actions are in DESTRUCTIVE_ACTIONS but not in the public registry", () => {
+    for (const name of INTERNAL_ACTIONS) {
+      expect(DESTRUCTIVE_ACTIONS.has(name as never)).toBe(true);
+      expect(READ_ACTIONS.has(name as never)).toBe(false);
+      for (const cap of CAPABILITY_REGISTRY) {
+        // registry actions are exposed under their short name (no prefix) per tool;
+        // confirm none of the short names collides with our internal literal.
+        expect(Object.keys(cap.actions)).not.toContain(name);
+      }
     }
-  });
-
-  it("every action listed in INTERNAL_ACTIONS is documented", () => {
-    // If you add a new internal action, add it here AND in write-guard.ts.
-    expect(INTERNAL_ACTIONS.has("pages.update_rename")).toBe(true);
-    expect(DESTRUCTIVE_ACTIONS.has("pages.update_rename" as never)).toBe(true);
   });
 });

@@ -32,6 +32,19 @@ describe("schemas", () => {
     expect(() => mediaInput.parse({ action: "delete" })).toThrow();
   });
 
+  it("mediaInput rejects base64 source exceeding the size limit", () => {
+    // 12 MB max (chars of base64 string incl. padding); push past it.
+    const huge = "A".repeat(13 * 1024 * 1024);
+    expect(() =>
+      mediaInput.parse({ action: "upload", source: { base64: huge, filename: "big.bin", mimeType: "application/octet-stream" } }),
+    ).toThrow(/exceeds/);
+  });
+
+  it("mediaInput accepts a base64 source within the size limit", () => {
+    const ok = "A".repeat(1024); // 1 KB — well under the limit
+    expect(mediaInput.parse({ action: "upload", source: { base64: ok, filename: "ok.png", mimeType: "image/png" } })).toBeDefined();
+  });
+
   it("sharedInput accepts get", () => {
     expect(sharedInput.parse({ action: "get" })).toBeDefined();
   });

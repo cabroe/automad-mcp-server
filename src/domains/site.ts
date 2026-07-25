@@ -71,6 +71,15 @@ export async function handleSite(
       if (!input.query || !input.query.trim()) {
         throw new AutomadMcpError("VALIDATION", "query is required for search (got empty or whitespace-only)");
       }
+      // A search with a `replace` is a global mutation across the entire site.
+      // In confirm-destructive mode it requires an explicit token (the caller's
+      // intent is "search and replace", not "search and read"). Read-only and
+      // unrestricted modes pass through unchanged.
+      if (input.replace !== undefined) {
+        const permit = guard.check("site.search_replace", "/", input.confirm_token);
+        if (permit.allowed === "pending") return permit;
+        if (permit.allowed === false) throw new AutomadMcpError("FORBIDDEN", permit.reason);
+      }
       const payload: Record<string, unknown> = {
         searchValue: input.query,
         isRegex: input.is_regex ?? false,

@@ -2,6 +2,9 @@ import { z } from "zod";
 
 export const writeMode = z.enum(["read-only", "confirm-destructive", "unrestricted"]);
 
+/** Max bytes accepted in a single media upload source (base64 string length, including padding). */
+export const MAX_BASE64_INPUT = 12 * 1024 * 1024; // ~9 MB decoded (covers most images/SVGs/PDFs)
+
 const urlSchema = z.string().min(1).regex(/^\//, "url must start with /");
 
 
@@ -9,6 +12,7 @@ const urlSchema = z.string().min(1).regex(/^\//, "url must start with /");
 /** A single page mutation for `batch_update`. */
 const pageBatchItem = z.object({
   url: urlSchema,
+
   title: z.string().optional(),
   template: z.string().optional(),
   private: z.boolean().optional(),
@@ -49,7 +53,11 @@ export const mediaInput = z.object({
   action: z.enum(["list", "upload"]),
   url: urlSchema.optional(),
   source: z
-    .object({ base64: z.string(), filename: z.string(), mimeType: z.string() })
+    .object({
+      base64: z.string().max(MAX_BASE64_INPUT, `base64 payload exceeds ${MAX_BASE64_INPUT} chars; check the size`),
+      filename: z.string().max(255),
+      mimeType: z.string().max(127),
+    })
     .optional(),
   confirm_token: z.string().optional(),
 });

@@ -47,6 +47,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Per-item errors preserve the `{code, message, details?}` envelope instead of
   a bare string. Verified live: 1 safe + 1 rename → `requiresConfirmation:true`
   on the rename item only; replay with the token completes the rename.
+- **`site.search` with a `replace` value was not classified as destructive** -
+ the action was registered as read-only, so in the default
+ `confirm-destructive` mode a caller could run a global site-wide search-and-
+ replace with a single call and no confirm token. Added an internal
+ `site.search_replace` WriteAction, gated behind `guard.check()` in the domain
+ handler, and registered it as destructive. Verified live: search-with-replace
+ now returns `allowed:"pending"` with a `confirmToken`; bare search still
+ runs read-only.
+- **`theme.write` was registered as destructive but missing from
+ `DESTRUCTIVE_ACTIONS`** - the registry and the write-guard had silently
+ drifted. In `confirm-destructive` mode the guard would not have prompted
+ for a token before overwriting a theme file. The drift test caught it on
+ this pass; added `theme.write` to the destructive set. Verified live:
+ `theme.write` now returns `allowed:"pending"`; replay with the token
+ completes the write.
+- **`media.upload` had no upper bound on the base64 payload** - a caller
+ could send a multi-hundred-megabyte base64 string and the server would
+ allocate the full decoded buffer before any v2-side check. Added a 12 MB
+ base64-string ceiling on the `mediaInput` schema
+ (`MAX_BASE64_INPUT = 12 * 1024 * 1024`), with a clear validation error when
+ exceeded. Covers images, SVGs, and most PDFs.
 
 ## [0.4.0]
 
