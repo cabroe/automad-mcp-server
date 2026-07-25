@@ -20,6 +20,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   The body-less POST to `/_api/page-collection/get-recently-edited` omitted the
   `__csrf__` field; it now sends an empty JSON body so the CSRF token is attached
   like every other endpoint. Found via full-tool testing against a real instance.
+- **Cold-start login false negative** — the first request against a freshly
+  started v2 could 403 the auth probe while the session/CSRF settled, making
+  `site.health` (or any first call) report `authenticated:false`. `AuthManager`
+  now re-scrapes the CSRF token and retries the probe up to 3× on a transient
+  403; genuine failures (bad credentials, anonymous session) still fail fast.
+  Verified: first-ever `site.health` against a cold container now returns `ok:true`.
 
 ## [0.4.0]
 

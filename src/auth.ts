@@ -13,6 +13,10 @@ export interface AuthProvider {
 
 const CSRF_RE = /<meta\s+name="csrf"\s+content="([0-9a-f]{64})"/;
 
+/** Cold-container login-probe resilience: a fresh v2 can 403 while the session/CSRF settle. */
+const LOGIN_PROBE_ATTEMPTS = 3;
+const LOGIN_PROBE_DELAY_MS = 200;
+
 export class AuthManager implements AuthProvider {
   private cookie: string | undefined;
   private csrf: string | undefined;
@@ -64,13 +68,28 @@ export class AuthManager implements AuthProvider {
       throw new AutomadMcpError("AUTH", "No session cookie returned by Automad v2 login");
     }
 
-    // CSRF was minted during login; fetch it now.
-    await this.scrapeCsrf();
-    // v2's /_api/session/login returns 200 + cookie even for invalid credentials
-    // (PHP session starts, but the session is unauthenticated). Verify with
-    // a probe call before letting callers think the login succeeded.
-    await this.probeAuthenticated();
-    logger.info("Dashboard login successful");
+    // A freshly started v2 (cold container) can 403 the probe while the session
+    // and CSRF token settle. Re-scrape a fresh token + re-probe a few times
+    // before giving up; genuine failures (bad creds / anonymous session) are
+    // non-retryable and surface immediately.
+    for (let attempt = 1; ; attempt++) {
+      await this.scrapeCsrf();
+      try {
+        await this.probeAuthenticated();
+        logger.info("Dashboard login successful");
+        return;
+      } catch (err) {
+        const retryable = err instanceof AutomadMcpError && isRecord(err.details) && err.details["retryable"] === true;
+        if (retryable && attempt < LOGIN_PROBE_ATTEMPTS) {
+          logger.warn({ attempt }, "auth probe transient (cold session), retrying");
+          await new Promise<void>((r) => setTimeout(r, LOGIN_PROBE_DELAY_MS * attempt));
+          continue;
+        }
+        this.cookie = undefined;
+        this.csrf = undefined;
+        throw err;
+      }
+    }
   }
 
   /**
@@ -93,25 +112,20 @@ export class AuthManager implements AuthProvider {
       body: fdata,
     });
     if (!res.ok) {
-      this.cookie = undefined;
-      this.csrf = undefined;
-      throw new AutomadMcpError("AUTH", `Login probe failed: HTTP ${res.status}`);
+      // 403 on a cold session/CSRF is transient (retryable); other statuses are not.
+      // State is cleared by the caller (login) only after the final attempt.
+      throw new AutomadMcpError("AUTH", `Login probe failed: HTTP ${res.status}`, { retryable: res.status === 403, status: res.status });
     }
     const body = (await safeJson(res)) as
       | { code?: number; data?: { sitename?: string }; error?: string }
       | undefined;
     // Bad credentials come back as {code: 200, error: "Invalid username or password."}.
     if (typeof body?.error === "string" && body.error.length > 0) {
-      this.cookie = undefined;
-      this.csrf = undefined;
-      throw new AutomadMcpError("AUTH", `Login probe failed: ${body.error}`);
+      throw new AutomadMcpError("AUTH", `Login probe failed: ${body.error}`, { retryable: false });
     }
-    // For a logged-in session, /app/bootstrap returns {code: 200, data: {sitename, dashboard, ...}}.
-    // For an anonymous session, `data` is missing or sitename is empty.
+    // For a logged-in session, /app/bootstrap returns {code: 200, data: {sitename, ...}}.
     if (!body?.data?.sitename) {
-      this.cookie = undefined;
-      this.csrf = undefined;
-      throw new AutomadMcpError("AUTH", "Login probe failed: session is not authenticated (no sitename in response data)");
+      throw new AutomadMcpError("AUTH", "Login probe failed: session is not authenticated (no sitename in response data)", { retryable: false });
     }
   }
 
@@ -141,4 +155,8 @@ function collectCookie(setCookies: Array<string | null | undefined>): string | u
     if (first && first.includes("=")) return first;
   }
   return undefined;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
 }

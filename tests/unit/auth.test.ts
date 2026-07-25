@@ -171,6 +171,29 @@ describe("AuthManager (v2 /_api)", () => {
     expect(fetchMock).toHaveBeenCalledTimes(6);
   });
 
+  it("retries the probe on a transient 403 (cold container) then succeeds", async () => {
+    fetchMock
+      // login POST
+      .mockResolvedValueOnce({
+        status: 200, ok: true,
+        headers: { get: () => COOKIE, getSetCookie: () => [COOKIE] },
+        json: async () => ({ reload: true }),
+        text: async () => '{"reload":true}',
+      })
+      // dashboard CSRF scrape (attempt 1)
+      .mockResolvedValueOnce({ status: 200, ok: true, text: async () => `<html>${META}</html>` })
+      // probe #1 -> transient 403
+      .mockResolvedValueOnce({ status: 403, ok: false, json: async () => ({ error: "" }), text: async () => "forbidden" })
+      // dashboard CSRF scrape (attempt 2)
+      .mockResolvedValueOnce({ status: 200, ok: true, text: async () => `<html>${META}</html>` })
+      // probe #2 -> authenticated
+      .mockResolvedValueOnce({ status: 200, ok: true, json: async () => BOOTSTRAP_LOGGED_IN, text: async () => JSON.stringify(BOOTSTRAP_LOGGED_IN) });
+    const auth = new AuthManager(cfg());
+    await expect(auth.getCookie(true)).resolves.toBe("PHPSESSID=abc");
+    await expect(auth.getCsrfToken()).resolves.toBe(TOKEN);
+    expect(fetchMock).toHaveBeenCalledTimes(5);
+  });
+
   it("throws AUTH when CSRF token cannot be extracted from dashboard HTML", async () => {
     fetchMock
       .mockResolvedValueOnce({
