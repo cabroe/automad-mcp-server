@@ -5,13 +5,14 @@
 **A [Model Context Protocol](https://modelcontextprotocol.io) server for [Automad v2](https://automad.org/)** —
 manage pages, media, shared data, config, local themes, and an offline docs knowledge base from any AI agent, over stdio.
 
+[![homepage](https://img.shields.io/badge/homepage-cabroe.github.io-f60.svg)](https://cabroe.github.io/automad-mcp-server/)
 [![release](https://img.shields.io/github/v/release/cabroe/automad-mcp-server?include_prereleases)](https://github.com/cabroe/automad-mcp-server/releases)
 [![license](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 [![node](https://img.shields.io/badge/node-%E2%89%A520-brightgreen.svg)](https://nodejs.org)
 [![MCP](https://img.shields.io/badge/MCP-stdio-8A2BE2.svg)](https://modelcontextprotocol.io)
 [![Automad](https://img.shields.io/badge/Automad-v2-f60.svg)](https://automad.org/)
 
-[Features](#features) · [Quick start](#quick-start) · [Install for your AI agent](#install-for-your-ai-agent) · [Configuration](#configuration) · [Tools](#tools) · [Resources & prompts](#resources--prompts) · [Examples](#examples) · [Editor setup](#editor-setup) · [Development](#development)
+[Homepage](https://cabroe.github.io/automad-mcp-server/) · [Features](#features) · [Quick start](#quick-start) · [Install for your AI agent](#install-for-your-ai-agent) · [Configuration](#configuration) · [Tools](#tools) · [Resources & prompts](#resources--prompts) · [Examples](#examples) · [Editor setup](#editor-setup) · [Development](#development)
 
 </div>
 
@@ -489,8 +490,9 @@ npm run test:coverage
 npm run lint           # eslint
 npm run dev            # tsx src/index.ts
 
-# Keep the auto-generated tool table + fenced number markers (tool/read/
-# destructive counts) in README.md and CLAUDE.md in sync with the code:
+# Keep the auto-generated tool tables + fenced number markers (tool/read/
+# destructive counts) in README.md, CLAUDE.md and the GitHub Pages homepage
+# (docs/index.html) in sync with the code:
 npm run docs:sync              # fast, pure — safe to run in every CI job
 npm run docs:sync -- --check   # same, exits 1 if anything was stale (used in CI)
 
@@ -538,8 +540,9 @@ src/
     tools.ts        wiring layer: one binding per tool (schema + gate + dispatch)
 tests/unit/         Vitest unit and domain tests
 tests/e2e/          opt-in live E2E vs. a real Automad instance (npm run test:e2e)
+docs/index.html     GitHub Pages landing page (self-contained; tool table + counts are AUTOGEN regions)
 scripts/            TypeScript build-time helpers (run via `npm run <name>`)
-  sync.ts           regenerates the AUTOGEN tool table + fenced number markers in README/CLAUDE.md (--tests refreshes TESTCOUNT via a live vitest run)
+  sync.ts           regenerates the AUTOGEN tool table + fenced number markers in README/CLAUDE.md/docs/index.html (--tests refreshes TESTCOUNT via a live vitest run)
   release.ts        version-bump + CHANGELOG skeleton + git tag (`--tag` / `--dry-run`)
 ```
 </details>
