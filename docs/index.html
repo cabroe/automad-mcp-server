@@ -70,7 +70,7 @@
   h2 { font-size: clamp(1.35rem, 3vw, 1.7rem); letter-spacing: -0.015em; margin: 0 0 0.5rem; }
   h2 + .sub { color: var(--ink-soft); margin: 0 0 1.8rem; max-width: 48rem; }
   h3 { font-size: 1rem; margin: 0 0 0.4rem; }
-  .grid { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); }
+  .grid { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr)); }
   .card { background: var(--bg-raised); border: 1px solid var(--line); border-radius: var(--radius); padding: 1.15rem 1.25rem; }
   .card p { margin: 0; color: var(--ink-soft); font-size: 0.92rem; }
   .table-scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg-raised); }
@@ -184,10 +184,9 @@
     <div class="two-col">
       <div>
         <h3>Build the server</h3>
-        <pre><code>git clone https://github.com/cabroe/automad-mcp-server.git
+        <pre><code>git clone https://github.com/cabroe/automad-mcp-server
 cd automad-mcp-server
-npm install
-npm run build</code></pre>
+npm install &amp;&amp; npm run build</code></pre>
         <h3 style="margin-top:1.4rem">Try it without an Automad instance</h3>
         <pre><code>AUTOMAD_MODE=docs node dist/index.js</code></pre>
         <p class="note">Docs mode needs no URL, no credentials and no running site: the offline knowledge base, the discovery facade and (with a themes path) the theme tooling all work.</p>
@@ -198,12 +197,12 @@ npm run build</code></pre>
   "mcpServers": {
     "automad": {
       "command": "node",
-      "args": ["/abs/path/automad-mcp-server/dist/index.js"],
+      "args": ["&lt;repo&gt;/dist/index.js"],
       "env": {
-        "AUTOMAD_URL": "https://your-site.example.com",
+        "AUTOMAD_URL": "https://site.example.com",
         "AUTOMAD_USER": "admin",
         "AUTOMAD_PASS": "••••••",
-        "AUTOMAD_THEMES_PATH": "/abs/path/automad/packages",
+        "AUTOMAD_THEMES_PATH": "&lt;automad&gt;/packages",
         "AUTOMAD_WRITE_MODE": "confirm-destructive"
       }
     }
