@@ -9,6 +9,8 @@ import { AutomadMcpError, errorToJson } from "./errors.js";
 import { logger } from "./logger.js";
 import { validateCapabilityRegistry } from "./capabilities/registry.js";
 import { registerPrompts } from "./prompts.js";
+import pkg from "../package.json" with { type: "json" };
+const SERVER_VERSION: string = pkg.version;
 
 import {
   pagesInput,
@@ -28,7 +30,6 @@ import { handleTheme } from "./domains/theme.js";
 import { handleDocs } from "./domains/docs.js";
 
 export const SERVER_NAME = "automad-mcp";
-export const SERVER_VERSION = "0.5.0";
 
 export interface ServerDeps {
   client: HttpClient;

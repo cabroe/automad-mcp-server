@@ -57,6 +57,17 @@ describe("createAutomadServer (v2)", () => {
     await server.close();
   });
 
+  it("reports the version from package.json (no manual drift)", async () => {
+    const { server, mcp } = await connect(mockClient(), new WriteGuard(cfg()));
+    const info = mcp.getServerVersion();
+    expect(info?.name).toBe("automad-mcp");
+    // Must match the value in package.json — no separate const that can drift.
+    const pkg = await import("../../package.json", { with: { type: "json" } });
+    expect(info?.version).toBe((pkg as { default: { version: string } }).default.version);
+    await mcp.close();
+    await server.close();
+  });
+
   it("every registered tool exposes an action enum", async () => {
     const { server, mcp } = await connect(mockClient(), new WriteGuard(cfg()));
     const list = await mcp.listTools();

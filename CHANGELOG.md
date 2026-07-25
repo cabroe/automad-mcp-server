@@ -1,3 +1,20 @@
+## [0.5.3]
+
+### Fixed
+- **`SERVER_VERSION` in `server.ts` had drifted from `package.json`** (0.5.0 vs
+ 0.5.2). The MCP `initialize` handshake reported the wrong version to clients.
+ Now reads the version directly from `package.json` at compile time (one
+ source of truth). Added a regression test that pins `mcp.getServerVersion()`
+ to `package.json#version` so future drift is caught by `npm test`.
+
+### Changed
+- Audited MCP resources (`automad://themes`, `automad://themes/{slug}/schema`,
+ `automad://docs`, `automad://docs/{slug}`) and prompts against edge cases:
+ unknown slugs, traversal slugs (`..`, URL-encoded), empty/long args. All
+ resource errors surface as proper JSON-RPC errors (`-32603`); the MCP SDK
+- propagates `AutomadMcpError` cleanly. No runtime fixes needed for resources
+  or prompts in this pass; documented for future audits.
+
 ## [0.5.2]
 
 ### Fixed
