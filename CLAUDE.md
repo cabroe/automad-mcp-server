@@ -267,5 +267,24 @@ These are v2 quirks we work around but didn't fix:
 - **Very large titles** (e.g. 50KB) — v2 accepts them and creates a directory
   with that name. Not validated by the MCP. The LLM should keep titles sane.
 - **`/dashboard/setup` redirect** on first run — the AuthManager follows the
-  `Location` header. If your v2 instance has a different first-run URL,
-  CSRF scraping may fail.
+ `Location` header. If your v2 instance has a different first-run URL,
+ CSRF scraping may fail.
+
+## Out of scope
+
+These are *known* boundaries. Don't try to "fix" them in this repo.
+
+- **HTTP transport.** This server is stdio-only. Per MCP convention, local
+  tool servers expose stdio; an HTTP/SSE transport is the responsibility of
+  the orchestrator that wraps the stdio server (e.g. an MCP gateway), not
+  of this server itself. If you need HTTP, run this server as a subprocess
+  of an MCP-aware proxy.
+- **API-token auth.** v2 has no Bearer-token / Personal-Access-Token model
+  (researched 2026-07-25 against `automad/automad:v2` beta.51 source:
+  `src/server/Routes.php` + `src/server/API/RequestHandler.php` only wire
+  session-cookie + TOTP, no `Authorization` header listener). The session
+  scraping the MCP does is the only option. Upstream feature request would
+  be the right path.
+- **In-place media rename.** v2's `/_api/file-collection/list` supports
+  `action: "move"` (file → different directory) but no in-place rename.
+  Documented in CHANGELOG under 0.5.1 "future work".

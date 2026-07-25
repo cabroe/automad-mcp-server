@@ -17,7 +17,7 @@ type ExpectedActions = Readonly<Record<string, readonly string[]>>;
 /** Tool → every action name it advertises. Exported for drift tests against write-guard.ts. */
 export const EXPECTED_ACTIONS: ExpectedActions = {
   automad_pages: ["list", "get", "create", "update", "delete", "move", "duplicate", "publish", "batch_update"],
-  automad_media: ["list", "upload"],
+  automad_media: ["list", "upload", "delete"],
   automad_shared: ["get", "set"],
   automad_config: ["get", "set"],
   automad_site: ["info", "search", "health"],
@@ -62,6 +62,7 @@ export const CAPABILITY_REGISTRY: readonly CapabilityDefinition[] = [
     actions: {
       list: read("List media files."),
       upload: write("Upload a media file."),
+      delete: destructive("Delete a media file."),
     },
   },
   {

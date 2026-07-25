@@ -54,10 +54,12 @@ export const pagesInput = z.object({
   confirm_token: z.string().optional(),
 });
 
-/** Media: list, upload. (delete/rename/get: no v2 endpoints) */
+/** Media: list, upload, delete. (rename: not supported by v2 — `move` only moves between directories; get: no v2 endpoint.) */
 export const mediaInput = z.object({
-  action: z.enum(["list", "upload"]),
+  action: z.enum(["list", "upload", "delete"]),
   url: urlSchema.optional(),
+  /** For `delete`: the file name within `url`'s directory. v2's `selected` is a `{file: true}` map. */
+  filename: z.string().max(255).optional(),
   source: z
     .object({
       base64: z.string().max(MAX_BASE64_INPUT, `base64 payload exceeds ${MAX_BASE64_INPUT} chars; check the size`),

@@ -4,6 +4,21 @@ All notable changes to `@automadcms/mcp-server` are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.1]
+
+### Added
+- **`automad_media.delete`** — new destructive action that calls
+  `/_api/file-collection/list` with `action: "delete"` and a `selected` map
+  (v2's standard multi-file-delete convention). Required parameters: `url`
+  (parent directory) + `filename` (file within). In `confirm-destructive`
+  mode (the default) the call returns a `confirmToken` that must be replayed
+  to actually delete the file. Verified live against
+  `automad/automad:v2` (beta.51): deleting `apple-touch-icon.png` from
+  `/shared` removed it from the subsequent list. Note: v2 has no
+  in-place file rename endpoint — the closest is `action: "move"` between
+  directories, which is not yet wrapped.
+
+
 ## [0.5.0]
 
 ### Added
@@ -87,6 +102,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  stale cookie, leading to 401/403 on the next call. Now adopts the rotated
  cookie if v2 returns one. `collectCookie` also tolerates Headers objects
  that lack `getSetCookie()` (older runtimes / test mocks).
+
+## [Unreleased]
+
+### Known limitations / future work
+- **v2 has no API-token provider.** The MCP authenticates by scraping a
+  PHP session cookie and a `<meta name="csrf">` token from `/dashboard`.
+  This is fragile by design — v2 only ships session auth (with optional
+  TOTP). Upstream issue / feature request: a Bearer-token API for headless
+  integrations. The MCP can be hardened around scraping (already done in
+  0.5.0: `setSafeThemeSlug`, cold-start probe resilience, cookie-rotation
+  adoption) but cannot replace session auth without a v2-side change.
+- **`media.rename` not implemented.** v2's `/_api/file-collection/list`
+  supports `action: "move"` (file → different directory) but no in-place
+  rename. If added: model as download+delete+upload, or push for a v2
+  rename endpoint.
+- **MCP transport is stdio-only.** Per MCP convention, headless local tool
+  servers use stdio. An HTTP transport would be the responsibility of
+  the MCP framework (e.g. an orchestrator that wraps the stdio server),
+  not of this server itself. Out of scope here.
 
 ## [0.4.0]
 

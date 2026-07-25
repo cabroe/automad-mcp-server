@@ -15,7 +15,7 @@ function mockClient(): HttpClient {
 }
 
 function cfg(): Config {
-  return { url: "https://x", username: "u", password: "p", writeMode: "unrestricted", logLevel: "error" };
+  return { url: "https://x", username: "u", password: "p", writeMode: "unrestricted", logLevel: "error", requestTimeoutMs: 30_000 };
 }
 
 describe("handleMedia (v2 /_api)", () => {
@@ -48,6 +48,40 @@ describe("handleMedia (v2 /_api)", () => {
     expect(c.upload).toHaveBeenCalledWith(
       "/_api/file-collection/upload",
       expect.objectContaining({ ...src, url: "/shared/images" }),
+    );
+  });
+
+  it("delete requires url and filename", async () => {
+    await expect(
+      handleMedia({ action: "delete" }, mockClient(), new WriteGuard(cfg())),
+    ).rejects.toMatchObject({ code: "VALIDATION" });
+    await expect(
+      handleMedia({ action: "delete", url: "/shared/images" }, mockClient(), new WriteGuard(cfg())),
+    ).rejects.toMatchObject({ code: "VALIDATION", message: expect.stringMatching(/filename/) });
+  });
+
+  it("delete requires a confirm_token in confirm-destructive mode", async () => {
+    const c = mockClient();
+    const out = await handleMedia(
+      { action: "delete", url: "/shared/images", filename: "old.png" },
+      c,
+      new WriteGuard({ ...cfg(), writeMode: "confirm-destructive" }),
+    );
+    expect(out).toMatchObject({ allowed: "pending", action: "media.delete" });
+    expect(c.post).not.toHaveBeenCalled();
+  });
+
+  it("delete posts the file-collection/list endpoint with action=delete and selected map", async () => {
+    const c = mockClient();
+    (c.post as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ files: [] });
+    await handleMedia(
+      { action: "delete", url: "/shared/images", filename: "old.png" },
+      c,
+      new WriteGuard(cfg()),
+    );
+    expect(c.post).toHaveBeenCalledWith(
+      "/_api/file-collection/list",
+      { url: "/shared/images", action: "delete", selected: { "old.png": true } },
     );
   });
 });

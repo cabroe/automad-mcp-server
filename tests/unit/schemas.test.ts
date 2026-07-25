@@ -27,9 +27,11 @@ describe("schemas", () => {
     expect(pagesInput.parse({ action: "get", url: "/blog" })).toBeDefined();
   });
 
-  it("mediaInput accepts list and rejects unknown action", () => {
+  it("mediaInput accepts list/upload/delete and rejects unknown action", () => {
     expect(mediaInput.parse({ action: "list" })).toBeDefined();
-    expect(() => mediaInput.parse({ action: "delete" })).toThrow();
+    expect(mediaInput.parse({ action: "upload" })).toBeDefined();
+    expect(mediaInput.parse({ action: "delete", url: "/x", filename: "y" })).toBeDefined();
+    expect(() => mediaInput.parse({ action: "rename" })).toThrow();
   });
 
   it("mediaInput rejects base64 source exceeding the size limit", () => {

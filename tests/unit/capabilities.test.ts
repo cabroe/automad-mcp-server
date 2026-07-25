@@ -22,7 +22,7 @@ describe("capability registry", () => {
       "batch_update", "create", "delete", "duplicate", "get", "list", "move", "publish", "update",
     ]);
     expect(Object.keys(getCapability("automad_theme").actions)).toContain("schema");
-    expect(Object.keys(getCapability("automad_media").actions).sort()).toEqual(["list", "upload"]);
+    expect(Object.keys(getCapability("automad_media").actions).sort()).toEqual(["delete", "list", "upload"]);
     expect(Object.keys(getCapability("automad_shared").actions).sort()).toEqual(["get", "set"]);
     expect(Object.keys(getCapability("automad_config").actions).sort()).toEqual(["get", "set"]);
     expect(Object.keys(getCapability("automad_site").actions).sort()).toEqual(["health", "info", "search"]);

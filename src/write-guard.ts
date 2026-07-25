@@ -11,6 +11,7 @@ export type WriteAction =
   | "pages.duplicate"
   | "media.list"
   | "media.upload"
+  | "media.delete"
   | "shared.get"
   | "shared.set"
   | "config.get"
@@ -76,6 +77,7 @@ export const READ_ACTIONS: ReadonlySet<WriteAction> = new Set<WriteAction>([
 export const DESTRUCTIVE_ACTIONS: ReadonlySet<WriteAction> = new Set<WriteAction>([
   "pages.delete",
   "pages.move",
+  "media.delete",
   "theme.install",
   "theme.activate",
   "theme.uninstall",

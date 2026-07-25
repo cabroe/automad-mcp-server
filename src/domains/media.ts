@@ -9,6 +9,7 @@ type MediaAction = MediaInput["action"];
 const ACTION_MAP: Record<MediaAction, WriteAction> = {
   list: "media.list",
   upload: "media.upload",
+  delete: "media.delete",
 };
 
 export async function handleMedia(
@@ -35,6 +36,21 @@ export async function handleMedia(
       return client.upload(`${API_BASE}/file-collection/upload`, {
         ...input.source,
         url: input.url ?? "",
+      });
+    }
+    case "delete": {
+      if (!input.url) {
+        throw new AutomadMcpError("VALIDATION", "url (parent directory) is required for delete");
+      }
+      if (!input.filename) {
+        throw new AutomadMcpError("VALIDATION", "filename is required for delete (file name within url's directory)");
+      }
+      // v2's file-collection/list endpoint handles multi-file delete via a
+      // `{filename: true}` map. We pass a single entry for one file.
+      return client.post(`${API_BASE}/file-collection/list`, {
+        url: input.url,
+        action: "delete",
+        selected: { [input.filename]: true },
       });
     }
   }
