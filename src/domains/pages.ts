@@ -4,6 +4,20 @@ import { PageListResponse } from "../schemas.js";
 import type { HttpClient } from "../client.js";
 import type { WriteGuard, WriteAction } from "../write-guard.js";
 import type { PagesInput } from "../schemas.js";
+export interface BatchItemResult {
+  url: string;
+  ok: boolean;
+  resultingUrl?: string;
+  /** Filled when ok=false and the item required a confirm token. */
+  confirmToken?: string;
+  action?: WriteAction;
+  expiresAt?: string;
+  /** Structured error (mirrors AutomadMcpError). */
+  code?: string;
+  message?: string;
+  details?: unknown;
+  requiresConfirmation?: boolean;
+}
 
 type PagesAction = PagesInput["action"];
 
@@ -45,7 +59,16 @@ async function readWithRetry(client: HttpClient, url: string): Promise<unknown> 
 export async function handlePages(
   input: PagesInput, client: HttpClient, guard: WriteGuard,
 ): Promise<unknown> {
-  const permit = guard.check(ACTION_MAP[input.action], input.url ?? "/", input.confirm_token);
+  if (input.action === "batch_update") {
+    // Per-item confirmation: the outer guard is bypassed because each item has
+    // its own (action, target) check inside the loop below.
+    return handleBatchUpdate(input, client, guard);
+  }
+  const actionForGuard: WriteAction =
+    input.action === "update" && input.title !== undefined
+      ? "pages.update_rename"
+      : ACTION_MAP[input.action];
+  const permit = guard.check(actionForGuard, input.url ?? "/", input.confirm_token);
   if (permit.allowed === false) throw new AutomadMcpError("FORBIDDEN", permit.reason);
   if (permit.allowed === "pending") return permit;
 
@@ -123,23 +146,59 @@ export async function handlePages(
       await client.post(`${API_BASE}/page/publish`, { url: input.url });
       return { ok: true, url: input.url, published: true };
     }
-    case "batch_update": {
-      if (!input.items || input.items.length === 0) {
-        throw new AutomadMcpError("VALIDATION", "items is required for batch_update (non-empty array)");
-      }
-      const results: Array<{ url: string; ok: boolean; resultingUrl?: string; error?: string }> = [];
-      // Sequential on purpose: v2 races on concurrent title-renames of the same tree.
-      for (const item of input.items) {
-        try {
-          const res = await updateOnePage(client, item);
-          results.push({ url: item.url, ok: true, resultingUrl: res.url });
-        } catch (err) {
-          results.push({ url: item.url, ok: false, error: err instanceof Error ? err.message : String(err) });
-        }
-      }
-      return { ok: results.every((r) => r.ok), results };
+  }
+}
+
+/** Apply a batch of page updates with per-item confirmation and structured per-item errors. */
+async function handleBatchUpdate(
+  input: PagesInput, client: HttpClient, guard: WriteGuard,
+): Promise<unknown> {
+  if (!input.items || input.items.length === 0) {
+    throw new AutomadMcpError("VALIDATION", "items is required for batch_update (non-empty array)");
+  }
+  const results: BatchItemResult[] = [];
+  let allOk = true;
+  // Sequential on purpose: v2 races on concurrent title-renames of the same tree.
+  for (const item of input.items) {
+    // A title change is effectively a rename (happens during publish). Treat
+    // those items as `pages.update_rename` (destructive): in confirm-destructive
+    // mode they return a pending token bound to (action, target). Non-rename
+    // items use `pages.update` (ordinary write) and run directly. Other write
+    // modes (read-only/unrestricted) decide uniformly.
+    const itemAction: WriteAction = item.title !== undefined ? "pages.update_rename" : "pages.update";
+    const permit = guard.check(itemAction, item.url, item.confirm_token);
+    if (permit.allowed === "pending") {
+      results.push({
+        url: item.url,
+        ok: false,
+        requiresConfirmation: true,
+        confirmToken: permit.confirmToken,
+        expiresAt: permit.expiresAt,
+        action: permit.action,
+      });
+      allOk = false;
+      continue;
+    }
+    if (permit.allowed === false) {
+      results.push({ url: item.url, ok: false, code: "FORBIDDEN", message: permit.reason });
+      allOk = false;
+      continue;
+    }
+    try {
+      const res = await updateOnePage(client, item);
+      results.push({ url: item.url, ok: true, resultingUrl: res.url });
+    } catch (err) {
+      results.push({
+        url: item.url,
+        ok: false,
+        code: err instanceof AutomadMcpError ? err.code : "UNKNOWN",
+        message: err instanceof AutomadMcpError ? err.message : err instanceof Error ? err.message : String(err),
+        ...(err instanceof AutomadMcpError && err.details !== undefined ? { details: err.details } : {}),
+      });
+      allOk = false;
     }
   }
+  return { ok: allOk, results };
 }
 
 interface PageUpdateFields {

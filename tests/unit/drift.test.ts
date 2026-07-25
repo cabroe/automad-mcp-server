@@ -8,6 +8,11 @@ import { READ_ACTIONS, DESTRUCTIVE_ACTIONS } from "../../src/write-guard.js";
  * destructive classification. If you add a new action, both files must agree.
  */
 
+// Internal actions exist for fine-grained confirmation: pages.update_rename is
+// fired by the domain handler only when an update carries a title change
+// (which is effectively a rename). It does not appear in the public registry.
+const INTERNAL_ACTIONS = new Set(["pages.update_rename"]);
+
 describe("registry ↔ write-guard drift", () => {
   it("validateCapabilityRegistry passes", () => {
     expect(() => validateCapabilityRegistry()).not.toThrow();
@@ -78,5 +83,19 @@ describe("registry ↔ write-guard drift", () => {
       }
     }
     expect(misclassified, misclassified.join("; ")).toEqual([]);
+  });
+
+  it("internal page.update_rename is in DESTRUCTIVE_ACTIONS but not in the registry", () => {
+    expect(DESTRUCTIVE_ACTIONS.has("pages.update_rename" as never)).toBe(true);
+    expect(READ_ACTIONS.has("pages.update_rename" as never)).toBe(false);
+    for (const cap of CAPABILITY_REGISTRY) {
+      expect(Object.keys(cap.actions)).not.toContain("update_rename");
+    }
+  });
+
+  it("every action listed in INTERNAL_ACTIONS is documented", () => {
+    // If you add a new internal action, add it here AND in write-guard.ts.
+    expect(INTERNAL_ACTIONS.has("pages.update_rename")).toBe(true);
+    expect(DESTRUCTIVE_ACTIONS.has("pages.update_rename" as never)).toBe(true);
   });
 });

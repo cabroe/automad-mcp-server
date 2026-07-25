@@ -36,6 +36,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   handler, `manager.{install,activate,uninstall}`, and `scaffold`; the
   editor additionally re-validates `themeRoot ⊆ themesPath`. Reproduced live
   (`/tmp/PWNED.txt` outside the themes dir) and verified blocked after fix.
+- **`pages.batch_update` / `pages.update` ignored the documented safety model
+  for title changes** — in the default `confirm-destructive` mode, a batch of
+  9 harmless updates + 1 title-rename would silently perform all 10 on a
+  single confirmation (rename happens during publish, which IS destructive).
+  Introduced an internal `pages.update_rename` action that is fired only when
+  the input carries a `title`; it is in `DESTRUCTIVE_ACTIONS` and outside the
+  public registry. Each batch item now checks per-(action, target) and returns
+  a per-item `confirmToken` for rename items; safe items run directly.
+  Per-item errors preserve the `{code, message, details?}` envelope instead of
+  a bare string. Verified live: 1 safe + 1 rename → `requiresConfirmation:true`
+  on the rename item only; replay with the token completes the rename.
 
 ## [0.4.0]
 

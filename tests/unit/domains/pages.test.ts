@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { handlePages } from "../../../src/domains/pages.js";
 import type { HttpClient } from "../../../src/client.js";
 import { WriteGuard } from "../../../src/write-guard.js";
+import { AutomadMcpError } from "../../../src/errors.js";
 import type { Config } from "../../../src/config.js";
 
 function mockClient(): HttpClient {
@@ -104,6 +105,32 @@ describe("handlePages (v2 /_api)", () => {
     await expect(
       handlePages({ action: "update", url: "/x", title: "   " }, mockClient(), new WriteGuard(cfg())),
     ).rejects.toMatchObject({ code: "VALIDATION" });
+  });
+  it("update returns a pending confirm_token when title changes in confirm-destructive mode", async () => {
+    const c = mockClient();
+    const out = await handlePages(
+      { action: "update", url: "/x", title: "New" },
+      c,
+      new WriteGuard({ ...cfg(), writeMode: "confirm-destructive" }),
+    );
+    expect(out).toMatchObject({
+      allowed: "pending",
+      action: "pages.update_rename",
+      target: "/x",
+      confirmToken: expect.any(String),
+    });
+    expect(c.post).not.toHaveBeenCalled();
+  });
+
+  it("update runs without confirmation when no title changes (ordinary write)", async () => {
+    const c = mockClient();
+    (c.post as ReturnType<typeof vi.fn>).mockResolvedValue({ slug: "x" });
+    const out = await handlePages(
+      { action: "update", url: "/x", fields: { text: "body" } },
+      c,
+      new WriteGuard({ ...cfg(), writeMode: "confirm-destructive" }),
+    );
+    expect(out).toMatchObject({ ok: true, url: "/x" });
   });
 
   it("update publishes via input.url, polls on resulting slug, returns canonical URL", async () => {
@@ -216,7 +243,7 @@ describe("handlePages (v2 /_api)", () => {
     (c.post as ReturnType<typeof vi.fn>).mockImplementation((path: string) => {
       if (path === "/_api/page/data") {
         dataCalls += 1;
-        if (dataCalls === 1) return Promise.reject(Object.assign(new Error("bad title"), { code: "VALIDATION" }));
+        if (dataCalls === 1) return Promise.reject(new AutomadMcpError("VALIDATION", "bad title"));
       }
       return Promise.resolve({ slug: "s" });
     });
@@ -225,6 +252,81 @@ describe("handlePages (v2 /_api)", () => {
       c,
       new WriteGuard(cfg()),
     );
-    expect(out).toMatchObject({ ok: false, results: [{ url: "/a", ok: false }, { url: "/b", ok: true }] });
+    expect(out).toMatchObject({
+      ok: false,
+      results: [
+        { url: "/a", ok: false, code: "VALIDATION", message: expect.stringMatching(/bad title/) },
+        { url: "/b", ok: true, resultingUrl: expect.any(String) },
+      ],
+    });
+  });
+
+  it("batch_update requires per-item confirm_token for title-rename in confirm-destructive mode", async () => {
+    const c = mockClient();
+    (c.post as ReturnType<typeof vi.fn>).mockResolvedValue({ slug: "s" });
+    const out = await handlePages(
+      {
+        action: "batch_update",
+        items: [
+          { url: "/safe", fields: { text: "harmless" }, publish: false }, // no rename — runs directly
+          { url: "/renamed", title: "New Name", publish: false },         // rename — needs token
+        ],
+      },
+      c,
+      new WriteGuard({ ...cfg(), writeMode: "confirm-destructive" }),
+    );
+    expect(out).toMatchObject({
+      ok: false,
+      results: [
+        { url: "/safe", ok: true },
+        { url: "/renamed", ok: false, requiresConfirmation: true, confirmToken: expect.any(String) },
+      ],
+    });
+    // The safe item must have written (1 POST to page/data); the renamed item must NOT have written.
+    const dataCalls = (c.post as ReturnType<typeof vi.fn>).mock.calls.filter((c) => c[0] === "/_api/page/data");
+    expect(dataCalls.length).toBe(1);
+  });
+
+  it("batch_update runs renamed items when the per-item confirm_token matches", async () => {
+    const c = mockClient();
+    (c.post as ReturnType<typeof vi.fn>).mockResolvedValue({ slug: "s" });
+    const guard = new WriteGuard({ ...cfg(), writeMode: "confirm-destructive" });
+    // First call: returns pending for the renamed item.
+    const first = await handlePages(
+      {
+        action: "batch_update",
+        items: [{ url: "/renamed", title: "New Name", publish: false }],
+      },
+      c,
+      guard,
+    );
+    const token = (first as { results: Array<{ confirmToken?: string }> }).results[0]!.confirmToken!;
+    expect(token).toBeTruthy();
+    // Second call: same token + item succeeds.
+    const second = await handlePages(
+      {
+        action: "batch_update",
+        items: [{ url: "/renamed", title: "New Name", publish: false, confirm_token: token }],
+      },
+      c,
+      guard,
+    );
+    expect(second).toMatchObject({ ok: true, results: [{ url: "/renamed", ok: true, resultingUrl: expect.any(String) }] });
+  });
+
+  it("batch_update rejected items return a structured FORBIDDEN envelope", async () => {
+    const c = mockClient();
+    const out = await handlePages(
+      {
+        action: "batch_update",
+        items: [{ url: "/renamed", title: "New Name", publish: false }],
+      },
+      c,
+      new WriteGuard({ ...cfg(), writeMode: "read-only" }),
+    );
+    expect(out).toMatchObject({
+      ok: false,
+      results: [{ url: "/renamed", ok: false, code: "FORBIDDEN", message: expect.any(String) }],
+    });
   });
 });

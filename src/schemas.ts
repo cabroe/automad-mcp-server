@@ -16,6 +16,8 @@ const pageBatchItem = z.object({
   fields: z.record(z.unknown()).optional(),
   /** Publish after saving (default true). Set false to keep as a draft. */
   publish: z.boolean().optional(),
+  /** Required per-item when this item changes `title` (effective rename). */
+  confirm_token: z.string().optional(),
 });
 
 /** Pages: list, get, create, update, delete, move, duplicate, publish, batch_update. */
