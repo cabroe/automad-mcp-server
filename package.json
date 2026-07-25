@@ -1,14 +1,31 @@
 {
   "name": "@automadcms/mcp-server",
-  "version": "0.1.0",
-  "description": "MCP server for the Automad CMS — full site management via AI",
+  "version": "0.4.0",
+  "description": "MCP server for the Automad CMS — full site management, theme tooling, and offline docs via AI",
   "license": "MIT",
   "author": "Carsten Bröckert <cabroe@gmail.com>",
   "type": "module",
   "main": "./dist/index.js",
   "bin": { "automad-mcp": "./dist/index.js" },
-  "files": ["dist", "README.md", "LICENSE"],
+  "files": ["dist", "README.md", "LICENSE", "CHANGELOG.md"],
   "engines": { "node": ">=20" },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "automad",
+    "cms",
+    "ai",
+    "llm",
+    "claude",
+    "headless-cms"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cabroe/automad-mcp-server.git"
+  },
+  "homepage": "https://github.com/cabroe/automad-mcp-server#readme",
+  "bugs": { "url": "https://github.com/cabroe/automad-mcp-server/issues" },
+  "publishConfig": { "access": "public" },
   "scripts": {
     "build": "tsc",
     "dev": "tsx src/index.ts",
@@ -17,7 +34,8 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "lint": "eslint src tests",
-    "format": "prettier --write src tests"
+    "format": "prettier --write src tests",
+    "prepublishOnly": "npm run build && npm test"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",

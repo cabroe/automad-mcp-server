@@ -16,13 +16,14 @@ export interface CapabilityDefinition {
 type ExpectedActions = Readonly<Record<string, readonly string[]>>;
 
 const EXPECTED_ACTIONS: ExpectedActions = {
-  automad_pages: ["list", "get", "create", "update", "delete", "move", "duplicate"],
+  automad_pages: ["list", "get", "create", "update", "delete", "move", "duplicate", "publish", "batch_update"],
   automad_media: ["list", "upload"],
   automad_shared: ["get", "set"],
   automad_config: ["get", "set"],
-  automad_site: ["info", "search"],
+  automad_site: ["info", "search", "health"],
+  automad_docs: ["list", "search", "get"],
   automad_theme: [
-    "list", "install", "activate", "uninstall", "scaffold", "build", "read", "write", "files", "analyze", "validate", "schema",
+    "list", "install", "activate", "uninstall", "scaffold", "build", "read", "write", "files", "analyze", "validate", "schema", "diff", "generate",
   ],
 };
 
@@ -38,7 +39,9 @@ export const CAPABILITY_REGISTRY: readonly CapabilityDefinition[] = [
       update: write("Update a page."),
       delete: destructive("Delete a page."),
       move: destructive("Reorder a page."),
-      duplicate: destructive("Duplicate a page when supported."),
+      duplicate: write("Duplicate a page (creates a copy; non-destructive)."),
+      publish: write("Publish a page (draft to live)."),
+      batch_update: write("Update multiple pages sequentially."),
     },
   },
   {
@@ -75,6 +78,17 @@ export const CAPABILITY_REGISTRY: readonly CapabilityDefinition[] = [
     actions: {
       info: read("Read site information."),
       search: read("Search site content."),
+      health: read("Check live-instance connectivity and status."),
+    },
+  },
+  {
+    name: "automad_docs",
+    title: "Docs",
+    description: "Offline Automad v2 knowledge base.",
+    actions: {
+      list: read("List documentation pages."),
+      search: read("Search the knowledge base."),
+      get: read("Read a documentation page."),
     },
   },
   {
@@ -94,6 +108,8 @@ export const CAPABILITY_REGISTRY: readonly CapabilityDefinition[] = [
       analyze: read("Analyze a theme offline."),
       validate: read("Validate a theme offline."),
       schema: read("Build a normalized theme schema."),
+      diff: read("Preview a file change without writing."),
+      generate: read("Generate a snippet, block, or component."),
     },
   },
 ] as const;

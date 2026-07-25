@@ -172,4 +172,59 @@ describe("handlePages (v2 /_api)", () => {
   it("duplicate requires url", async () => {
     await expect(handlePages({ action: "duplicate" }, mockClient(), new WriteGuard(cfg()))).rejects.toMatchObject({ code: "VALIDATION" });
   });
+
+  it("publish posts /_api/page/publish and reports published", async () => {
+    const c = mockClient();
+    (c.post as ReturnType<typeof vi.fn>).mockResolvedValue({});
+    const out = await handlePages({ action: "publish", url: "/blog" }, c, new WriteGuard(cfg()));
+    expect(out).toMatchObject({ ok: true, url: "/blog", published: true });
+    expect(c.post).toHaveBeenCalledWith("/_api/page/publish", { url: "/blog" });
+  });
+
+  it("publish requires url", async () => {
+    await expect(handlePages({ action: "publish" }, mockClient(), new WriteGuard(cfg()))).rejects.toMatchObject({ code: "VALIDATION" });
+  });
+
+  it("update with publish:false saves as a draft (no publish call)", async () => {
+    const c = mockClient();
+    (c.post as ReturnType<typeof vi.fn>).mockResolvedValue({ slug: "blog" });
+    await handlePages({ action: "update", url: "/blog", title: "T", publish: false }, c, new WriteGuard(cfg()));
+    const paths = (c.post as ReturnType<typeof vi.fn>).mock.calls.map((call) => call[0]);
+    expect(paths).toContain("/_api/page/data");
+    expect(paths).not.toContain("/_api/page/publish");
+  });
+
+  it("batch_update requires a non-empty items array", async () => {
+    await expect(handlePages({ action: "batch_update" }, mockClient(), new WriteGuard(cfg()))).rejects.toMatchObject({ code: "VALIDATION" });
+    await expect(handlePages({ action: "batch_update", items: [] }, mockClient(), new WriteGuard(cfg()))).rejects.toMatchObject({ code: "VALIDATION" });
+  });
+
+  it("batch_update updates each item and reports per-item results", async () => {
+    const c = mockClient();
+    (c.post as ReturnType<typeof vi.fn>).mockResolvedValue({ slug: "s" });
+    const out = await handlePages(
+      { action: "batch_update", items: [{ url: "/a", title: "A", publish: false }, { url: "/b", title: "B", publish: false }] },
+      c,
+      new WriteGuard(cfg()),
+    );
+    expect(out).toMatchObject({ ok: true, results: [{ url: "/a", ok: true }, { url: "/b", ok: true }] });
+  });
+
+  it("batch_update captures a per-item failure without aborting the batch", async () => {
+    const c = mockClient();
+    let dataCalls = 0;
+    (c.post as ReturnType<typeof vi.fn>).mockImplementation((path: string) => {
+      if (path === "/_api/page/data") {
+        dataCalls += 1;
+        if (dataCalls === 1) return Promise.reject(Object.assign(new Error("bad title"), { code: "VALIDATION" }));
+      }
+      return Promise.resolve({ slug: "s" });
+    });
+    const out = await handlePages(
+      { action: "batch_update", items: [{ url: "/a", title: "A", publish: false }, { url: "/b", title: "B", publish: false }] },
+      c,
+      new WriteGuard(cfg()),
+    );
+    expect(out).toMatchObject({ ok: false, results: [{ url: "/a", ok: false }, { url: "/b", ok: true }] });
+  });
 });

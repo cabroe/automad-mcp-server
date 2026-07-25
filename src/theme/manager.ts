@@ -5,7 +5,7 @@ import { AutomadMcpError } from "../errors.js";
 import type { HttpClient } from "../client.js";
 import { API_BASE } from "../config.js";
 import { type ThemeFs, assertWithinRoot } from "./fs.js";
-import { npmBuild, npmInstall, type BuildResult } from "./build.js";
+import { composerInstall, npmBuild, npmInstall, type BuildResult } from "./build.js";
 
 export interface ThemeManifest {
   name: string;
@@ -146,8 +146,9 @@ export class ThemeManager {
     return { removed: target };
   }
 
-  /** Run npm install + npm run build in the theme directory. */
+  /** Run composer install (if composer.json exists) + npm install + npm run build. */
   async build(theme: string, opts: { install?: boolean | undefined; timeoutMs?: number | undefined } = {}): Promise<{
+    composer?: BuildResult;
     install?: BuildResult;
     build: BuildResult;
   }> {
@@ -156,24 +157,30 @@ export class ThemeManager {
     if (!(await fs.exists(target))) {
       throw new AutomadMcpError("NOT_FOUND", `theme '${theme}' not found`);
     }
-    if (opts.install !== false) {
-      const install = await npmInstall(target, opts.timeoutMs);
-      if (!install.ok) {
-        return {
-          install,
-          build: {
-            ok: false,
-            exitCode: -1,
-            durationMs: 0,
-            stdout: "",
-            stderr: "skipped: npm install failed",
-            command: "npm run build",
-          },
-        };
-      }
-      return { install, build: await npmBuild(target, opts.timeoutMs) };
+    if (opts.install === false) {
+      return { build: await npmBuild(target, opts.timeoutMs) };
     }
-    return { build: await npmBuild(target, opts.timeoutMs) };
+
+    const composer = (await fs.exists(path.join(target, "composer.json")))
+      ? await composerInstall(target, opts.timeoutMs)
+      : undefined;
+
+    const install = await npmInstall(target, opts.timeoutMs);
+    if (!install.ok) {
+      return {
+        ...(composer ? { composer } : {}),
+        install,
+        build: {
+          ok: false,
+          exitCode: -1,
+          durationMs: 0,
+          stdout: "",
+          stderr: "skipped: npm install failed",
+          command: "npm run build",
+        },
+      };
+    }
+    return { ...(composer ? { composer } : {}), install, build: await npmBuild(target, opts.timeoutMs) };
   }
 }
 

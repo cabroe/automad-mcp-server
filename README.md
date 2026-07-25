@@ -1,8 +1,8 @@
 # @automadcms/mcp-server
 
-An [MCP (Model Context Protocol)](https://modelcontextprotocol.io) server for **[Automad v2](https://automad.org/version-2)** — pages, media, shared data, config, site actions, and full local-filesystem theme tooling (scaffold / build / edit) over stdio.
+An [MCP (Model Context Protocol)](https://modelcontextprotocol.io) server for **[Automad v2](https://automad.org/version-2)** — pages, media, shared data, config, site actions, full local-filesystem theme tooling (scaffold / build / generate / edit), and an offline Automad knowledge base — over stdio.
 
-> **Status:** alpha — functional, verified against a live `automad/automad:v2` Docker container. Not yet published to npm.
+> **Status:** beta — verified against a live `automad/automad:v2` Docker container. Runs in two modes: **full** (live instance) and **docs** (standalone docs + theme tooling, no instance required).
 
 The server bridges to Automad v2's `/_api/{controller}/{method}` JSON dispatch layer via session-cookie + per-POST CSRF token, and (for the theme tool) to the local filesystem where themes live.
 
@@ -14,7 +14,13 @@ The server bridges to Automad v2's `/_api/{controller}/{method}` JSON dispatch l
 
 ## Install
 
-Not yet published to npm — build from source:
+Run directly with npx (no clone needed):
+
+```bash
+npx @automadcms/mcp-server
+```
+
+Or build from source:
 
 ```bash
 git clone https://github.com/cabroe/automad-mcp-server.git
@@ -31,13 +37,16 @@ All configuration is via environment variables:
 
 | Variable | Required | Default | Description |
 |---|---|---|---|
-| `AUTOMAD_URL` | yes | — | Base URL of the Automad v2 site, e.g. `https://blog.example.com` |
-| `AUTOMAD_USER` | yes | — | Dashboard username (used as `name-or-email` in `/_api/session/login`) |
-| `AUTOMAD_PASS` | yes | — | Dashboard password |
+| `AUTOMAD_MODE` | no | `full` | `full` (live instance) or `docs` (standalone docs + theme tooling, no instance/credentials) |
+| `AUTOMAD_URL` | yes (full) | — | Base URL of the Automad v2 site, e.g. `https://blog.example.com` |
+| `AUTOMAD_USER` | yes (full) | — | Dashboard username (used as `name-or-email` in `/_api/session/login`) |
+| `AUTOMAD_PASS` | yes (full) | — | Dashboard password |
 | `AUTOMAD_THEMES_PATH` | yes (if using `automad_theme`) | — | Absolute path to the local themes directory (the same path Automad uses for `packages`) |
 | `AUTOMAD_STARTER_KIT_PATH` | no | `AUTOMAD_THEMES_PATH` | Path to the [automad-theme-starter-kit](https://github.com/automadcms/automad-theme-starter-kit) used by `theme.scaffold` |
 | `AUTOMAD_WRITE_MODE` | no | `confirm-destructive` | `read-only` \| `confirm-destructive` \| `unrestricted` |
-| `LOG_LEVEL` | no | `info` | Pino log level |
+| `LOG_LEVEL` | no | `info` | Pino log level (`trace`/`debug`/`info`/`warn`/`error`/`fatal`/`silent`) |
+
+In `AUTOMAD_MODE=docs` the live-API tools (`automad_pages`, `automad_media`, `automad_shared`, `automad_config`, `automad_site`) return `UNSUPPORTED`; `automad_docs` and (when `AUTOMAD_THEMES_PATH` is set) `automad_theme` still work. `AUTOMAD_URL` is validated as an http(s) URL and an invalid `LOG_LEVEL`/`AUTOMAD_MODE` fails fast at startup.
 
 > **v2 has no bearer-token auth** (the v1-era `AUTOMAD_TOKEN` is gone). All authenticated calls use a PHP session cookie + a CSRF token scraped from the dashboard HTML.
 
@@ -49,22 +58,23 @@ The MCP logs in once on first use (`POST /_api/session/login`, urlencoded `name-
 
 Three modes, set via `AUTOMAD_WRITE_MODE`:
 
-- **`read-only`** — only non-mutating actions (`list`, `get`, `info`, `search`, `validate`, `files`, `read`).
-- **`confirm-destructive`** *(default)* — ordinary writes run directly; destructive writes (`delete`, `move`, `install`, `activate`, `uninstall`, `scaffold`, `build`, `write`) return a `confirmToken` (5-min TTL). Replay the same call with `confirm_token` to execute.
+- **`read-only`** — only non-mutating actions succeed. Read-only actions (19): `automad_docs.*` (`list`/`search`/`get`); `pages.list`/`pages.get`; `media.list`; `shared.get`; `config.get`; `site.info`/`site.search`/`site.health`; and `theme.list`/`read`/`files`/`analyze`/`validate`/`schema`/`diff`/`generate`. Everything else returns `FORBIDDEN`.
+- **`confirm-destructive`** *(default)* — ordinary writes run directly (`pages.create`/`update`/`duplicate`/`publish`/`batch_update`, `media.upload`, `shared.set`, `config.set`). The eight destructive actions — `pages.delete`, `pages.move`, `theme.install`, `theme.activate`, `theme.uninstall`, `theme.scaffold`, `theme.build`, `theme.write` — return a `confirmToken` (5-min TTL, bound to the `(action, target)` pair). Replay the same call with `confirm_token` to execute.
 - **`unrestricted`** — everything runs immediately.
 
 ## Tools
 
-The server exposes **six tools**. Each takes an `action` parameter and dispatches to a domain router. Every action is supported by a real, live-verified `/_api` endpoint (or, for theme tooling, a local filesystem operation).
+The server exposes **seven tools**. Each takes an `action` parameter and dispatches to a domain router. Live-API actions map to real, live-verified `/_api` endpoints; `automad_theme` uses the local filesystem; `automad_docs` is a bundled offline knowledge base.
 
 | Tool | Actions | What it does |
 |---|---|---|
-| `automad_pages` | `list` `get` `create` `update` `delete` `move` `duplicate` | `/_api/public/pagelist`, `/_api/page/data` (read + save), `/_api/page/add` (auto-publishes the draft), `/_api/page/publish`, `/_api/page/delete`, `/_api/page/move` (sibling reordering, not rename) |
+| `automad_pages` | `list` `get` `create` `update` `delete` `move` `duplicate` `publish` `batch_update` | `/_api/page/data` (read + save), `/_api/page/add` (draft; auto-publishes unless `publish:false`), `/_api/page/publish`, `/_api/page/delete`, `/_api/page/move` (sibling reordering, not rename), plus sequential batch updates |
 | `automad_media` | `list` `upload` | `/_api/file-collection/list` (page/shared dir), `/_api/file-collection/upload` (single-chunk Dropzone) |
 | `automad_shared` | `get` `set` | `/_api/shared/data` (site-wide data: sitename, consent, custom fields) |
 | `automad_config` | `get` `set` | `get` reads `/_api/app/bootstrap`; `set` posts to `/_api/config/update` with a `type:` discriminator (`cache`, `feed`, `debug`, `i18n`, etc.) |
-| `automad_site` | `info` `search` | `info` from bootstrap; `search` via `/_api/search/search-replace` (read-only when `replace` is omitted) |
-| `automad_theme` | `list` `install` `activate` `uninstall` `scaffold` `build` `read` `write` `files` `analyze` `validate` `schema` | Local-FS theme tooling, Starter-Kit analysis, and normalized schema inspection — requires `AUTOMAD_THEMES_PATH` |
+| `automad_site` | `info` `search` `health` | `info`/`health` from `/_api/app/bootstrap`; `search` via `/_api/search/search-replace` (read-only when `replace` is omitted) |
+| `automad_docs` | `list` `search` `get` | Offline Automad v2 knowledge base (template syntax, control structures, navigation, i18n, blocks, theme.json, headless/REST API, getting started) — works with no live instance |
+| `automad_theme` | `list` `install` `activate` `uninstall` `scaffold` `build` `read` `write` `files` `analyze` `validate` `schema` `diff` `generate` | Local-FS theme tooling, Starter-Kit analysis, normalized schema, change preview (`diff`), and snippet/block/component generation — requires `AUTOMAD_THEMES_PATH` |
 
 `automad_theme.analyze` inventories a local theme without executing code or using the network. It reports manifests, root templates, `components/`, `blocks/`, `client/`, `icons/`, `i18n/`, `lib/`, build files, Automad field references, block fields, masks, and recognized Starter-Kit markers:
 
@@ -101,12 +111,14 @@ The Starter Kit translates dashboard field metadata through `i18n/<locale>.json`
 
 ### MCP resources
 
-The server exposes two read-only resources alongside the existing six tools. The list is static for the lifetime of the server process (`listChanged: false`).
+The server exposes four read-only resources. The list is static for the lifetime of the server process (`listChanged: false`).
 
 | URI | Returns |
 |---|---|
 | `automad://themes` | JSON list of discovered themes with manifest metadata |
 | `automad://themes/{slug}/schema` | JSON normalized theme schema (matches `automad_theme.schema` output) |
+| `automad://docs` | JSON index of the bundled knowledge-base pages |
+| `automad://docs/{slug}` | Markdown body of one knowledge-base page (e.g. `automad://docs/template-syntax`) |
 
 The `{slug}` variable must match `^[a-z0-9._-]+$`. Invalid slugs return `NOT_FOUND`. Both resources require `AUTOMAD_THEMES_PATH` for meaningful output; otherwise `automad://themes` returns an empty list and `automad://themes/{slug}/schema` returns `NOT_FOUND`.
 
@@ -115,17 +127,26 @@ Each field includes its Automad type (`text`, `checkbox`, `color`, `image`, `ico
 
 ### Internal capability registry
 
-The server keeps the six public domain-router tools unchanged and maintains a static internal capability registry for their action metadata. The registry records read-only/destructive behavior and validates router/action coverage during server construction. It is not exposed as one MCP tool per action and performs no filesystem, network, token, or audit work. Later Resources, scoped tokens, audit logging, and HTTP authorization can consume the same metadata without changing the public router contract.
+The server keeps the public domain-router tools unchanged and maintains a static internal capability registry for their action metadata. The registry records read-only/destructive behavior and validates router/action coverage during server construction (`validateCapabilityRegistry`). It is not exposed as one MCP tool per action and performs no filesystem, network, token, or audit work. Later scoped tokens, audit logging, and HTTP authorization can consume the same metadata without changing the public router contract.
 
-### What v2 does NOT expose (intentionally omitted)
+### Supported vs. not exposed (v2 reality)
 
-- `pages.duplicate` — no v2 endpoint, throws `UNSUPPORTED` with a hint (read source + `page/add`)
-- `pages.move` (rename) — v2's `page/move` is **sibling reordering**; rename isn't supported, throws `UNSUPPORTED`
-- `media.delete/rename` — no v2 endpoints
-- `snippets`, `templates`, `theme.activate` (v2 has no `/_api/theme/*`) — old v1 tools, gone
-- `site.backup/restore` — no v2 endpoints
+Supported with real endpoints:
+
+- `pages.duplicate` — `/_api/page/duplicate`
+- `pages.move` — `/_api/page/move` (**sibling reordering / reparenting**, not a title rename; a rename happens implicitly during `page/publish` when the title changes)
+- `theme.activate` — best-effort via `/_api/package-manager/install`; if v2 rejects it, the theme is still on disk and can be activated from the dashboard (`activated: false` is returned, not an error)
+
+Not exposed, because v2 has no endpoint:
+
+- `media.delete` / `media.rename` — no v2 endpoints (upload + list only)
+- `snippets`, `templates` — v1-era tools; in v2 these are components/shared data
+- `site.backup` / `site.restore` — no v2 endpoints
 - `config.validate` — no v2 endpoint
-- `/_api/public/pagelist` — exists in v2 but currently 500s (Automad-internal bug, `PublicController.php:107` on 2.0.0-beta.15)
+
+Known v2-side issue:
+
+- `/_api/public/pagelist` currently 500s (Automad-internal bug, `PublicController.php:107` on 2.0.0-beta.15). `automad_pages.list` therefore uses `/_api/page-collection/get-recently-edited` instead.
 
 ### Example: confirm-token flow
 
@@ -191,20 +212,34 @@ Once `AUTOMAD_STARTER_KIT_PATH` is set (either way), `theme.scaffold` works as s
 // → { "activated": true, "remote": { "code": 200 } }   or   { "activated": false, "remote": {...} }
 ```
 
-> `theme.build` only runs the npm/esbuild pipeline (`npm install` + `npm run build`). If the theme grows PHP dependencies via `composer.json`, run `composer install` manually on the host — the MCP tool doesn't do that. Likewise, the Starter Kit's local dev server (`npm run dev` — PHP built-in server + esbuild watch, per its own README) is a local dev workflow; no `automad_theme` action starts it.
+> `theme.build` runs `composer install` first when a `composer.json` is present, then `npm install` + `npm run build` (the esbuild pipeline). Pass `install: false` to skip the dependency installs and only re-run the build. The Starter Kit's local dev server (`npm run dev`) is a local dev workflow; no `automad_theme` action starts it.
+
+### Example: preview a change, generate a snippet
+
+```jsonc
+// Preview an edit before writing it (read-only unified diff)
+{ "action": "diff", "theme": "my-theme", "path": "snippets/nav.php", "content": "<@ snippet nav @>...<@ end @>" }
+// → { "path": "snippets/nav.php", "changed": true, "added": 12, "removed": 0, "diff": "--- a/... +++ b/..." }
+
+// Generate a recursive navigation snippet (returns path + content; persist it with `write`)
+{ "action": "generate", "kind": "nav", "name": "mainNav" }
+// → { "kind": "nav", "path": "snippets/mainNav.php", "content": "<@ snippet mainNav @>...", "notes": "..." }
+```
+
+Generator kinds: `nav`, `pagelist`, `breadcrumbs`, `component`, `block`, `i18n`, `snippet`.
 
 ## Host setup
 
 ### Claude Desktop / Claude Code
 
-Add to `claude_desktop_config.json` (macOS: `~/Library/Application Support/Claude/`):
+Add to `claude_desktop_config.json` (macOS: `~/Library/Application Support/Claude/`). The zero-install variant uses `npx`:
 
 ```json
 {
   "mcpServers": {
     "automad": {
-      "command": "node",
-      "args": ["/absolute/path/to/automad-mcp-server/dist/index.js"],
+      "command": "npx",
+      "args": ["-y", "@automadcms/mcp-server"],
       "env": {
         "AUTOMAD_URL": "https://blog.example.com",
         "AUTOMAD_USER": "admin",
@@ -218,9 +253,73 @@ Add to `claude_desktop_config.json` (macOS: `~/Library/Application Support/Claud
 }
 ```
 
-### Cursor / Cline / Zed
+To run from a local build instead, use `"command": "node", "args": ["/absolute/path/to/automad-mcp-server/dist/index.js"]` with the same `env`.
 
-Point the MCP server `command` at the built `dist/index.js` (run `npm run build` first) and provide the same environment variables.
+**Docs-only mode** (no Automad instance, no credentials — just the knowledge base and, optionally, theme tooling):
+
+```json
+{
+  "mcpServers": {
+    "automad-docs": {
+      "command": "npx",
+      "args": ["-y", "@automadcms/mcp-server"],
+      "env": {
+        "AUTOMAD_MODE": "docs",
+        "AUTOMAD_THEMES_PATH": "/app/packages"
+      }
+    }
+  }
+}
+```
+
+### Cursor
+
+`~/.cursor/mcp.json` (or per-project `.cursor/mcp.json`):
+
+```json
+{
+  "mcpServers": {
+    "automad": {
+      "command": "npx",
+      "args": ["-y", "@automadcms/mcp-server"],
+      "env": { "AUTOMAD_URL": "https://blog.example.com", "AUTOMAD_USER": "admin", "AUTOMAD_PASS": "your-password" }
+    }
+  }
+}
+```
+
+### Cline (VS Code)
+
+In `cline_mcp_settings.json`:
+
+```json
+{
+  "mcpServers": {
+    "automad": {
+      "command": "npx",
+      "args": ["-y", "@automadcms/mcp-server"],
+      "env": { "AUTOMAD_URL": "https://blog.example.com", "AUTOMAD_USER": "admin", "AUTOMAD_PASS": "your-password" }
+    }
+  }
+}
+```
+
+### Zed
+
+In `settings.json` under `context_servers`:
+
+```json
+{
+  "context_servers": {
+    "automad": {
+      "command": { "path": "npx", "args": ["-y", "@automadcms/mcp-server"] },
+      "settings": {}
+    }
+  }
+}
+```
+
+Provide the `AUTOMAD_*` variables via Zed's environment (Zed passes `command.env` when supported by your version).
 
 ## Development
 
@@ -238,19 +337,24 @@ Project layout:
 ```
 src/
   index.ts          entry: config, stdio transport, graceful shutdown
-  server.ts         McpServer + 6 tool registrations
-  config.ts         env loader + write-mode validation
+  server.ts         McpServer + 7 tool + 4 resource registrations
+  config.ts         env loader: mode split, URL/log-level validation, write-mode
   auth.ts           session login + cookie jar + CSRF scrape
   client.ts         HTTP client: /_api envelope unwrap, multipart __csrf__+__json__, retry + re-CSRF
   errors.ts         typed AutomadMcpError
   logger.ts         pino with credential redaction
   schemas.ts        Zod input schemas for all tools
   write-guard.ts    multi-tier write protection + confirm-token flow
-  domains/          one router per tool: pages, media, shared, config, site, theme
-  theme/            theme tooling, Starter-Kit analysis, and normalized schemas
+  docs/kb.ts        bundled offline knowledge base (automad_docs)
+  domains/          one router per tool: pages, media, shared, config, site, theme, docs
+  theme/            theme tooling, Starter-Kit analysis, normalized schemas
     schema.ts       pure normalized ThemeSchemaBuilder
+    diff.ts         unified-diff preview for theme.diff
+    generate.ts     snippet/block/component generator
+  resources/        MCP resource backers (themes)
   capabilities/     internal router/action metadata and invariant validation
 tests/unit/         Vitest unit and domain tests
+```
 
 ## License
 

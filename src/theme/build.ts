@@ -110,3 +110,11 @@ export async function npmBuild(cwd: string, timeoutMs?: number): Promise<BuildRe
     ...(timeoutMs !== undefined ? { timeoutMs } : {}),
   });
 }
+
+/** Run `composer install` in `cwd` (only call when composer.json exists). */
+export async function composerInstall(cwd: string, timeoutMs?: number): Promise<BuildResult> {
+  return runCommand("composer", ["install", "--no-interaction", "--no-progress"], {
+    cwd,
+    ...(timeoutMs !== undefined ? { timeoutMs } : {}),
+  });
+}

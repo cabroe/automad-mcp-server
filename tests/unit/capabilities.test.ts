@@ -11,22 +11,24 @@ const expectedNames = [
   "automad_shared",
   "automad_config",
   "automad_site",
+  "automad_docs",
   "automad_theme",
 ];
 
 describe("capability registry", () => {
-  it("contains exactly the six public routers and their actions", () => {
+  it("contains exactly the public routers and their actions", () => {
     expect(CAPABILITY_REGISTRY.map((entry) => entry.name)).toEqual(expectedNames);
     expect(Object.keys(getCapability("automad_pages").actions).sort()).toEqual([
-      "create", "delete", "duplicate", "get", "list", "move", "update",
+      "batch_update", "create", "delete", "duplicate", "get", "list", "move", "publish", "update",
     ]);
     expect(Object.keys(getCapability("automad_theme").actions)).toContain("schema");
     expect(Object.keys(getCapability("automad_media").actions).sort()).toEqual(["list", "upload"]);
     expect(Object.keys(getCapability("automad_shared").actions).sort()).toEqual(["get", "set"]);
     expect(Object.keys(getCapability("automad_config").actions).sort()).toEqual(["get", "set"]);
-    expect(Object.keys(getCapability("automad_site").actions).sort()).toEqual(["info", "search"]);
+    expect(Object.keys(getCapability("automad_site").actions).sort()).toEqual(["health", "info", "search"]);
+    expect(Object.keys(getCapability("automad_docs").actions).sort()).toEqual(["get", "list", "search"]);
     expect(Object.keys(getCapability("automad_theme").actions).sort()).toEqual([
-      "activate", "analyze", "build", "files", "install", "list", "read", "scaffold", "schema", "uninstall", "validate", "write",
+      "activate", "analyze", "build", "diff", "files", "generate", "install", "list", "read", "scaffold", "schema", "uninstall", "validate", "write",
     ]);
   });
 

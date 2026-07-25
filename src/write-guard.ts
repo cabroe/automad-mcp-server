@@ -28,7 +28,15 @@ export type WriteAction =
   | "theme.files"
   | "theme.analyze"
   | "theme.validate"
-  | "theme.schema";
+  | "theme.schema"
+  | "theme.diff"
+  | "theme.generate"
+  | "pages.publish"
+  | "pages.batch_update"
+  | "site.health"
+  | "docs.list"
+  | "docs.search"
+  | "docs.get";
 
 export type Permit =
   | { allowed: true }
@@ -55,6 +63,12 @@ const READ_ACTIONS: ReadonlySet<WriteAction> = new Set<WriteAction>([
   "theme.analyze",
   "theme.validate",
   "theme.schema",
+  "theme.diff",
+  "theme.generate",
+  "site.health",
+  "docs.list",
+  "docs.search",
+  "docs.get",
 ]);
 
 const DESTRUCTIVE_ACTIONS: ReadonlySet<WriteAction> = new Set<WriteAction>([

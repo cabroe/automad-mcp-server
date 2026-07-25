@@ -164,4 +164,44 @@ describe("handleTheme", () => {
     );
     expect((out as { build: { ok: boolean } }).build.ok).toBe(true);
   });
+
+  it("diff previews a change against an existing file without writing", async () => {
+    await nodeFs.mkdir(path.join(themes, "diffable"));
+    await nodeFs.writeFile(path.join(themes, "diffable", "theme.json"), "{}");
+    await nodeFs.writeFile(path.join(themes, "diffable", "page.php"), "old\n");
+    const out = await handleTheme(
+      { action: "diff", theme: "diffable", path: "page.php", content: "new\n" },
+      { client: mockClient(), guard: new WriteGuard({ ...cfg(), writeMode: "read-only" }), themesPath: themes, starterKitPath: starter },
+    );
+    expect(out).toMatchObject({ path: "page.php", changed: true, added: 1, removed: 1 });
+    // nothing written: file still holds the original
+    expect(await nodeFs.readFile(path.join(themes, "diffable", "page.php"), "utf8")).toBe("old\n");
+  });
+
+  it("diff treats a missing file as a new file", async () => {
+    await nodeFs.mkdir(path.join(themes, "diffnew"));
+    await nodeFs.writeFile(path.join(themes, "diffnew", "theme.json"), "{}");
+    const out = await handleTheme(
+      { action: "diff", theme: "diffnew", path: "fresh.php", content: "a\nb\n" },
+      { client: mockClient(), guard: new WriteGuard({ ...cfg(), writeMode: "read-only" }), themesPath: themes, starterKitPath: starter },
+    );
+    expect(out).toMatchObject({ changed: true, added: 2, removed: 0 });
+  });
+
+  it("generate returns snippet content in read-only mode", async () => {
+    const client = mockClient();
+    const out = await handleTheme(
+      { action: "generate", kind: "nav", name: "mainNav" },
+      { client, guard: new WriteGuard({ ...cfg(), writeMode: "read-only" }), themesPath: themes, starterKitPath: starter },
+    );
+    expect(out).toMatchObject({ kind: "nav", path: "snippets/mainNav.php" });
+    expect(client.post).not.toHaveBeenCalled();
+  });
+
+  it("generate requires a kind", async () => {
+    await expect(handleTheme(
+      { action: "generate" },
+      { client: mockClient(), guard: new WriteGuard(cfg()), themesPath: themes, starterKitPath: starter },
+    )).rejects.toMatchObject({ code: "VALIDATION" });
+  });
 });

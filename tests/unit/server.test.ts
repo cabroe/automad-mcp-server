@@ -8,6 +8,7 @@ import type { Config } from "../../src/config.js";
 
 const TOOL_NAMES = [
   "automad_config",
+  "automad_docs",
   "automad_media",
   "automad_pages",
   "automad_shared",
@@ -27,11 +28,13 @@ function mockClient(): HttpClient {
 
 function cfg(): Config {
   return {
+    mode: "full",
     url: "https://x",
     username: "u",
     password: "p",
     writeMode: "unrestricted",
     logLevel: "error",
+    liveEnabled: true,
     themesPath: "/tmp/themes-x",
     starterKitPath: "/tmp/starter-x",
   };
@@ -46,7 +49,7 @@ async function connect(client: HttpClient, guard: WriteGuard, config = cfg()) {
 }
 
 describe("createAutomadServer (v2)", () => {
-  it("registers the six tools (5 v2 API + 1 theme)", async () => {
+  it("registers the seven tools (5 v2 API + theme + docs)", async () => {
     const { server, mcp } = await connect(mockClient(), new WriteGuard(cfg()));
     const list = await mcp.listTools();
     expect(list.tools.map((t) => t.name).sort()).toEqual([...TOOL_NAMES].sort());
@@ -85,10 +88,12 @@ describe("createAutomadServer (v2)", () => {
     const templates = await mcp.listResourceTemplates();
     expect(templates.resourceTemplates.map((template) => template.uriTemplate)).toEqual([
       "automad://themes/{slug}/schema",
+      "automad://docs/{slug}",
     ]);
     const resources = await mcp.listResources();
     expect(resources.resources).toEqual([
       { uri: "automad://themes", name: "themes", title: "Themes", description: "List of discovered themes" },
+      { uri: "automad://docs", name: "docs", title: "Docs", description: "Automad v2 knowledge base index" },
     ]);
     const toolNames = (await mcp.listTools()).tools.map((tool) => tool.name).sort();
     expect(toolNames).toEqual([...TOOL_NAMES].sort());

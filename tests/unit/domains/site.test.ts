@@ -71,4 +71,20 @@ describe("handleSite (v2 /_api)", () => {
     const [, body] = (c.post as ReturnType<typeof vi.fn>).mock.calls[0] as [string, Record<string, unknown>];
     expect(body).toEqual({ searchValue: "foo", isRegex: true, isCaseSensitive: false, replaceValue: "bar" });
   });
+
+  it("health reports ok when bootstrap succeeds", async () => {
+    const c = mockClient();
+    (c.get as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ version: "2.0.0", sitename: "S" });
+    const out = await handleSite({ action: "health" }, c, new WriteGuard(cfg()));
+    expect(out).toMatchObject({
+      ok: true, reachable: true, authenticated: true, version: "2.0.0", sitename: "S", latencyMs: expect.any(Number),
+    });
+  });
+
+  it("health reports not-ok when bootstrap fails", async () => {
+    const c = mockClient();
+    (c.get as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error("down"));
+    const out = await handleSite({ action: "health" }, c, new WriteGuard(cfg()));
+    expect(out).toMatchObject({ ok: false, error: { message: expect.stringMatching(/down/) } });
+  });
 });

@@ -8,6 +8,8 @@ import { scaffold, type ScaffoldDeps } from "../theme/scaffold.js";
 import { listFiles, readFile, writeFile, type EditorDeps } from "../theme/editor.js";
 import { ThemeAnalyzer } from "../theme/analyzer.js";
 import { ThemeSchemaBuilder } from "../theme/schema.js";
+import { unifiedDiff } from "../theme/diff.js";
+import { generate } from "../theme/generate.js";
 
 type ThemeAction = ThemeInput["action"];
 
@@ -24,6 +26,8 @@ const ACTION_MAP: Record<ThemeAction, WriteAction> = {
   analyze: "theme.analyze",
   validate: "theme.validate",
   schema: "theme.schema",
+  diff: "theme.diff",
+  generate: "theme.generate",
 };
 
 export interface ThemeHandlerDeps {
@@ -118,6 +122,22 @@ export async function handleTheme(
       if (!input.path) throw new AutomadMcpError("VALIDATION", "path is required for write");
       if (input.content === undefined) throw new AutomadMcpError("VALIDATION", "content is required for write");
       return writeFile(input.theme, input.path, input.content, editor);
+    }
+    case "diff": {
+      if (!input.theme) throw new AutomadMcpError("VALIDATION", "theme is required for diff");
+      if (!input.path) throw new AutomadMcpError("VALIDATION", "path is required for diff");
+      if (input.content === undefined) throw new AutomadMcpError("VALIDATION", "content is required for diff");
+      let existing = "";
+      try {
+        existing = (await readFile(input.theme, input.path, editor)).content;
+      } catch {
+        existing = ""; // new file — diff against empty
+      }
+      return unifiedDiff(existing, input.content, { path: input.path });
+    }
+    case "generate": {
+      if (!input.kind) throw new AutomadMcpError("VALIDATION", "kind is required for generate");
+      return generate({ kind: input.kind, name: input.name, path: input.path });
     }
   }
 }

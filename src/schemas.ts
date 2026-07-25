@@ -6,9 +6,21 @@ const urlSchema = z.string().min(1).regex(/^\//, "url must start with /");
 
 
 
-/** Pages: list, get, create, update, delete, move, duplicate. */
+/** A single page mutation for `batch_update`. */
+const pageBatchItem = z.object({
+  url: urlSchema,
+  title: z.string().optional(),
+  template: z.string().optional(),
+  private: z.boolean().optional(),
+  tags: z.array(z.string()).optional(),
+  fields: z.record(z.unknown()).optional(),
+  /** Publish after saving (default true). Set false to keep as a draft. */
+  publish: z.boolean().optional(),
+});
+
+/** Pages: list, get, create, update, delete, move, duplicate, publish, batch_update. */
 export const pagesInput = z.object({
-  action: z.enum(["list", "get", "create", "update", "delete", "move", "duplicate"]),
+  action: z.enum(["list", "get", "create", "update", "delete", "move", "duplicate", "publish", "batch_update"]),
   url: urlSchema.optional(),
   title: z.string().optional(),
   template: z.string().optional(),
@@ -23,6 +35,10 @@ export const pagesInput = z.object({
   target_url: urlSchema.optional(),
   /** Sibling reordering layout (JSON string), passed to page/move. */
   layout: z.string().optional(),
+  /** create/update: publish after saving (default true). Set false for a draft. */
+  publish: z.boolean().optional(),
+  /** batch_update: list of page mutations applied sequentially. */
+  items: z.array(pageBatchItem).optional(),
   confirm_token: z.string().optional(),
 });
 
@@ -69,7 +85,7 @@ export const configInput = z.object({
 
 /** Site: info (from bootstrap), search (search-replace, read-only when no replaceValue). */
 export const siteInput = z.object({
-  action: z.enum(["info", "search"]),
+  action: z.enum(["info", "search", "health"]),
   query: z.string().optional(),
   /** search-replace flags; defaults are read-only site search. */
   replace: z.string().optional(),
@@ -94,6 +110,7 @@ export const themeInput = z.object({
     "list", "install", "activate", "uninstall",
     "scaffold", "build",
     "read", "write", "files", "analyze", "validate", "schema",
+    "diff", "generate",
   ]),
   /** Theme slug (directory name under AUTOMAD_THEMES_PATH). */
   theme: z.string().optional(),
@@ -111,7 +128,34 @@ export const themeInput = z.object({
   content: z.string().optional(),
   /** Build: run `npm install` first (default true). */
   install: z.boolean().optional(),
+  /** Generate: template kind (nav, pagelist, breadcrumbs, component, block, i18n, snippet). */
+  kind: z.string().optional(),
   confirm_token: z.string().optional(),
 });
 
 export type ThemeInput = z.infer<typeof themeInput>;
+
+/** Docs: offline Automad knowledge base (list, search, get). */
+export const docsInput = z.object({
+  action: z.enum(["list", "search", "get"]),
+  /** search: query terms. */
+  query: z.string().optional(),
+  /** get: doc page slug. */
+  slug: z.string().optional(),
+  /** search: max results (default 5). */
+  limit: z.number().int().positive().max(20).optional(),
+  confirm_token: z.string().optional(),
+});
+
+export type DocsInput = z.infer<typeof docsInput>;
+
+export const PageListResponse = z.array(z.object({
+  url: z.string(),
+  title: z.string().optional(),
+}));
+
+export const AuthBootstrapResponse = z.object({
+  code: z.number(),
+  data: z.object({ sitename: z.string().optional() }).optional(),
+  error: z.string().optional(),
+});

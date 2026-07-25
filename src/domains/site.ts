@@ -9,6 +9,7 @@ type SiteAction = SiteInput["action"];
 const ACTION_MAP: Record<SiteAction, WriteAction> = {
   info: "site.info",
   search: "site.search",
+  health: "site.health",
 };
 
 interface BootstrapData {
@@ -42,6 +43,29 @@ export async function handleSite(
         reservedFields: data.reservedFields ?? {},
         dashboard: data.dashboard,
       };
+    }
+    case "health": {
+      const startedAt = Date.now();
+      try {
+        const data = (await client.get<BootstrapData>(`${API_BASE}/app/bootstrap`)) ?? {};
+        return {
+          ok: true,
+          reachable: true,
+          authenticated: true,
+          version: data.version,
+          sitename: data.sitename,
+          latencyMs: Date.now() - startedAt,
+        };
+      } catch (err) {
+        const code = err instanceof AutomadMcpError ? err.code : "UNKNOWN";
+        return {
+          ok: false,
+          reachable: code !== "NETWORK",
+          authenticated: code !== "AUTH",
+          error: { code, message: err instanceof Error ? err.message : String(err) },
+          latencyMs: Date.now() - startedAt,
+        };
+      }
     }
     case "search": {
       if (!input.query || !input.query.trim()) {
