@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { AuthManager } from "../../src/auth.js";
+import { AuthManager, extractCsrfToken } from "../../src/auth.js";
 import type { Config } from "../../src/config.js";
 
 function cfg(over: Partial<Config> = {}): Config {
@@ -208,5 +208,35 @@ describe("AuthManager (v2 /_api)", () => {
       });
     const auth = new AuthManager(cfg());
     await expect(auth.getCsrfToken()).rejects.toMatchObject({ code: "AUTH" });
+  });
+});
+
+describe("extractCsrfToken", () => {
+  const token = "a".repeat(64);
+
+  it("handles standard double-quoted order", () => {
+    expect(extractCsrfToken(`<meta name="csrf" content="${token}">`)).toBe(token);
+  });
+
+  it("handles reversed attribute order", () => {
+    expect(extractCsrfToken(`<meta content="${token}" name="csrf">`)).toBe(token);
+  });
+
+  it("handles single quotes and extra whitespace", () => {
+    expect(extractCsrfToken(`<meta  name = 'csrf'   content = '${token}'  />`)).toBe(token);
+  });
+
+  it("handles extra attributes", () => {
+    expect(
+      extractCsrfToken(`<meta http-equiv="x" name="csrf" data-x="1" content="${token}">`),
+    ).toBe(token);
+  });
+
+  it("rejects wrong length / non-hex", () => {
+    expect(extractCsrfToken(`<meta name="csrf" content="abc">`)).toBeUndefined();
+  });
+
+  it("returns undefined when missing", () => {
+    expect(extractCsrfToken("<html><head></head></html>")).toBeUndefined();
   });
 });

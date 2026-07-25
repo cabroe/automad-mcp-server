@@ -11,7 +11,45 @@ export interface AuthProvider {
   getCsrfToken(force?: boolean): Promise<string>;
 }
 
-const CSRF_RE = /<meta\s+name="csrf"\s+content="([0-9a-f]{64})"/;
+
+/**
+ * Extract the CSRF token from Automad dashboard HTML.
+ * Tolerant against attribute order, quote style, extra whitespace, and
+ * additional attributes. Returns the token lowercased, or undefined if
+ * no valid `name="csrf" content="<64-hex>"` meta tag is found.
+ */
+export function extractCsrfToken(html: string): string | undefined {
+  // 1) Scan every <meta ...> tag and look for one whose `name=csrf`. The
+  //    attribute order inside a tag does not matter, so we scan whole tags
+  //    rather than running a single global regex that pins the order.
+  const metaTagRe = /<meta\b[^>]*>/gi;
+  let match: RegExpExecArray | null;
+  while ((match = metaTagRe.exec(html)) !== null) {
+    const tag = match[0];
+    const nameMatch = /\bname\s*=\s*(["'])csrf\1/i.exec(tag)
+      ?? /\bname\s*=\s*csrf\b/i.exec(tag);
+    if (!nameMatch) continue;
+    const contentMatch =
+      /\bcontent\s*=\s*(["'])([0-9a-fA-F]{64})\1/i.exec(tag)
+      ?? /\bcontent\s*=\s*([0-9a-fA-F]{64})\b/i.exec(tag);
+    if (!contentMatch) continue;
+    const token = (contentMatch[2] ?? contentMatch[1] ?? "").toLowerCase();
+    if (/^[0-9a-f]{64}$/.test(token)) return token;
+  }
+  // 2) Last-resort fallbacks for malformed tags where the per-tag scan above
+  //    misses (e.g. nested quotes or unusual attribute spacing).
+  const fallbacks = [
+    /<meta[^>]*\bname\s*=\s*["']?csrf["']?[^>]*\bcontent\s*=\s*["']?([0-9a-fA-F]{64})["']?/i,
+    /<meta[^>]*\bcontent\s*=\s*["']?([0-9a-fA-F]{64})["']?[^>]*\bname\s*=\s*["']?csrf["']?/i,
+  ];
+  for (const re of fallbacks) {
+    const m = re.exec(html);
+    if (m?.[1] && /^[0-9a-fA-F]{64}$/i.test(m[1])) {
+      return m[1].toLowerCase();
+    }
+  }
+  return undefined;
+}
 
 /** Cold-container login-probe resilience: a fresh v2 can 403 while the session/CSRF settle. */
 const LOGIN_PROBE_ATTEMPTS = 3;
@@ -144,11 +182,11 @@ export class AuthManager implements AuthProvider {
     const rotated = collectCookie([res.headers as HeaderLike | undefined ?? undefined]);
     if (rotated) this.cookie = rotated;
     const html = await res.text();
-    const m = CSRF_RE.exec(html);
-    if (!m || !m[1]) {
+    const token = extractCsrfToken(html);
+    if (!token) {
       throw new AutomadMcpError("AUTH", "Could not extract CSRF token from dashboard HTML");
     }
-    this.csrf = m[1];
+    this.csrf = token;
   }
 }
 
