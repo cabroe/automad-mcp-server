@@ -30,6 +30,8 @@ export interface Config {
   themesPath?: string | undefined;
   /** Path to the starter-kit template used by `theme.scaffold`. */
   starterKitPath?: string | undefined;
+  /** Per-request HTTP timeout in ms. Defaults to 30s. 0 disables. */
+  requestTimeoutMs: number;
 }
 
 /** Automad v2 only: JSON API base path. */
@@ -115,7 +117,15 @@ export function loadConfig(): Config {
     liveEnabled,
     themesPath,
     starterKitPath,
+    requestTimeoutMs: parsePositiveInt(process.env["AUTOMAD_REQUEST_TIMEOUT_MS"], 30_000),
   };
+}
+
+function parsePositiveInt(raw: string | undefined, fallback: number): number {
+  if (!raw) return fallback;
+  const n = Number.parseInt(raw, 10);
+  if (!Number.isFinite(n) || n < 0) return fallback;
+  return n;
 }
 
 function required(name: string): string {

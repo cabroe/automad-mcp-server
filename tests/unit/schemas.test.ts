@@ -45,6 +45,26 @@ describe("schemas", () => {
     expect(mediaInput.parse({ action: "upload", source: { base64: ok, filename: "ok.png", mimeType: "image/png" } })).toBeDefined();
   });
 
+  it("pagesInput rejects batch_update exceeding the items limit", () => {
+    const items = Array.from({ length: 201 }, (_, i) => ({ url: `/p${i}` }));
+    expect(() => pagesInput.parse({ action: "batch_update", items })).toThrow(/at most 200/);
+  });
+
+  it("pagesInput accepts batch_update at the items limit", () => {
+    const items = Array.from({ length: 200 }, (_, i) => ({ url: `/p${i}` }));
+    expect(pagesInput.parse({ action: "batch_update", items })).toBeDefined();
+  });
+
+  it("themeInput rejects content exceeding the size limit", () => {
+    const huge = "x".repeat(4 * 1024 * 1024 + 1);
+    expect(() => themeInput.parse({ action: "write", theme: "t", path: "x.php", content: huge })).toThrow(/exceeds/);
+  });
+
+  it("themeInput accepts content within the size limit", () => {
+    const ok = "x".repeat(1024);
+    expect(themeInput.parse({ action: "write", theme: "t", path: "x.php", content: ok })).toBeDefined();
+  });
+
   it("sharedInput accepts get", () => {
     expect(sharedInput.parse({ action: "get" })).toBeDefined();
   });

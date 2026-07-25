@@ -15,11 +15,15 @@ export interface AuthProvider {
 
 export interface HttpClientOptions {
   baseUrl: string;
+  /** Per-request timeout in ms. 0 disables. Default 30000. */
+  timeoutMs?: number;
 }
 
 export interface RequestOptions {
   maxRetries?: number;
   retryDelayMs?: number;
+  /** Per-request timeout in ms. Overrides client default. 0 disables. */
+  timeoutMs?: number;
   headers?: Record<string, string>;
   /** POST body. Sent as `__json__` multipart field (JSON.stringify). Omit for reads. */
   body?: unknown;
@@ -31,9 +35,9 @@ export interface RequestOptions {
 
 export class HttpClient {
   constructor(
-    private readonly opts: HttpClientOptions,
+    private readonly opts: HttpClientOptions & { timeoutMs?: number },
     private readonly auth: AuthProvider,
-    private readonly defaults: { maxRetries?: number; retryDelayMs?: number } = {},
+    private readonly defaults: { maxRetries?: number; retryDelayMs?: number; timeoutMs?: number } = {},
   ) {}
 
   get<T>(path: string, opts?: RequestOptions): Promise<T> {
@@ -88,9 +92,9 @@ export class HttpClient {
   private async request<T>(method: string, path: string, opts?: RequestOptions): Promise<T> {
     const maxRetries = opts?.maxRetries ?? this.defaults.maxRetries ?? 2;
     const retryDelay = opts?.retryDelayMs ?? this.defaults.retryDelayMs ?? 250;
+    const timeoutMs = opts?.timeoutMs ?? this.opts.timeoutMs ?? this.defaults.timeoutMs ?? 30_000;
     const url = this.opts.baseUrl.replace(/\/$/, "") + path;
     const isMultipart = opts?._isMultipart === true;
-
     let attempt = 0;
     let forceReauth = false;
     let forceRescrape = false;
@@ -130,6 +134,12 @@ export class HttpClient {
       logger.debug({ method, url, attempt }, "HTTP request");
       const init: RequestInit = { method, headers };
       if (body !== undefined) init.body = body;
+      // Per-request timeout (AbortController). 0 disables. Default 30s, override via AUTOMAD_REQUEST_TIMEOUT_MS.
+      if (timeoutMs > 0) {
+        const ac = new AbortController();
+        init.signal = ac.signal;
+        setTimeout(() => ac.abort(), timeoutMs).unref();
+      }
       const res = await fetch(url, init);
 
       if (res.status === 403 && attempt <= maxRetries) {

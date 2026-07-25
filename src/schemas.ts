@@ -5,6 +5,12 @@ export const writeMode = z.enum(["read-only", "confirm-destructive", "unrestrict
 /** Max bytes accepted in a single media upload source (base64 string length, including padding). */
 export const MAX_BASE64_INPUT = 12 * 1024 * 1024; // ~9 MB decoded (covers most images/SVGs/PDFs)
 
+/** Cap on a single `pages.batch_update` payload (sequential; protect against OOM/DoS). */
+export const MAX_BATCH_ITEMS = 200;
+
+/** Cap on a single `theme.write` content (file size on disk; protect against OOM/DoS). */
+export const MAX_THEME_FILE_BYTES = 4 * 1024 * 1024; // 4 MB — well above any reasonable theme asset
+
 const urlSchema = z.string().min(1).regex(/^\//, "url must start with /");
 
 
@@ -44,7 +50,7 @@ export const pagesInput = z.object({
   /** create/update: publish after saving (default true). Set false for a draft. */
   publish: z.boolean().optional(),
   /** batch_update: list of page mutations applied sequentially. */
-  items: z.array(pageBatchItem).optional(),
+  items: z.array(pageBatchItem).max(MAX_BATCH_ITEMS, `batch_update supports at most ${MAX_BATCH_ITEMS} items per call`).optional(),
   confirm_token: z.string().optional(),
 });
 
@@ -135,7 +141,7 @@ export const themeInput = z.object({
   /** Read/write/files: path relative to the theme root (forward slashes). */
   path: z.string().optional(),
   /** Write: file content. */
-  content: z.string().optional(),
+  content: z.string().max(MAX_THEME_FILE_BYTES, `theme.write content exceeds ${MAX_THEME_FILE_BYTES} bytes`).optional(),
   /** Build: run `npm install` first (default true). */
   install: z.boolean().optional(),
   /** Generate: template kind (nav, pagelist, breadcrumbs, component, block, i18n, snippet). */

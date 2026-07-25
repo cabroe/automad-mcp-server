@@ -63,7 +63,7 @@ export class AuthManager implements AuthProvider {
     }
 
     // Cookie is set on the login response AND any redirect response.
-    this.cookie = collectCookie(res.headers.getSetCookie?.() ?? [res.headers.get("set-cookie")]);
+    this.cookie = collectCookie([res.headers as HeaderLike | undefined ?? undefined]);
     if (!this.cookie) {
       throw new AutomadMcpError("AUTH", "No session cookie returned by Automad v2 login");
     }
@@ -138,6 +138,11 @@ export class AuthManager implements AuthProvider {
     if (!res.ok) {
       throw new AutomadMcpError("AUTH", `Failed to fetch dashboard for CSRF: HTTP ${res.status}`);
     }
+    // v2 may rotate the session cookie on /dashboard (e.g. when the previous
+    // session expired or the bootstrap completed mid-request). Adopt the new
+    // cookie so the next authenticated request uses the matching session.
+    const rotated = collectCookie([res.headers as HeaderLike | undefined ?? undefined]);
+    if (rotated) this.cookie = rotated;
     const html = await res.text();
     const m = CSRF_RE.exec(html);
     if (!m || !m[1]) {
@@ -147,10 +152,29 @@ export class AuthManager implements AuthProvider {
   }
 }
 
+type HeaderLike = { getSetCookie?: () => string[] | undefined; get?: (k: string) => string | null };
+function isHeaderLike(v: unknown): v is HeaderLike {
+  return typeof v === "object" && v !== null;
+}
+
 /** Pulls the first session cookie (HttpOnly `Automad-<md5>=<id>`) out of one or more Set-Cookie headers. */
-function collectCookie(setCookies: Array<string | null | undefined>): string | undefined {
+function collectCookie(setCookies: Array<string | HeaderLike | null | undefined>): string | undefined {
   for (const sc of setCookies) {
     if (!sc) continue;
+    // Headers object form (test mocks / older runtimes): `getSetCookie()` may be missing.
+    if (isHeaderLike(sc)) {
+      if (typeof sc.getSetCookie === "function") {
+        const multi = sc.getSetCookie();
+        if (multi && multi.length > 0) return collectCookie(multi);
+      }
+      const single = sc.get?.("set-cookie");
+      if (single) {
+        const first = single.split(";")[0];
+        if (first && first.includes("=")) return first;
+      }
+      continue;
+    }
+    // String form (real Set-Cookie header line).
     const first = sc.split(";")[0];
     if (first && first.includes("=")) return first;
   }

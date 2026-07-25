@@ -11,7 +11,7 @@ async function main(): Promise<void> {
   const cfg = loadConfig();
 
   const auth = new AuthManager(cfg);
-  const client = new HttpClient({ baseUrl: cfg.url }, auth, {
+  const client = new HttpClient({ baseUrl: cfg.url, timeoutMs: cfg.requestTimeoutMs }, auth, {
     maxRetries: 2,
     retryDelayMs: 250,
   });

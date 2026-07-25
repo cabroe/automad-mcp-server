@@ -68,6 +68,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
  base64-string ceiling on the `mediaInput` schema
  (`MAX_BASE64_INPUT = 12 * 1024 * 1024`), with a clear validation error when
  exceeded. Covers images, SVGs, and most PDFs.
+- **`pages.batch_update` and `theme.write` had no upper bound on payload size**
+ - a caller could send 5,000+ page updates in a single batch (sequential, so
+ the MCP held the request open for 20+ seconds) or write a multi-hundred-MB
+ theme file (held the request open for 10+ seconds and consumed equivalent
+ memory). Added `MAX_BATCH_ITEMS = 200` to `pagesInput.items` and
+ `MAX_THEME_FILE_BYTES = 4 * 1024 * 1024` to `themeInput.content`. Both surface
+ as Zod `too_big` validation errors before any v2 / FS call. Verified live.
+- **`HttpClient` had no per-request timeout** - a hung v2 (high CPU, network
+ stall, deadlock) would block the MCP indefinitely. Each call now uses an
+ `AbortController` with a default 30s timeout, overridable via the
+ `AUTOMAD_REQUEST_TIMEOUT_MS` env var (set to `0` to disable). Verified
+ live: `AUTOMAD_REQUEST_TIMEOUT_MS=1` causes an immediate
+ `This operation was aborted`.
+- **`AuthManager.scrapeCsrf` did not adopt rotated session cookies** - v2
+ can rotate the session cookie on `/dashboard` (e.g. when the previous
+ session expired or bootstrap completed mid-request). The MCP kept the
+ stale cookie, leading to 401/403 on the next call. Now adopts the rotated
+ cookie if v2 returns one. `collectCookie` also tolerates Headers objects
+ that lack `getSetCookie()` (older runtimes / test mocks).
 
 ## [0.4.0]
 
