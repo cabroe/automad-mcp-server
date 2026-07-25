@@ -2,14 +2,14 @@
 
 # @automadcms/mcp-server
 
-**A [Model Context Protocol](https://modelcontextprotocol.io) server for [Automad v2](https://automad.org/version-2)** —
+**A [Model Context Protocol](https://modelcontextprotocol.io) server for [Automad v2](https://automad.org/)** —
 manage pages, media, shared data, config, local themes, and an offline docs knowledge base from any AI agent, over stdio.
 
 [![release](https://img.shields.io/github/v/release/cabroe/automad-mcp-server?include_prereleases)](https://github.com/cabroe/automad-mcp-server/releases)
 [![license](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 [![node](https://img.shields.io/badge/node-%E2%89%A520-brightgreen.svg)](https://nodejs.org)
 [![MCP](https://img.shields.io/badge/MCP-stdio-8A2BE2.svg)](https://modelcontextprotocol.io)
-[![Automad](https://img.shields.io/badge/Automad-v2-f60.svg)](https://automad.org/version-2)
+[![Automad](https://img.shields.io/badge/Automad-v2-f60.svg)](https://automad.org/)
 
 [Features](#features) · [Quick start](#quick-start) · [Install for your AI agent](#install-for-your-ai-agent) · [Configuration](#configuration) · [Tools](#tools) · [Resources & prompts](#resources--prompts) · [Examples](#examples) · [Editor setup](#editor-setup) · [Development](#development)
 

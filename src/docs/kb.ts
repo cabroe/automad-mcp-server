@@ -5,7 +5,7 @@ import { AutomadMcpError } from "../errors.js";
  *
  * Content is embedded as string constants (not loose `.md` files) so it ships
  * in `dist/` after `tsc` with zero asset-copying step. Sourced from the
- * official Automad v2 documentation (automad.org/version-2). This makes the
+ * official Automad v2 documentation (https://automad.org). This makes the
  * docs tool work fully offline and in `AUTOMAD_MODE=docs` without any live
  * instance.
  */
@@ -334,56 +334,56 @@ export const DOC_PAGES: readonly DocPage[] = [
     slug: "template-syntax",
     title: "Template syntax",
     tags: ["template", "syntax", "statements", "variables", "blocks", "pipe"],
-    reference: "https://automad.org/version-2/template-language",
+    reference: "https://automad.org/developer-guide/building-themes/template-language",
     body: TEMPLATE_SYNTAX,
   },
   {
     slug: "control-structures",
     title: "Control structures (set, with, foreach, if)",
     tags: ["foreach", "if", "with", "set", "loop", "context"],
-    reference: "https://automad.org/version-2/template-language/control-structures",
+    reference: "https://automad.org/developer-guide/building-themes/template-language/control-structures",
     body: CONTROL_STRUCTURES,
   },
   {
     slug: "navigation",
     title: "Navigation",
     tags: ["nav", "navtree", "breadcrumbs", "pagelist", "menu", "recursive"],
-    reference: "https://automad.org/version-2/template-language/helpers/nav",
+    reference: "https://automad.org/developer-guide/building-themes/template-language/recursive-navigations",
     body: NAVIGATION,
   },
   {
     slug: "i18n",
     title: "Multilingual (i18n)",
     tags: ["i18n", "multilingual", "translation", "locale", "language"],
-    reference: "https://automad.org/version-2/template-language/multilingual",
+    reference: "https://automad.org/developer-guide/building-themes/template-language/multilingual-content",
     body: I18N,
   },
   {
     slug: "blocks",
     title: "Blocks",
     tags: ["blocks", "editor", "pagelist", "section", "columns", "content"],
-    reference: "https://automad.org/version-2/blocks",
+    reference: "https://automad.org/user-guide/using-blocks",
     body: BLOCKS,
   },
   {
     slug: "theme-json",
     title: "theme.json",
     tags: ["theme.json", "manifest", "masks", "fieldorder", "tooltips", "options"],
-    reference: "https://automad.org/version-2/building-themes/theme-json",
+    reference: "https://automad.org/developer-guide/building-themes/theme-json",
     body: THEME_JSON,
   },
   {
     slug: "headless",
     title: "Headless / REST API",
     tags: ["headless", "rest", "api", "json", "endpoints", "csrf", "session"],
-    reference: "https://automad.org/version-2/api/rest",
+    reference: "https://automad.org/headless-mode",
     body: HEADLESS_API,
   },
   {
     slug: "getting-started",
     title: "Getting started",
     tags: ["install", "docker", "packages", "setup", "requirements"],
-    reference: "https://automad.org/version-2/getting-started",
+    reference: "https://automad.org/getting-started",
     body: GETTING_STARTED,
   },
 ];
