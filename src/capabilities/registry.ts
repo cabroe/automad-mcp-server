@@ -14,8 +14,8 @@ export interface CapabilityDefinition {
 }
 
 type ExpectedActions = Readonly<Record<string, readonly string[]>>;
-
-const EXPECTED_ACTIONS: ExpectedActions = {
+/** Tool → every action name it advertises. Exported for drift tests against write-guard.ts. */
+export const EXPECTED_ACTIONS: ExpectedActions = {
   automad_pages: ["list", "get", "create", "update", "delete", "move", "duplicate", "publish", "batch_update"],
   automad_media: ["list", "upload"],
   automad_shared: ["get", "set"],
@@ -26,6 +26,17 @@ const EXPECTED_ACTIONS: ExpectedActions = {
     "list", "install", "activate", "uninstall", "scaffold", "build", "read", "write", "files", "analyze", "validate", "schema", "diff", "generate",
   ],
 };
+
+/** Map tool name → WriteAction prefix (e.g. "automad_pages" → "pages"). */
+export const WRITE_ACTION_PREFIX: Readonly<Record<string, string>> = Object.freeze({
+  automad_pages: "pages",
+  automad_media: "media",
+  automad_shared: "shared",
+  automad_config: "config",
+  automad_site: "site",
+  automad_docs: "docs",
+  automad_theme: "theme",
+});
 
 export const CAPABILITY_REGISTRY: readonly CapabilityDefinition[] = [
   {

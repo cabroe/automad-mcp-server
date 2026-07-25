@@ -48,8 +48,8 @@ export type Permit =
       expiresAt: string;
     }
   | { allowed: false; reason: string };
-
-const READ_ACTIONS: ReadonlySet<WriteAction> = new Set<WriteAction>([
+/** Read-only actions — allowed in every write mode. Exported for drift tests against the capability registry. */
+export const READ_ACTIONS: ReadonlySet<WriteAction> = new Set<WriteAction>([
   "pages.list",
   "pages.get",
   "media.list",
@@ -70,8 +70,8 @@ const READ_ACTIONS: ReadonlySet<WriteAction> = new Set<WriteAction>([
   "docs.search",
   "docs.get",
 ]);
-
-const DESTRUCTIVE_ACTIONS: ReadonlySet<WriteAction> = new Set<WriteAction>([
+/** Destructive actions — require a confirm token in `confirm-destructive` mode (the default). Exported for drift tests. */
+export const DESTRUCTIVE_ACTIONS: ReadonlySet<WriteAction> = new Set<WriteAction>([
   "pages.delete",
   "pages.move",
   "theme.install",
