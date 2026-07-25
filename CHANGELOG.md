@@ -1,4 +1,4 @@
-## [Unreleased]
+## [0.6.0] - 2026-07-25
 
 ### Changed
 - **The capability registry is now the actual single source of truth, and the
