@@ -1,15 +1,14 @@
-import { spawn } from "node:child_process";
 import { promises as nodeFs } from "node:fs";
 import * as path from "node:path";
 import { AutomadMcpError } from "../errors.js";
+import { runCommand, composerInstall, npmBuild, npmInstall, type BuildResult } from "./build.js";
 import type { HttpClient } from "../client.js";
 import { API_BASE } from "../config.js";
 import { type ThemeFs, assertWithinRoot } from "./fs.js";
 import { assertSafeThemeSlug } from "./slug.js";
-import { composerInstall, npmBuild, npmInstall, type BuildResult } from "./build.js";
 
 export interface ThemeManifest {
-  name: string;
+  name?: string;
   description?: string;
   author?: string;
   license?: string;
@@ -86,18 +85,18 @@ export class ThemeManager {
     if (await fs.exists(target)) {
       throw new AutomadMcpError("CONFLICT", `theme '${slug}' already exists at ${target}`);
     }
-    await fs.mkdirp(target);
     if (/^https?:\/\//.test(source) || source.startsWith("git@")) {
-      const res = await new Promise<{ code: number | null; stderr: string }>((resolve, reject) => {
-        const child = spawn("git", ["clone", "--depth", "1", source, target], { stdio: ["ignore", "pipe", "pipe"] });
-        let stderr = "";
-        child.stderr.on("data", (d: Buffer) => { stderr += d.toString("utf8"); });
-        child.on("error", reject);
-        child.on("close", (code) => resolve({ code, stderr }));
+      // Reuse runCommand so git-clone is subject to the same hard timeout and
+      // output cap as `theme.build` (npm/composer). Otherwise a slow remote
+      // or huge repo can block the MCP indefinitely.
+      const res = await runCommand("git", ["clone", "--depth", "1", source, target], {
+        cwd: themesPath,
+        timeoutMs: 5 * 60 * 1000,
+        maxOutputBytes: 64 * 1024,
       });
-      if (res.code !== 0) {
+      if (!res.ok) {
         await fs.remove(target, { recursive: true });
-        throw new AutomadMcpError("NETWORK", `git clone failed: ${res.stderr}`);
+        throw new AutomadMcpError("NETWORK", `git clone failed: ${res.stderr || res.stdout}`);
       }
     } else {
       if (!(await fs.exists(source))) {

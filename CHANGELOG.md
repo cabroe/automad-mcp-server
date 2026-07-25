@@ -1,9 +1,29 @@
-# Changelog
+## [0.5.2]
 
-All notable changes to `@automadcms/mcp-server` are documented here.
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
-
+### Fixed
+- **`HttpClient` mis-classified v2's `200 + {code: 200, error: "..."}` envelope
+ as `UNKNOWN`** when the server-side validation message was a known pattern
+ (e.g. "Title missing!", "Page not found!", "Title required!", "Url required!").
+ Added a small heuristic (`looksLikeServerValidation`) that maps these to
+ `VALIDATION` so callers can correct the request instead of treating it as
+ an unknown server error. Non-validation 200 errors still surface as
+ `UNKNOWN`. Live-verified: `pages.duplicate /nonexistent` now returns
+ `code: "VALIDATION"`; previously `code: "UNKNOWN"`.
+- **`theme.scaffold` with an empty `name` returned a pending confirm token**
+ instead of a `VALIDATION` error. The name check ran inside the switch-case,
+ after the destructive-action guard had already issued a `confirmToken`.
+ Moved the check to run before `guard.check()`; an empty or whitespace-only
+ `name` now returns `code: "VALIDATION"` immediately. Live-verified.
+- **`ThemeManager.install` had no timeout on `git clone`** - a slow remote
+ could block the MCP indefinitely. Switched the git-clone path through
+ `runCommand` (which already has a 5-minute hard timeout and 64 KB output
+ cap) so all theme-tooling child-process commands share one hardening layer.
+- **`ThemeManifest` type was missing the `name` field** that the v2 theme
+ format actually requires (and that `scaffold()` writes). Added `name?: string`
+ so the type matches the wire format and downstream code that reads
+ `theme.json` isn't forced through `any` casts.
+- **`mapStatusToCode` did not cover HTTP 410 Gone** (semantically `NOT_FOUND`).
+ Now both 404 and 410 map to `NOT_FOUND`.
 ## [0.5.1]
 
 ### Added

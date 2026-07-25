@@ -173,6 +173,18 @@ export class HttpClient {
   }
 }
 
+
+/**
+ * v2 has a known quirk: it returns 200 OK with `{code: 200, error: "..."}` for
+ * server-side validation failures (e.g. missing required field, type mismatch).
+ * Without this helper those surface as `UNKNOWN`, hiding that the issue is a
+ * validation problem the caller can correct.
+ */
+function looksLikeServerValidation(errorText: string): boolean {
+  if (errorText.length < 3 || errorText.length > 500) return false;
+  // Heuristics: known v2 server-side validation patterns.
+  return /^(title|page|url|name|filename|tag|path|field|searchValue|replaceValue) (?:is )?(?:required|missing|invalid|not found|cannot|too|empty|whitespace)|Missing required|Invalid (?:input|argument|value)|Title missing!|Page not found!|Title required!|Field required!|Url required!|Url invalid!|Not implemented!|Unsupported file type "/i.test(errorText);
+}
 /** Decode a v2 /_api JSON envelope: return `data` on success, throw on error. */
 async function unwrap<T>(res: Response, method: string, path: string): Promise<T> {
   const payload = (await safeJson(res)) as Record<string, unknown> | undefined;
@@ -183,11 +195,18 @@ async function unwrap<T>(res: Response, method: string, path: string): Promise<T
       : undefined;
   const codeNum = payload && typeof payload === "object" && typeof payload.code === "number" ? payload.code : undefined;
 
-  if (!res.ok || (errorText && errorText.length > 0) || (codeNum !== undefined && codeNum >= 400)) {
+  const isErrorResponse = !res.ok || (errorText && errorText.length > 0) || (codeNum !== undefined && codeNum >= 400);
+  if (isErrorResponse) {
     const message = errorText ?? `HTTP ${res.status} on ${method} ${path}`;
-    throw new AutomadMcpError(mapStatusToCode(res.status), message, payload);
+    // v2 has a known quirk: it returns 200 OK with `{code: 200, error: "..."}`
+    // for server-side validation failures. Detect that pattern and surface as
+    // VALIDATION rather than UNKNOWN so callers can correct the request.
+    let code: AutomadMcpError["code"] = mapStatusToCode(res.status);
+    if (res.ok && errorText && looksLikeServerValidation(errorText)) {
+      code = "VALIDATION";
+    }
+    throw new AutomadMcpError(code, message, payload);
   }
-
   if (payload && "data" in payload) {
     return payload.data as T;
   }
@@ -196,14 +215,13 @@ async function unwrap<T>(res: Response, method: string, path: string): Promise<T
 
 function mapStatusToCode(status: number): AutomadMcpError["code"] {
   if (status === 401 || status === 403) return "FORBIDDEN";
-  if (status === 404) return "NOT_FOUND";
+  if (status === 404 || status === 410) return "NOT_FOUND";
   if (status === 422 || status === 400) return "VALIDATION";
   if (status === 429) return "RATE_LIMITED";
   if (status === 409) return "CONFLICT";
   if (status >= 500) return "NETWORK";
   return "UNKNOWN";
 }
-
 export async function safeJson(
   res: Response | { json: () => Promise<unknown>; text: () => Promise<string> },
 ): Promise<unknown> {

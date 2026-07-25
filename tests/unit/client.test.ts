@@ -103,6 +103,39 @@ describe("HttpClient (v2 /_api)", () => {
     await expect(client.get("/_api/missing")).rejects.toMatchObject({ code: "NOT_FOUND" });
   });
 
+  it("maps v2 server-side validation errors (200 + error text) to VALIDATION", async () => {
+    fetchMock.mockResolvedValueOnce({
+      status: 200,
+      ok: true,
+      json: async () => ({ code: 200, error: "Title missing!", reload: true }),
+      text: async () => '{"code":200,"error":"Title missing!","reload":true}',
+    });
+    const client = new HttpClient({ baseUrl: "https://x" }, mockAuth());
+    await expect(client.post("/_api/page/data", { url: "/" })).rejects.toMatchObject({ code: "VALIDATION" });
+  });
+
+  it("maps v2 'Page not found!' server errors to VALIDATION", async () => {
+    fetchMock.mockResolvedValueOnce({
+      status: 200,
+      ok: true,
+      json: async () => ({ code: 200, error: "Page not found!" }),
+      text: async () => '{"code":200,"error":"Page not found!"}',
+    });
+    const client = new HttpClient({ baseUrl: "https://x" }, mockAuth());
+    await expect(client.post("/_api/page/duplicate", { url: "/nope" })).rejects.toMatchObject({ code: "VALIDATION" });
+  });
+
+  it("keeps 200 responses with no error text as success", async () => {
+    fetchMock.mockResolvedValueOnce({
+      status: 200,
+      ok: true,
+      json: async () => ({ code: 200, data: { ok: 1 } }),
+      text: async () => '{"code":200,"data":{"ok":1}}',
+    });
+    const client = new HttpClient({ baseUrl: "https://x" }, mockAuth());
+    expect(await client.get("/_api/x")).toEqual({ ok: 1 });
+  });
+
   it("unwraps 200 envelopes without `data` to the bare payload", async () => {
     fetchMock.mockResolvedValueOnce({
       status: 200,

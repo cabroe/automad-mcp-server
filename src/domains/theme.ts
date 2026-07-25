@@ -44,6 +44,11 @@ export async function handleTheme(
   input: ThemeInput,
   deps: ThemeHandlerDeps,
 ): Promise<unknown> {
+  // Validation for actions that need pre-guard input checks (e.g. scaffold
+  // requires a non-empty name, which is a per-call field, not a guard concern).
+  if (input.action === "scaffold" && (!input.name || !input.name.trim())) {
+    throw new AutomadMcpError("VALIDATION", "name is required for scaffold (got empty or whitespace-only)");
+  }
   const themeSlug = input.theme ?? "/";
   if (input.theme && input.action !== "scaffold" && input.action !== "list" && input.action !== "install") assertSafeThemeSlug(input.theme);
   const permit = deps.guard.check(ACTION_MAP[input.action], themeSlug, input.confirm_token);
@@ -95,10 +100,11 @@ export async function handleTheme(
       return manager.uninstall(input.theme);
     }
     case "scaffold": {
-      if (!input.name) throw new AutomadMcpError("VALIDATION", "name is required for scaffold");
+      // Name validation is enforced before the guard check above (so empty
+      // names return VALIDATION, not a pending confirm token).
       return scaffold(
         {
-          name: input.name,
+          name: input.name!,
           description: input.description,
           author: input.author,
           license: input.license,

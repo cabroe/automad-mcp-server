@@ -63,6 +63,21 @@ describe("handleTheme", () => {
     expect(await nodeFs.readFile(path.join(r.path, "page.php"), "utf8")).toBe("<?php");
   });
 
+  it("scaffold rejects empty or whitespace-only name with VALIDATION", async () => {
+    await expect(
+      handleTheme(
+        { action: "scaffold", name: "" },
+        { client: mockClient(), guard: new WriteGuard(cfg()), themesPath: themes, starterKitPath: starter },
+      ),
+    ).rejects.toMatchObject({ code: "VALIDATION", message: expect.stringMatching(/name is required/) });
+    await expect(
+      handleTheme(
+        { action: "scaffold", name: "   " },
+        { client: mockClient(), guard: new WriteGuard(cfg()), themesPath: themes, starterKitPath: starter },
+      ),
+    ).rejects.toMatchObject({ code: "VALIDATION" });
+  });
+
   it("analyzes and validates themes in read-only mode without HTTP calls", async () => {
     await nodeFs.mkdir(path.join(themes, "starter"));
     await nodeFs.writeFile(path.join(themes, "starter", "theme.json"), JSON.stringify({ name: "Starter" }));

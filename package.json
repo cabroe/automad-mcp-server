@@ -1,6 +1,6 @@
 {
   "name": "@automadcms/mcp-server",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "description": "MCP server for the Automad CMS — full site management, theme tooling, and offline docs via AI",
   "license": "MIT",
   "author": "Carsten Bröckert <cabroe@gmail.com>",
