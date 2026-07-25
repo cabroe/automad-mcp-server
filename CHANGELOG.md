@@ -26,6 +26,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   now re-scrapes the CSRF token and retries the probe up to 3× on a transient
   403; genuine failures (bad credentials, anonymous session) still fail fast.
   Verified: first-ever `site.health` against a cold container now returns `ok:true`.
+- **Theme path-traversal via the `theme` parameter** — `automad_theme`
+  accepted any string for `theme` (e.g. `".."`), and `editor.resolveInTheme`
+  only verified that the *file* stayed inside the theme root — not that the
+  theme root itself stayed inside `AUTOMAD_THEMES_PATH`. A crafted
+  `theme:".."` would let `theme.write` create or overwrite arbitrary files
+  the MCP process had write access to. Introduced `assertSafeThemeSlug`
+  (`[a-z0-9._-]+`, no `..`, no leading `.`) and now apply it in the domain
+  handler, `manager.{install,activate,uninstall}`, and `scaffold`; the
+  editor additionally re-validates `themeRoot ⊆ themesPath`. Reproduced live
+  (`/tmp/PWNED.txt` outside the themes dir) and verified blocked after fix.
 
 ## [0.4.0]
 

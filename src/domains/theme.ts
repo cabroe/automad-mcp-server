@@ -10,6 +10,7 @@ import { ThemeAnalyzer } from "../theme/analyzer.js";
 import { ThemeSchemaBuilder } from "../theme/schema.js";
 import { unifiedDiff } from "../theme/diff.js";
 import { generate } from "../theme/generate.js";
+import { assertSafeThemeSlug } from "../theme/slug.js";
 
 type ThemeAction = ThemeInput["action"];
 
@@ -43,7 +44,9 @@ export async function handleTheme(
   input: ThemeInput,
   deps: ThemeHandlerDeps,
 ): Promise<unknown> {
-  const permit = deps.guard.check(ACTION_MAP[input.action], input.theme ?? "/", input.confirm_token);
+  const themeSlug = input.theme ?? "/";
+  if (input.theme && input.action !== "scaffold" && input.action !== "list" && input.action !== "install") assertSafeThemeSlug(input.theme);
+  const permit = deps.guard.check(ACTION_MAP[input.action], themeSlug, input.confirm_token);
   if (permit.allowed === false) {
     throw new AutomadMcpError("FORBIDDEN", permit.reason);
   }

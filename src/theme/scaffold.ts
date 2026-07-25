@@ -1,6 +1,7 @@
 import * as path from "node:path";
 import { AutomadMcpError } from "../errors.js";
 import { type ThemeFs, assertWithinRoot } from "./fs.js";
+import { assertSafeThemeSlug } from "./slug.js";
 import type { ThemeManifest } from "./manager.js";
 
 export interface ScaffoldOptions {
@@ -64,6 +65,7 @@ export async function scaffold(
   }
 
   const slug = themeSlug(opts.name);
+  assertSafeThemeSlug(slug);
   const target = assertWithinRoot(themesPath, path.join(themesPath, slug));
   if (await fs.exists(target)) {
     throw new AutomadMcpError("CONFLICT", `theme '${slug}' already exists at ${target}`);

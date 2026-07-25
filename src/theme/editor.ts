@@ -23,12 +23,13 @@ const ALLOWED_EXTENSIONS: string[] = [
 ];
 
 /** Resolve a `theme/rel/path` to an absolute path inside the theme, with guards. */
-function resolveInTheme(theme: string, relPath: string, themesPath: string): { abs: string; rel: string } {
+export function resolveInTheme(theme: string, relPath: string, themesPath: string): { abs: string; rel: string } {
   if (relPath.includes("..")) {
     throw new AutomadMcpError("VALIDATION", `relative path '${relPath}' must not contain '..'`);
   }
   const cleanRel = relPath.replace(/^\/+/, "");
-  const themeRoot = path.resolve(themesPath, theme);
+  const themesRoot = path.resolve(themesPath);
+  const themeRoot = assertWithinRoot(themesRoot, path.resolve(themesRoot, theme));
   const target = assertWithinRoot(themeRoot, path.resolve(themeRoot, cleanRel));
   return { abs: target, rel: path.relative(themeRoot, target) };
 }

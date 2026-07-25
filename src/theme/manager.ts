@@ -5,6 +5,7 @@ import { AutomadMcpError } from "../errors.js";
 import type { HttpClient } from "../client.js";
 import { API_BASE } from "../config.js";
 import { type ThemeFs, assertWithinRoot } from "./fs.js";
+import { assertSafeThemeSlug } from "./slug.js";
 import { composerInstall, npmBuild, npmInstall, type BuildResult } from "./build.js";
 
 export interface ThemeManifest {
@@ -80,6 +81,7 @@ export class ThemeManager {
   async install(source: string, name?: string): Promise<ThemeInfo> {
     const { fs, themesPath } = this.deps;
     const slug = name ?? slugify(source);
+    assertSafeThemeSlug(slug);
     const target = assertWithinRoot(themesPath, path.join(themesPath, slug));
     if (await fs.exists(target)) {
       throw new AutomadMcpError("CONFLICT", `theme '${slug}' already exists at ${target}`);
@@ -114,6 +116,7 @@ export class ThemeManager {
    */
   async activate(theme: string): Promise<{ activated: boolean; remote: unknown }> {
     const { fs, themesPath, client } = this.deps;
+    assertSafeThemeSlug(theme);
     const target = assertWithinRoot(themesPath, path.join(themesPath, theme));
     if (!(await fs.exists(target))) {
       throw new AutomadMcpError("NOT_FOUND", `theme '${theme}' not found at ${target}`);
@@ -138,6 +141,7 @@ export class ThemeManager {
   /** Remove a theme directory. Destructive. */
   async uninstall(theme: string): Promise<{ removed: string }> {
     const { fs, themesPath } = this.deps;
+    assertSafeThemeSlug(theme);
     const target = assertWithinRoot(themesPath, path.join(themesPath, theme));
     if (!(await fs.exists(target))) {
       throw new AutomadMcpError("NOT_FOUND", `theme '${theme}' not found`);

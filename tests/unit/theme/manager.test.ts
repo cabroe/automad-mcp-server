@@ -35,7 +35,7 @@ describe("ThemeManager", () => {
   it("uninstall prevents path traversal", async () => {
     const deps = mockDeps();
     const mgr = new ThemeManager(deps);
-    await expect(mgr.uninstall("../outside")).rejects.toThrow("escapes allowed root");
+    await expect(mgr.uninstall("../outside")).rejects.toThrow("invalid theme slug");
   });
 
   it("activate handles API errors gracefully", async () => {
