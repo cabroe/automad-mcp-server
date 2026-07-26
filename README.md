@@ -1,6 +1,6 @@
 <div align="center">
 
-# @automadcms/mcp-server
+# automad-mcp-server
 
 **A [Model Context Protocol](https://modelcontextprotocol.io) server for [Automad v2](https://automad.org/)** —
 manage pages, media, shared data, config, local themes, and an offline docs knowledge base from any AI agent, over stdio.
@@ -64,7 +64,13 @@ The dashed edges are the point: tools, their titles, their `action` enums and th
 
 ## Quick start
 
-The package isn't on npm yet, so install from source:
+Install via npm (recommended):
+
+```bash
+npx -y automad-mcp-server
+```
+
+Or build from source:
 
 ```bash
 git clone https://github.com/cabroe/automad-mcp-server.git
@@ -81,9 +87,10 @@ etc.), jump to [Install for your AI agent](#install-for-your-ai-agent).
 ## Install for your AI agent
 
 If you're using a coding agent (Claude Code, Cursor, Copilot, Cline, etc.)
-and want it to manage an Automad site end-to-end, give it these instructions
-verbatim — they cover the only working install path until the npm package is
-published:
+and want it to manage an Automad site end-to-end, the npm install above is
+the simplest path. If you'd rather build from source, the steps below cover
+that:
+
 
 ```bash
 # 1. Get the server
@@ -100,8 +107,12 @@ npm run build                 # outputs dist/index.js
 #        --username admin --password CHANGEME
 
 # 3. Wire it into your MCP client config (see Editor setup below for per-editor paths).
-#    command = node  (NOT npx — the package is not on npm yet)
-#    args    = ["<absolute path to>/automad-mcp-server/dist/index.js"]
+#    Option A — install from npm:
+#      command = npx
+#      args    = ["-y", "automad-mcp-server"]
+#    Option B — install from source (also fine, see step 1):
+#      command = node
+#      args    = ["<absolute path to>/automad-mcp-server/dist/index.js"]
 #    env:
 #      AUTOMAD_URL             = https://your-site.example.com
 #      AUTOMAD_USER            = admin

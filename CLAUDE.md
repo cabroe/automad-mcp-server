@@ -4,7 +4,7 @@ Guidance for Claude Code working in this repository.
 
 ## What this is
 
-`@automadcms/mcp-server` — a Model Context Protocol (MCP) server that lets AI
+`automad-mcp-server` — a Model Context Protocol (MCP) server that lets AI
 assistants manage an [Automad v2](https://automad.org/) CMS site
 over stdio. Bridges to v2's `/_api/{controller}/{method}` JSON dispatch layer,
 authenticated via a PHP session cookie + per-POST CSRF token. The theme tool
