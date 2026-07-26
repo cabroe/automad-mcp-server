@@ -31,7 +31,7 @@ manage pages, media, shared data, config, local themes, and an offline docs know
 | **Two modes** | `full` (bridges a live `/_api`) or `docs` (offline knowledge base + local theme tooling) |
 | **Safe by default** | three write modes; destructive actions need a confirm token bound to `(action, target)` |
 | **Offline docs** | bundled Automad v2 knowledge base — works with zero backend |
-| **Theme tooling** | scaffold, build (composer + npm), analyze, validate, schema, unified-diff preview, snippet/block generator |
+| **Theme tooling** | scaffold, build (composer + npm), `dev` server (background), analyze, validate, schema, unified-diff preview, snippet/block generator |
 
 ## Architecture
 
@@ -256,8 +256,34 @@ All three are read-only in every write mode and never run npm, Composer, Git, PH
   "tooltips": { "+main": "Der Haupt-Inhalt" }
 }
 ```
+</details>
 
-`schema` returns every locale alongside the base metadata; locale entries are sparse overrides, missing translations fall back to `theme.json`. Invalid sections surface as `INVALID_I18N_*` warnings while valid values are retained.
+<details>
+<summary>Live theme dev server: <code>dev</code> / <code>dev_stop</code> / <code>dev_status</code></summary>
+
+`dev` starts the theme's own dev script (`npm run dev`) as a **detached background process**, returns immediately, and reports back the local URL. Useful for letting an agent iterate on a theme while you watch the result in a browser.
+
+```jsonc
+// 1. start (destructive in default write mode → confirm token)
+{ "action": "dev", "theme": "my-theme" }
+// → { "pid": 88328, "port": 8000,
+//     "startedAt": "2026-07-26T15:59:39.078Z",
+//     "logPath": "/app/packages/my-theme/.automad-mcp/dev.log",
+//     "url": "http://localhost:8000",
+//     "running": true }
+
+// 2. health check (read-only)
+{ "action": "dev_status", "theme": "my-theme" }
+// → { "pid": 88328, "port": 8000, "url": "http://localhost:8000", "running": true }
+
+// 3. stop (destructive)
+{ "action": "dev_stop", "theme": "my-theme" }
+// → { "stopped": true, "signalUsed": "SIGTERM", "wasLive": true }
+```
+
+State lives at `<theme>/.automad-mcp/{dev.json,dev.log}`. The process runs in its own process group (`spawn(detached: true).unref()`), so the MCP server can exit without taking the dev server down. `npm install` runs only when `node_modules/` is missing; the port is discovered in this order: an explicit `port` argument → `package.json` `scripts.dev` (`--port=N`, `PORT=N`) → the first `http://localhost:<port>` marker in `dev.log` (up to 20 s). A second `dev` call for the same theme returns `CONFLICT` until `dev_stop` is called.
+
+Pair it with `confirm_token` flow when `AUTOMAD_WRITE_MODE=confirm-destructive`. The dev server does not auto-open a browser — open the returned `url` yourself.
 </details>
 
 ## Resources & prompts
@@ -303,7 +329,7 @@ The server keeps the public routers unchanged and maintains a static internal re
 // → { "ok": true }
 ```
 
-**Scaffold → edit → build → activate a theme:**
+**Scaffold → edit → preview → build → activate a theme:**
 
 ```jsonc
 { "action": "scaffold", "name": "My Theme", "author": "me" }
@@ -311,15 +337,22 @@ The server keeps the public routers unchanged and maintains a static internal re
 
 { "action": "write", "theme": "my-theme", "path": "blocks/grid.php", "content": "<?php /* edited via MCP */ ?>" }
 
+// optional: start the theme's dev server in the background and open the URL
+{ "action": "dev", "theme": "my-theme" }
+// → { "url": "http://localhost:8000", "running": true, … }
+
 { "action": "build", "theme": "my-theme" }
 // → { "install": { "ok": true, … }, "build": { "ok": true, … } }
 
 { "action": "activate", "theme": "my-theme" }
 // → { "activated": true, "remote": { "code": 200 } }   or   { "activated": false, … }
+
+{ "action": "dev_stop", "theme": "my-theme" }
+// → { "stopped": true, "signalUsed": "SIGTERM" }
 ```
 
 > [!TIP]
-> `theme.build` runs `composer install` first when a `composer.json` is present, then `npm install` + `npm run build`. Pass `install: false` to skip installs and only re-run the build.
+> `theme.build` runs `composer install` first when a `composer.json` is present, then `npm install` + `npm run build`. Pass `install: false` to skip installs and only re-run the build. `theme.dev` reuses the same `node_modules/` when it's already there — no second install.
 
 **Preview a change, then generate a snippet:**
 
@@ -337,8 +370,7 @@ Generator kinds: `nav` · `pagelist` · `breadcrumbs` · `component` · `block` 
 
 <details>
 <summary>Setting up the Starter Kit for <code>theme.scaffold</code></summary>
-
-`theme.scaffold` copies a **local** directory into `AUTOMAD_THEMES_PATH/<slug>` and rewrites `theme.json` + `package.json` — it does not fetch the starter kit itself. `AUTOMAD_STARTER_KIT_PATH` must already point at a local checkout.
+`theme.scaffold` copies a **local** directory into `AUTOMAD_THEMES_PATH/<slug>` and rewrites `theme.json` + `package.json` — it does not fetch the starter kit itself. `AUTOMAD_STARTER_KIT_PATH` must already point at a local checkout. Before copying, `scaffold` verifies the starter kit has the canonical layout (`theme.json`, `components/`, `blocks/`, `client/index.ts`, `esbuild.js`); missing entries fail with `VALIDATION` and no files are written.
 
 **Option A — clone anywhere, point at it directly:**
 
