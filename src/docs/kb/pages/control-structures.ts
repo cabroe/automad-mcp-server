@@ -1,10 +1,11 @@
-import type { DocPage } from "../../kb.js";
+import type { DocPage } from '../../kb.js';
 
 export const page: DocPage = {
-  slug: "control-structures",
-  title: "Control structures (set, with, foreach, if)",
-  tags: ["foreach", "if", "with", "set", "loop", "context"],
-  reference: "https://automad.org/developer-guide/building-themes/template-language/control-structures",
+  slug: 'control-structures',
+  title: 'Control structures (set, with, foreach, if)',
+  tags: ['foreach', 'if', 'with', 'set', 'loop', 'context'],
+  reference:
+    'https://automad.org/developer-guide/building-themes/template-language/control-structures',
   body: `# Control structures (set, with, foreach, if)
 
 ## set — mutate the current context

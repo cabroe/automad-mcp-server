@@ -1,6 +1,6 @@
-import { describe, expect, it, beforeEach } from "vitest";
-import { EventEmitter } from "node:events";
-import * as path from "node:path";
+import { describe, expect, it, beforeEach } from 'vitest';
+import { EventEmitter } from 'node:events';
+import * as path from 'node:path';
 import {
   startDev,
   stopDev,
@@ -15,9 +15,9 @@ import {
   DEV_LOG,
   type DevSpawnHandle,
   type DevRecord,
-} from "../../src/theme/dev.js";
-import type { ThemeFs } from "../../src/theme/fs.js";
-import { AutomadMcpError } from "../../src/errors.js";
+} from '../../src/theme/dev.js';
+import type { ThemeFs } from '../../src/theme/fs.js';
+import { AutomadMcpError } from '../../src/errors.js';
 
 // ────────────────────────────────────────────────────────────────────────
 // Fakes
@@ -32,7 +32,7 @@ class FakeThemeFs implements ThemeFs {
 
   exists = async (p: string) => this.files.has(p) || this.dirs.has(p);
   isDirectory = async (p: string) => this.dirs.has(p);
-  readFile = async (p: string) => this.files.get(p) ?? "";
+  readFile = async (p: string) => this.files.get(p) ?? '';
   writeFile = async (p: string, c: string) => {
     this.files.set(p, c);
   };
@@ -50,10 +50,9 @@ class FakeThemeFs implements ThemeFs {
     this.copyDirCalls.push({ src, dest });
   };
   appendLog = async (p: string, c: string) => {
-    this.files.set(p, (this.files.get(p) ?? "") + c);
+    this.files.set(p, (this.files.get(p) ?? '') + c);
   };
-  readLogTail = async (p: string, n: number) =>
-    (this.files.get(p) ?? "").slice(-n);
+  readLogTail = async (p: string, n: number) => (this.files.get(p) ?? '').slice(-n);
 }
 
 class FakeStream extends EventEmitter {
@@ -74,7 +73,7 @@ class FakeChildProcess extends EventEmitter {
   }
   unref() {}
   kill(signal: NodeJS.Signals) {
-    this.emit("kill", signal);
+    this.emit('kill', signal);
     return true;
   }
 }
@@ -93,7 +92,11 @@ class FakeCommandRunner {
   alive = new Set<number>();
   started: FakeChildProcess[] = [];
   constructor(public opts: FakeCommandRunnerOptions = {}) {}
-  spawnSpy: (cmd: string, args: string[], options: { cwd: string; detached: boolean }) => DevSpawnHandle = (cmd, args, options) => {
+  spawnSpy: (
+    cmd: string,
+    args: string[],
+    options: { cwd: string; detached: boolean },
+  ) => DevSpawnHandle = (cmd, args, options) => {
     this.spawnCalls.push({ cmd, args, cwd: options.cwd });
     const pid = this.started.length + 9000;
     const cp = new FakeChildProcess(pid);
@@ -104,33 +107,40 @@ class FakeCommandRunner {
       unref: () => cp.unref(),
       kill: (signal: NodeJS.Signals) => {
         this.kills.push({ pid: cp.pid, signal });
-        if (signal === "SIGKILL" || signal === "SIGTERM") this.alive.delete(cp.pid);
+        if (signal === 'SIGKILL' || signal === 'SIGTERM') this.alive.delete(cp.pid);
         return true;
       },
-      exited: () => new Promise<void>((resolve) => cp.once("exit", () => resolve())),
+      exited: () => new Promise<void>((resolve) => cp.once('exit', () => resolve())),
       stdout: cp.stdout,
       stderr: cp.stderr,
     };
     return handle;
   };
   emit(chunk: string): void {
-    if (this.started.length === 0) throw new Error("emit() before spawn()");
+    if (this.started.length === 0) throw new Error('emit() before spawn()');
     const cp = this.started[this.started.length - 1]!;
-    cp.stdout.emit("data", chunk);
+    cp.stdout.emit('data', chunk);
   }
   runInstall = async (
     cmd: string,
     args: string[],
     options: { cwd: string },
-  ): Promise<{ ok: boolean; exitCode: number; durationMs: number; stdout: string; stderr: string; command: string }> => {
+  ): Promise<{
+    ok: boolean;
+    exitCode: number;
+    durationMs: number;
+    stdout: string;
+    stderr: string;
+    command: string;
+  }> => {
     this.installCalls.push({ cmd, args, cwd: options.cwd });
     return {
       ok: true,
       exitCode: 0,
       durationMs: 0,
-      stdout: "",
-      stderr: "",
-      command: `${cmd} ${args.join(" ")}`,
+      stdout: '',
+      stderr: '',
+      command: `${cmd} ${args.join(' ')}`,
     };
   };
   probe(pid: number): boolean {
@@ -139,94 +149,91 @@ class FakeCommandRunner {
 }
 
 function repoWithLayout(fs: FakeThemeFs, root: string) {
-  fs.files.set(`${root}/theme.json`, "{}");
+  fs.files.set(`${root}/theme.json`, '{}');
   fs.dirs.add(`${root}/components`);
   fs.dirs.add(`${root}/blocks`);
-  fs.files.set(`${root}/client/index.ts`, "");
-  fs.files.set(`${root}/esbuild.js`, "");
+  fs.files.set(`${root}/client/index.ts`, '');
+  fs.files.set(`${root}/esbuild.js`, '');
 }
 
 function parseRecord(fs: FakeThemeFs, themePath: string): DevRecord {
   const p = path.join(themePath, DEV_DIR, DEV_RECORD);
-  return JSON.parse(fs.files.get(p) ?? "null") as DevRecord;
+  return JSON.parse(fs.files.get(p) ?? 'null') as DevRecord;
 }
 
 // ────────────────────────────────────────────────────────────────────────
 // Constants / pure helpers
 // ────────────────────────────────────────────────────────────────────────
 
-describe("theme dev constants", () => {
-  it("exports canonical layout", () => {
+describe('theme dev constants', () => {
+  it('exports canonical layout', () => {
     expect(REQUIRED_LAYOUT).toHaveLength(5);
-    expect(REQUIRED_LAYOUT).toContain("theme.json");
+    expect(REQUIRED_LAYOUT).toContain('theme.json');
   });
-  it("log cap is 1 MiB", () => {
+  it('log cap is 1 MiB', () => {
     expect(LOG_CAP_BYTES).toBe(1_048_576);
   });
-  it("DEV_DIR / DEV_RECORD / DEV_LOG names", () => {
-    expect(DEV_DIR).toBe(".automad-mcp");
-    expect(DEV_RECORD).toBe("dev.json");
-    expect(DEV_LOG).toBe("dev.log");
+  it('DEV_DIR / DEV_RECORD / DEV_LOG names', () => {
+    expect(DEV_DIR).toBe('.automad-mcp');
+    expect(DEV_RECORD).toBe('dev.json');
+    expect(DEV_LOG).toBe('dev.log');
   });
 });
 
-describe("parseScriptsPort", () => {
-  it("finds --port=4321", () => expect(parseScriptsPort("vite --port=4321")).toBe(4321));
-  it("finds PORT=4321", () => expect(parseScriptsPort("PORT=4321 node dev.js")).toBe(4321));
-  it("finds PORT 4321", () => expect(parseScriptsPort("PORT 4321 node dev.js")).toBe(4321));
-  it("finds --port 4321 (space)", () => expect(parseScriptsPort("node dev.js --port 4321")).toBe(4321));
-  it("ignores out-of-range port", () => expect(parseScriptsPort("--port=9999999")).toBeNull());
-  it("ignores non-numeric", () => expect(parseScriptsPort("--port=abc")).toBeNull());
-  it("returns null on empty", () => expect(parseScriptsPort("")).toBeNull());
+describe('parseScriptsPort', () => {
+  it('finds --port=4321', () => expect(parseScriptsPort('vite --port=4321')).toBe(4321));
+  it('finds PORT=4321', () => expect(parseScriptsPort('PORT=4321 node dev.js')).toBe(4321));
+  it('finds PORT 4321', () => expect(parseScriptsPort('PORT 4321 node dev.js')).toBe(4321));
+  it('finds --port 4321 (space)', () =>
+    expect(parseScriptsPort('node dev.js --port 4321')).toBe(4321));
+  it('ignores out-of-range port', () => expect(parseScriptsPort('--port=9999999')).toBeNull());
+  it('ignores non-numeric', () => expect(parseScriptsPort('--port=abc')).toBeNull());
+  it('returns null on empty', () => expect(parseScriptsPort('')).toBeNull());
 });
 
-describe("PORT_REGEX", () => {
-  it("matches http://localhost:8080", () => {
-    const m = PORT_REGEX.exec("Server ready at http://localhost:8080");
-    expect(m?.[1]).toBe("8080");
+describe('PORT_REGEX', () => {
+  it('matches http://localhost:8080', () => {
+    const m = PORT_REGEX.exec('Server ready at http://localhost:8080');
+    expect(m?.[1]).toBe('8080');
   });
-  it("matches 127.0.0.1:4321", () => {
-    const m = PORT_REGEX.exec("listening on 127.0.0.1:4321");
-    expect(m?.[1]).toBe("4321");
+  it('matches 127.0.0.1:4321', () => {
+    const m = PORT_REGEX.exec('listening on 127.0.0.1:4321');
+    expect(m?.[1]).toBe('4321');
   });
 });
 
-describe("assertStarterKitLayout", () => {
-  it("accepts the canonical layout", async () => {
+describe('assertStarterKitLayout', () => {
+  it('accepts the canonical layout', async () => {
     const fs = new FakeThemeFs();
-    repoWithLayout(fs, "/starter");
-    await expect(assertStarterKitLayout("/starter", fs)).resolves.toBeUndefined();
+    repoWithLayout(fs, '/starter');
+    await expect(assertStarterKitLayout('/starter', fs)).resolves.toBeUndefined();
   });
-  it("rejects a starter kit missing components/", async () => {
+  it('rejects a starter kit missing components/', async () => {
     const fs = new FakeThemeFs();
-    fs.files.set("/starter/theme.json", "{}");
-    fs.dirs.add("/starter/blocks");
-    fs.files.set("/starter/client/index.ts", "");
-    fs.files.set("/starter/esbuild.js", "");
-    await expect(assertStarterKitLayout("/starter", fs)).rejects.toMatchObject({
-      code: "VALIDATION",
+    fs.files.set('/starter/theme.json', '{}');
+    fs.dirs.add('/starter/blocks');
+    fs.files.set('/starter/client/index.ts', '');
+    fs.files.set('/starter/esbuild.js', '');
+    await expect(assertStarterKitLayout('/starter', fs)).rejects.toMatchObject({
+      code: 'VALIDATION',
     });
   });
-  it("rejects a starter kit missing theme.json", async () => {
+  it('rejects a starter kit missing theme.json', async () => {
     const fs = new FakeThemeFs();
-    fs.dirs.add("/starter/components");
-    fs.dirs.add("/starter/blocks");
-    fs.files.set("/starter/client/index.ts", "");
-    fs.files.set("/starter/esbuild.js", "");
-    await expect(assertStarterKitLayout("/starter", fs)).rejects.toBeInstanceOf(
-      AutomadMcpError,
-    );
+    fs.dirs.add('/starter/components');
+    fs.dirs.add('/starter/blocks');
+    fs.files.set('/starter/client/index.ts', '');
+    fs.files.set('/starter/esbuild.js', '');
+    await expect(assertStarterKitLayout('/starter', fs)).rejects.toBeInstanceOf(AutomadMcpError);
   });
-  it("rejects when blocks is a file, not a directory", async () => {
+  it('rejects when blocks is a file, not a directory', async () => {
     const fs = new FakeThemeFs();
-    fs.files.set("/starter/theme.json", "{}");
-    fs.dirs.add("/starter/components");
-    fs.files.set("/starter/blocks", "not a dir");
-    fs.files.set("/starter/client/index.ts", "");
-    fs.files.set("/starter/esbuild.js", "");
-    await expect(assertStarterKitLayout("/starter", fs)).rejects.toBeInstanceOf(
-      AutomadMcpError,
-    );
+    fs.files.set('/starter/theme.json', '{}');
+    fs.dirs.add('/starter/components');
+    fs.files.set('/starter/blocks', 'not a dir');
+    fs.files.set('/starter/client/index.ts', '');
+    fs.files.set('/starter/esbuild.js', '');
+    await expect(assertStarterKitLayout('/starter', fs)).rejects.toBeInstanceOf(AutomadMcpError);
   });
 });
 
@@ -234,18 +241,20 @@ describe("assertStarterKitLayout", () => {
 // startDev lifecycle
 // ────────────────────────────────────────────────────────────────────────
 
-describe("startDev", () => {
+describe('startDev', () => {
   let fs: FakeThemeFs;
   let runner: FakeCommandRunner;
-  const themePath = "/themes/blog";
+  const themePath = '/themes/blog';
 
   beforeEach(() => {
     fs = new FakeThemeFs();
-    runner = new FakeCommandRunner({ chunks: ["Server ready at http://localhost:4321\n"] });
+    runner = new FakeCommandRunner({ chunks: ['Server ready at http://localhost:4321\n'] });
     fs.dirs.add(themePath);
+    // package.json must exist for the pre-flight check in startDev
+    fs.files.set(`${themePath}/package.json`, JSON.stringify({ scripts: { dev: 'vite' } }));
   });
 
-  it("writes dev.json with the spawned pid and reports running:true", async () => {
+  it('writes dev.json with the spawned pid and reports running:true', async () => {
     const res = await startDev({
       cwd: themePath,
       fs,
@@ -261,7 +270,7 @@ describe("startDev", () => {
     expect(rec.logPath).toBe(path.join(themePath, DEV_DIR, DEV_LOG));
   });
 
-  it("runs npm install only when node_modules is missing", async () => {
+  it('runs npm install only when node_modules is missing', async () => {
     // First startDev: no node_modules → install is called.
     await startDev({
       cwd: themePath,
@@ -271,18 +280,16 @@ describe("startDev", () => {
       portTimeoutMs: 500,
     });
     expect(runner.installCalls).toHaveLength(1);
-    expect(runner.installCalls[0]?.args).toEqual(["install", "--no-audit", "--no-fund"]);
+    expect(runner.installCalls[0]?.args).toEqual(['install', '--no-audit', '--no-fund']);
 
     // Second startDev: theme now has node_modules AND no live record.
     // Use a fresh fs so the previous dev.json doesn't block the second call.
     const fs2 = new FakeThemeFs();
     fs2.dirs.add(themePath);
     fs2.dirs.add(`${themePath}/node_modules`);
+    fs2.files.set(`${themePath}/package.json`, JSON.stringify({ scripts: { dev: 'vite' } }));
     // Pre-seed the log so the second startDev can complete (we only care about install).
-    await fs2.appendLog(
-      path.join(themePath, DEV_DIR, DEV_LOG),
-      "ready http://localhost:4321\n",
-    );
+    await fs2.appendLog(path.join(themePath, DEV_DIR, DEV_LOG), 'ready http://localhost:4321\n');
     const runner2 = new FakeCommandRunner();
     await startDev({
       cwd: themePath,
@@ -294,12 +301,12 @@ describe("startDev", () => {
     expect(runner2.installCalls).toHaveLength(0);
   });
 
-  it("discovers the port from a log chunk containing http://localhost:4321", async () => {
+  it('discovers the port from a log chunk containing http://localhost:4321', async () => {
     // Pre-seed the dev.log so the poll loop finds the port marker on iteration 1.
     await fs.mkdirp(path.join(themePath, DEV_DIR));
     await fs.appendLog(
       path.join(themePath, DEV_DIR, DEV_LOG),
-      "Server ready at http://localhost:4321\n",
+      'Server ready at http://localhost:4321\n',
     );
     const res = await startDev({
       cwd: themePath,
@@ -309,14 +316,14 @@ describe("startDev", () => {
       portTimeoutMs: 2000,
     });
     expect(res.port).toBe(4321);
-    expect(res.url).toBe("http://localhost:4321");
+    expect(res.url).toBe('http://localhost:4321');
     const rec = parseRecord(fs, themePath);
     expect(rec.port).toBe(4321);
-    expect(rec.url).toBe("http://localhost:4321");
+    expect(rec.url).toBe('http://localhost:4321');
   });
 
-  it("returns port:null after portTimeoutMs when no marker appears", async () => {
-    const silent = new FakeCommandRunner({ chunks: ["booting up but no port"] });
+  it('returns port:null after portTimeoutMs when no marker appears', async () => {
+    const silent = new FakeCommandRunner({ chunks: ['booting up but no port'] });
     const res = await startDev({
       cwd: themePath,
       fs,
@@ -328,7 +335,7 @@ describe("startDev", () => {
     expect(res.url).toBeNull();
   });
 
-  it("rejects with CONFLICT when a live pid is already recorded", async () => {
+  it('rejects with CONFLICT when a live pid is already recorded', async () => {
     // write a record with a pid the alive probe says is alive
     fs.mkdirp(path.join(themePath, DEV_DIR));
     fs.files.set(
@@ -337,8 +344,8 @@ describe("startDev", () => {
         pid: 4242,
         port: 4321,
         startedAt: new Date().toISOString(),
-        logPath: "x",
-        url: "http://localhost:4321",
+        logPath: 'x',
+        url: 'http://localhost:4321',
         running: true,
       }),
     );
@@ -351,11 +358,28 @@ describe("startDev", () => {
         kill0: () => true, // probe says alive
         portTimeoutMs: 500,
       }),
-    ).rejects.toMatchObject({ code: "CONFLICT" });
+    ).rejects.toMatchObject({ code: 'CONFLICT' });
     expect(runner.spawnCalls).toHaveLength(0);
   });
 
-  it("clears a stale dev.json (dead pid) and proceeds", async () => {
+  it('rejects with VALIDATION when package.json is missing (pre-flight)', async () => {
+    const noPkgFs = new FakeThemeFs();
+    noPkgFs.dirs.add(themePath);
+    // No package.json file — should refuse before spawning anything.
+    await expect(
+      startDev({
+        cwd: themePath,
+        fs: noPkgFs,
+        runInstall: runner.runInstall,
+        spawn: runner.spawnSpy,
+        portTimeoutMs: 500,
+      }),
+    ).rejects.toMatchObject({ code: 'VALIDATION' });
+    expect(runner.spawnCalls).toHaveLength(0);
+    expect(runner.installCalls).toHaveLength(0);
+  });
+
+  it('clears a stale dev.json (dead pid) and proceeds', async () => {
     fs.mkdirp(path.join(themePath, DEV_DIR));
     fs.files.set(
       path.join(themePath, DEV_DIR, DEV_RECORD),
@@ -363,7 +387,7 @@ describe("startDev", () => {
         pid: 1111,
         port: null,
         startedAt: new Date().toISOString(),
-        logPath: "x",
+        logPath: 'x',
         url: null,
         running: false,
       }),
@@ -386,17 +410,16 @@ describe("startDev", () => {
 // stopDev
 // ────────────────────────────────────────────────────────────────────────
 
-describe("stopDev", () => {
-  const themePath = "/themes/blog";
+describe('stopDev', () => {
+  const themePath = '/themes/blog';
 
-  it("returns stopped:false when no dev.json is present", async () => {
+  it('returns stopped:false when no dev.json is present', async () => {
     const fs = new FakeThemeFs();
-    const res = await stopDev(themePath, fs, {}
-    );
+    const res = await stopDev(themePath, fs, {});
     expect(res.stopped).toBe(false);
   });
 
-  it("sends SIGTERM and removes dev.json", async () => {
+  it('sends SIGTERM and removes dev.json', async () => {
     const fs = new FakeThemeFs();
     fs.mkdirp(path.join(themePath, DEV_DIR));
     fs.files.set(
@@ -405,8 +428,8 @@ describe("stopDev", () => {
         pid: 7777,
         port: 4321,
         startedAt: new Date().toISOString(),
-        logPath: "x",
-        url: "http://localhost:4321",
+        logPath: 'x',
+        url: 'http://localhost:4321',
         running: true,
       }),
     );
@@ -420,11 +443,11 @@ describe("stopDev", () => {
     });
     expect(res.stopped).toBe(true);
     expect(kills).toHaveLength(1);
-    expect(kills[0]?.signal).toBe("SIGTERM");
+    expect(kills[0]?.signal).toBe('SIGTERM');
     expect(fs.files.has(path.join(themePath, DEV_DIR, DEV_RECORD))).toBe(false);
   });
 
-  it("escalates to SIGKILL when SIGTERM is ignored", async () => {
+  it('escalates to SIGKILL when SIGTERM is ignored', async () => {
     const fs = new FakeThemeFs();
     fs.mkdirp(path.join(themePath, DEV_DIR));
     fs.files.set(
@@ -433,8 +456,8 @@ describe("stopDev", () => {
         pid: 8888,
         port: 4321,
         startedAt: new Date().toISOString(),
-        logPath: "x",
-        url: "http://localhost:4321",
+        logPath: 'x',
+        url: 'http://localhost:4321',
         running: true,
       }),
     );
@@ -446,8 +469,8 @@ describe("stopDev", () => {
       alive: () => true, // never dies
       sleep: async () => {},
     });
-    expect(kills.map((k) => k.signal)).toEqual(["SIGTERM", "SIGKILL"]);
-    expect(res.signalUsed).toBe("SIGKILL");
+    expect(kills.map((k) => k.signal)).toEqual(['SIGTERM', 'SIGKILL']);
+    expect(res.signalUsed).toBe('SIGKILL');
   });
 });
 
@@ -455,15 +478,15 @@ describe("stopDev", () => {
 // getDevStatus
 // ────────────────────────────────────────────────────────────────────────
 
-describe("getDevStatus", () => {
-  const themePath = "/themes/blog";
+describe('getDevStatus', () => {
+  const themePath = '/themes/blog';
 
-  it("returns null when no record exists", async () => {
+  it('returns null when no record exists', async () => {
     const fs = new FakeThemeFs();
     expect(await getDevStatus(themePath, fs, { alive: () => true })).toBeNull();
   });
 
-  it("returns running:false when the pid is dead", async () => {
+  it('returns running:false when the pid is dead', async () => {
     const fs = new FakeThemeFs();
     fs.mkdirp(path.join(themePath, DEV_DIR));
     fs.files.set(
@@ -472,8 +495,8 @@ describe("getDevStatus", () => {
         pid: 5555,
         port: 4321,
         startedAt: new Date().toISOString(),
-        logPath: "x",
-        url: "http://localhost:4321",
+        logPath: 'x',
+        url: 'http://localhost:4321',
         running: true,
       }),
     );
@@ -482,7 +505,7 @@ describe("getDevStatus", () => {
     expect(res?.running).toBe(false);
   });
 
-  it("returns running:true when the pid is alive", async () => {
+  it('returns running:true when the pid is alive', async () => {
     const fs = new FakeThemeFs();
     fs.mkdirp(path.join(themePath, DEV_DIR));
     fs.files.set(
@@ -491,8 +514,8 @@ describe("getDevStatus", () => {
         pid: 5556,
         port: 4321,
         startedAt: new Date().toISOString(),
-        logPath: "x",
-        url: "http://localhost:4321",
+        logPath: 'x',
+        url: 'http://localhost:4321',
         running: true,
       }),
     );
@@ -500,4 +523,3 @@ describe("getDevStatus", () => {
     expect(res?.running).toBe(true);
   });
 });
-

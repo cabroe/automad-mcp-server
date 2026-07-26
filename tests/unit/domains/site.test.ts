@@ -1,8 +1,8 @@
-import { describe, it, expect, vi } from "vitest";
-import { handleSite } from "../../../src/domains/site.js";
-import type { HttpClient } from "../../../src/client.js";
-import { WriteGuard } from "../../../src/write-guard.js";
-import type { Config } from "../../../src/config.js";
+import { describe, it, expect, vi } from 'vitest';
+import { handleSite } from '../../../src/domains/site.js';
+import type { HttpClient } from '../../../src/client.js';
+import { WriteGuard } from '../../../src/write-guard.js';
+import type { Config } from '../../../src/config.js';
 
 function mockClient(): HttpClient {
   return {
@@ -15,114 +15,148 @@ function mockClient(): HttpClient {
 }
 
 function cfg(): Config {
-  return { url: "https://x", username: "u", password: "p", writeMode: "unrestricted", logLevel: "error" };
+  return {
+    url: 'https://x',
+    username: 'u',
+    password: 'p',
+    writeMode: 'unrestricted',
+    logLevel: 'error',
+  };
 }
 
-describe("handleSite (v2 /_api)", () => {
-  it("info returns version/languages/fileTypes/reservedFields from bootstrap", async () => {
+describe('handleSite (v2 /_api)', () => {
+  it('info returns version/languages/fileTypes/reservedFields from bootstrap', async () => {
     const c = mockClient();
     (c.get as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
-      version: "2.0.0-beta.51",
-      sitename: "S",
-      languages: { English: "" },
+      version: '2.0.0-beta.51',
+      sitename: 'S',
+      languages: { English: '' },
       fileTypes: { image: [] },
-      reservedFields: { title: "" },
+      reservedFields: { title: '' },
     });
-    const out = await handleSite({ action: "info" }, c, new WriteGuard(cfg()));
+    const out = await handleSite({ action: 'info' }, c, new WriteGuard(cfg()));
     expect(out).toMatchObject({
-      version: "2.0.0-beta.51",
-      sitename: "S",
-      languages: { English: "" },
+      version: '2.0.0-beta.51',
+      sitename: 'S',
+      languages: { English: '' },
     });
-    expect(c.get).toHaveBeenCalledWith("/_api/app/bootstrap");
+    expect(c.get).toHaveBeenCalledWith('/_api/app/bootstrap');
   });
 
-  it("search requires query", async () => {
-    await expect(handleSite({ action: "search" }, mockClient(), new WriteGuard(cfg()))).rejects.toMatchObject({
-      code: "VALIDATION",
+  it('search requires query', async () => {
+    await expect(
+      handleSite({ action: 'search' }, mockClient(), new WriteGuard(cfg())),
+    ).rejects.toMatchObject({
+      code: 'VALIDATION',
     });
   });
 
-  it("search rejects empty query", async () => {
-    await expect(handleSite({ action: "search", query: "" }, mockClient(), new WriteGuard(cfg())))
-      .rejects.toMatchObject({ code: "VALIDATION" });
+  it('search rejects empty query', async () => {
+    await expect(
+      handleSite({ action: 'search', query: '' }, mockClient(), new WriteGuard(cfg())),
+    ).rejects.toMatchObject({ code: 'VALIDATION' });
   });
 
-  it("search rejects whitespace-only query", async () => {
-    for (const q of ["   ", "\t\t", " \t  "]) {
-      await expect(handleSite({ action: "search", query: q }, mockClient(), new WriteGuard(cfg())))
-        .rejects.toMatchObject({ code: "VALIDATION" });
+  it('search rejects whitespace-only query', async () => {
+    for (const q of ['   ', '\t\t', ' \t  ']) {
+      await expect(
+        handleSite({ action: 'search', query: q }, mockClient(), new WriteGuard(cfg())),
+      ).rejects.toMatchObject({ code: 'VALIDATION' });
     }
   });
 
-  it("search without replace is read-only (no replaceValue)", async () => {
+  it('search without replace is read-only (no replaceValue)', async () => {
     const c = mockClient();
     (c.post as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ data: [] });
-    await handleSite({ action: "search", query: "hello" }, c, new WriteGuard(cfg()));
-    const [, body] = (c.post as ReturnType<typeof vi.fn>).mock.calls[0] as [string, Record<string, unknown>];
-    expect(body).toEqual({ searchValue: "hello", isRegex: false, isCaseSensitive: false });
-    expect("replaceValue" in body).toBe(false);
+    await handleSite({ action: 'search', query: 'hello' }, c, new WriteGuard(cfg()));
+    const [, body] = (c.post as ReturnType<typeof vi.fn>).mock.calls[0] as [
+      string,
+      Record<string, unknown>,
+    ];
+    expect(body).toEqual({ searchValue: 'hello', isRegex: false, isCaseSensitive: false });
+    expect('replaceValue' in body).toBe(false);
   });
 
-  it("search with replace posts replaceValue", async () => {
+  it('search with replace posts replaceValue', async () => {
     const c = mockClient();
     (c.post as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ data: [] });
-    await handleSite({ action: "search", query: "foo", replace: "bar", is_regex: true }, c, new WriteGuard(cfg()));
-    const [, body] = (c.post as ReturnType<typeof vi.fn>).mock.calls[0] as [string, Record<string, unknown>];
-    expect(body).toEqual({ searchValue: "foo", isRegex: true, isCaseSensitive: false, replaceValue: "bar" });
+    await handleSite(
+      { action: 'search', query: 'foo', replace: 'bar', is_regex: true },
+      c,
+      new WriteGuard(cfg()),
+    );
+    const [, body] = (c.post as ReturnType<typeof vi.fn>).mock.calls[0] as [
+      string,
+      Record<string, unknown>,
+    ];
+    expect(body).toEqual({
+      searchValue: 'foo',
+      isRegex: true,
+      isCaseSensitive: false,
+      replaceValue: 'bar',
+    });
   });
 
-  it("search with replace requires a confirm_token in confirm-destructive mode", async () => {
+  it('search with replace requires a confirm_token in confirm-destructive mode', async () => {
     const c = mockClient();
     const out = await handleSite(
-      { action: "search", query: "foo", replace: "bar" },
+      { action: 'search', query: 'foo', replace: 'bar' },
       c,
-      new WriteGuard({ ...cfg(), writeMode: "confirm-destructive" }),
+      new WriteGuard({ ...cfg(), writeMode: 'confirm-destructive' }),
     );
     expect(out).toMatchObject({
-      allowed: "pending",
-      action: "site.search_replace",
+      allowed: 'pending',
+      action: 'site.search_replace',
       confirmToken: expect.any(String),
     });
     expect(c.post).not.toHaveBeenCalled();
   });
 
-  it("search with replace runs with the matching confirm_token", async () => {
+  it('search with replace runs with the matching confirm_token', async () => {
     const c = mockClient();
     (c.post as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ data: [] });
-    const guard = new WriteGuard({ ...cfg(), writeMode: "confirm-destructive" });
-    const pending = await handleSite({ action: "search", query: "foo", replace: "bar" }, c, guard);
+    const guard = new WriteGuard({ ...cfg(), writeMode: 'confirm-destructive' });
+    const pending = await handleSite({ action: 'search', query: 'foo', replace: 'bar' }, c, guard);
     const token = (pending as { confirmToken?: string }).confirmToken!;
     expect(token).toBeTruthy();
-    const out = await handleSite({ action: "search", query: "foo", replace: "bar", confirm_token: token }, c, guard);
+    const out = await handleSite(
+      { action: 'search', query: 'foo', replace: 'bar', confirm_token: token },
+      c,
+      guard,
+    );
     expect(out).toEqual({ data: [] });
   });
 
-  it("search without replace stays read-only in confirm-destructive mode", async () => {
+  it('search without replace stays read-only in confirm-destructive mode', async () => {
     const c = mockClient();
     (c.post as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ data: [] });
     const out = await handleSite(
-      { action: "search", query: "foo" },
+      { action: 'search', query: 'foo' },
       c,
-      new WriteGuard({ ...cfg(), writeMode: "confirm-destructive" }),
+      new WriteGuard({ ...cfg(), writeMode: 'confirm-destructive' }),
     );
     expect(out).toEqual({ data: [] });
     expect(c.post).toHaveBeenCalledTimes(1);
   });
 
-  it("health reports ok when bootstrap succeeds", async () => {
+  it('health reports ok when bootstrap succeeds', async () => {
     const c = mockClient();
-    (c.get as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ version: "2.0.0", sitename: "S" });
-    const out = await handleSite({ action: "health" }, c, new WriteGuard(cfg()));
+    (c.get as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ version: '2.0.0', sitename: 'S' });
+    const out = await handleSite({ action: 'health' }, c, new WriteGuard(cfg()));
     expect(out).toMatchObject({
-      ok: true, reachable: true, authenticated: true, version: "2.0.0", sitename: "S", latencyMs: expect.any(Number),
+      ok: true,
+      reachable: true,
+      authenticated: true,
+      version: '2.0.0',
+      sitename: 'S',
+      latencyMs: expect.any(Number),
     });
   });
 
-  it("health reports not-ok when bootstrap fails", async () => {
+  it('health reports not-ok when bootstrap fails', async () => {
     const c = mockClient();
-    (c.get as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error("down"));
-    const out = await handleSite({ action: "health" }, c, new WriteGuard(cfg()));
+    (c.get as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('down'));
+    const out = await handleSite({ action: 'health' }, c, new WriteGuard(cfg()));
     expect(out).toMatchObject({ ok: false, error: { message: expect.stringMatching(/down/) } });
   });
 });

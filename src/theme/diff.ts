@@ -17,16 +17,16 @@ export function unifiedDiff(
   newStr: string,
   opts: { path?: string; context?: number } = {},
 ): DiffResult {
-  const path = opts.path ?? "file";
+  const path = opts.path ?? 'file';
   const context = opts.context ?? 3;
   const a = splitLines(oldStr);
   const b = splitLines(newStr);
 
   const ops = diffLines(a, b);
-  const added = ops.filter((op) => op.type === "add").length;
-  const removed = ops.filter((op) => op.type === "del").length;
+  const added = ops.filter((op) => op.type === 'add').length;
+  const removed = ops.filter((op) => op.type === 'del').length;
   if (added === 0 && removed === 0) {
-    return { path, changed: false, added: 0, removed: 0, diff: "" };
+    return { path, changed: false, added: 0, removed: 0, diff: '' };
   }
 
   const hunks = buildHunks(ops, context);
@@ -34,23 +34,23 @@ export function unifiedDiff(
   const body = hunks
     .map((hunk) => {
       const head = `@@ -${hunk.oldStart},${hunk.oldLines} +${hunk.newStart},${hunk.newLines} @@`;
-      return [head, ...hunk.lines].join("\n");
+      return [head, ...hunk.lines].join('\n');
     })
-    .join("\n");
+    .join('\n');
 
   return { path, changed: true, added, removed, diff: `${header}${body}\n` };
 }
 
 interface Op {
-  type: "eq" | "add" | "del";
+  type: 'eq' | 'add' | 'del';
   line: string;
 }
 
 function splitLines(str: string): string[] {
-  if (str === "") return [];
-  const parts = str.replace(/\r\n/g, "\n").split("\n");
+  if (str === '') return [];
+  const parts = str.replace(/\r\n/g, '\n').split('\n');
   // A trailing newline terminates the last line; drop the empty tail element.
-  if (parts.length > 0 && parts[parts.length - 1] === "") parts.pop();
+  if (parts.length > 0 && parts[parts.length - 1] === '') parts.pop();
   return parts;
 }
 
@@ -61,7 +61,8 @@ function diffLines(a: string[], b: string[]): Op[] {
   const lcs: number[][] = Array.from({ length: n + 1 }, () => new Array<number>(m + 1).fill(0));
   for (let i = n - 1; i >= 0; i--) {
     for (let j = m - 1; j >= 0; j--) {
-      lcs[i]![j] = a[i] === b[j] ? lcs[i + 1]![j + 1]! + 1 : Math.max(lcs[i + 1]![j]!, lcs[i]![j + 1]!);
+      lcs[i]![j] =
+        a[i] === b[j] ? lcs[i + 1]![j + 1]! + 1 : Math.max(lcs[i + 1]![j]!, lcs[i]![j + 1]!);
     }
   }
   const ops: Op[] = [];
@@ -69,19 +70,19 @@ function diffLines(a: string[], b: string[]): Op[] {
   let j = 0;
   while (i < n && j < m) {
     if (a[i] === b[j]) {
-      ops.push({ type: "eq", line: a[i]! });
+      ops.push({ type: 'eq', line: a[i]! });
       i++;
       j++;
     } else if (lcs[i + 1]![j]! >= lcs[i]![j + 1]!) {
-      ops.push({ type: "del", line: a[i]! });
+      ops.push({ type: 'del', line: a[i]! });
       i++;
     } else {
-      ops.push({ type: "add", line: b[j]! });
+      ops.push({ type: 'add', line: b[j]! });
       j++;
     }
   }
-  while (i < n) ops.push({ type: "del", line: a[i++]! });
-  while (j < m) ops.push({ type: "add", line: b[j++]! });
+  while (i < n) ops.push({ type: 'del', line: a[i++]! });
+  while (j < m) ops.push({ type: 'add', line: b[j++]! });
   return ops;
 }
 
@@ -113,7 +114,7 @@ function buildHunks(ops: Op[], context: number): Hunk[] {
   const pending: Op[] = [];
   for (let idx = 0; idx < ops.length; idx++) {
     const op = ops[idx]!;
-    if (op.type === "eq") {
+    if (op.type === 'eq') {
       pending.push(op);
       if (current) {
         current.lines.push(` ${op.line}`);
@@ -129,7 +130,13 @@ function buildHunks(ops: Op[], context: number): Hunk[] {
         const lead = pending.slice(-context);
         const oldStart = oldLine - lead.length;
         const newStart = newLine - lead.length;
-        current = { oldStart: Math.max(1, oldStart), oldLines: 0, newStart: Math.max(1, newStart), newLines: 0, lines: [] };
+        current = {
+          oldStart: Math.max(1, oldStart),
+          oldLines: 0,
+          newStart: Math.max(1, newStart),
+          newLines: 0,
+          lines: [],
+        };
         for (const ctx of lead) {
           current.lines.push(` ${ctx.line}`);
           current.oldLines++;
@@ -137,7 +144,7 @@ function buildHunks(ops: Op[], context: number): Hunk[] {
         }
       }
       trailingContext = 0;
-      if (op.type === "del") {
+      if (op.type === 'del') {
         current.lines.push(`-${op.line}`);
         current.oldLines++;
         oldLine++;

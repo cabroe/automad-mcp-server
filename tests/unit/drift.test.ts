@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { z } from "zod";
+import { describe, it, expect } from 'vitest';
+import { z } from 'zod';
 import {
   CAPABILITY_REGISTRY,
   advertisedActions,
@@ -10,12 +10,12 @@ import {
   TOOL_NAMES,
   validateCapabilityRegistry,
   type ToolName,
-} from "../../src/capabilities/registry.js";
-import { TOOL_BINDINGS, validateToolBindings } from "../../src/capabilities/tools.js";
-import { TOOL_INPUT_SCHEMAS } from "../../src/schemas.js";
-import { READ_ACTIONS, DESTRUCTIVE_ACTIONS, WriteGuard } from "../../src/write-guard.js";
-import type { Config } from "../../src/config.js";
-import { handleDiscover } from "../../src/domains/discover.js";
+} from '../../src/capabilities/registry.js';
+import { TOOL_BINDINGS, validateToolBindings } from '../../src/capabilities/tools.js';
+import { TOOL_INPUT_SCHEMAS } from '../../src/schemas.js';
+import { READ_ACTIONS, DESTRUCTIVE_ACTIONS, WriteGuard } from '../../src/write-guard.js';
+import type { Config } from '../../src/config.js';
+import { handleDiscover } from '../../src/domains/discover.js';
 
 /**
  * The capability registry is the single source of truth: the write-guard sets,
@@ -25,14 +25,14 @@ import { handleDiscover } from "../../src/domains/discover.js";
  * actual behavior for every action the registry declares.
  */
 
-function config(writeMode: Config["writeMode"]): Config {
+function config(writeMode: Config['writeMode']): Config {
   return {
-    mode: "docs",
-    url: "",
-    username: "",
-    password: "",
+    mode: 'docs',
+    url: '',
+    username: '',
+    password: '',
     writeMode,
-    logLevel: "silent",
+    logLevel: 'silent',
     liveEnabled: false,
     requestTimeoutMs: 0,
   };
@@ -48,13 +48,13 @@ function schemaActions(tool: ToolName): string[] {
   return [...(action as z.ZodEnum<[string, ...string[]]>).options];
 }
 
-describe("registry → derived surfaces", () => {
-  it("validates at boot", () => {
+describe('registry → derived surfaces', () => {
+  it('validates at boot', () => {
     expect(() => validateCapabilityRegistry()).not.toThrow();
     expect(() => validateToolBindings()).not.toThrow();
   });
 
-  it("every tool has a binding and an input schema", () => {
+  it('every tool has a binding and an input schema', () => {
     expect([...TOOL_NAMES].sort()).toEqual(CAPABILITY_REGISTRY.map((cap) => cap.name).sort());
     for (const name of TOOL_NAMES) {
       expect(TOOL_BINDINGS[name].name, `binding missing for ${name}`).toBe(name);
@@ -64,7 +64,9 @@ describe("registry → derived surfaces", () => {
 
   it("each tool's Zod action enum matches its advertised registry actions", () => {
     for (const name of TOOL_NAMES) {
-      expect(schemaActions(name), `action enum drift in ${name}`).toEqual([...advertisedActions(name)]);
+      expect(schemaActions(name), `action enum drift in ${name}`).toEqual([
+        ...advertisedActions(name),
+      ]);
     }
   });
 
@@ -88,7 +90,7 @@ describe("registry → derived surfaces", () => {
     expect([...DESTRUCTIVE_ACTIONS].sort()).toEqual([...expected].sort());
   });
 
-  it("no action is both read-only and destructive, and every write action is prefixed by its tool", () => {
+  it('no action is both read-only and destructive, and every write action is prefixed by its tool', () => {
     for (const cap of CAPABILITY_REGISTRY) {
       for (const [action, meta] of Object.entries(cap.actions)) {
         const writeAction = writeActionOf(cap.name, action);
@@ -101,58 +103,72 @@ describe("registry → derived surfaces", () => {
   });
 });
 
-describe("internal (guard-only) actions", () => {
+describe('internal (guard-only) actions', () => {
   const internal = CAPABILITY_REGISTRY.flatMap((cap) =>
     Object.entries(cap.actions)
       .filter(([, meta]) => meta.internal)
-      .map(([action]) => ({ tool: cap.name, action, writeAction: writeActionOf(cap.name, action) })),
+      .map(([action]) => ({
+        tool: cap.name,
+        action,
+        writeAction: writeActionOf(cap.name, action),
+      })),
   );
 
-  it("covers the two fine-grained confirmation cases", () => {
+  it('covers the two fine-grained confirmation cases', () => {
     // pages.update_rename fires when an update carries a title change;
     // site.search_replace fires when site.search is given a `replace` value.
-    expect(internal.map((entry) => entry.writeAction).sort()).toEqual(["pages.update_rename", "site.search_replace"]);
+    expect(internal.map((entry) => entry.writeAction).sort()).toEqual([
+      'pages.update_rename',
+      'site.search_replace',
+    ]);
   });
 
-  it("are destructive and never advertised", () => {
+  it('are destructive and never advertised', () => {
     for (const entry of internal) {
       expect(DESTRUCTIVE_ACTIONS.has(entry.writeAction)).toBe(true);
       expect(READ_ACTIONS.has(entry.writeAction)).toBe(false);
       expect(schemaActions(entry.tool as ToolName)).not.toContain(entry.action);
-      expect(callableActions(getCapability(entry.tool)).map(([name]) => name)).not.toContain(entry.action);
+      expect(callableActions(getCapability(entry.tool)).map(([name]) => name)).not.toContain(
+        entry.action,
+      );
     }
   });
 
-  it("are hidden from the discovery facade", async () => {
-    const guard = new WriteGuard(config("unrestricted"));
-    const listed = (await handleDiscover({ action: "list" }, guard)) as { capabilities: { action: string }[] };
+  it('are hidden from the discovery facade', async () => {
+    const guard = new WriteGuard(config('unrestricted'));
+    const listed = (await handleDiscover({ action: 'list' }, guard)) as {
+      capabilities: { action: string }[];
+    };
     for (const entry of internal) {
       expect(listed.capabilities.map((cap) => cap.action)).not.toContain(entry.action);
     }
-    const described = (await handleDiscover({ action: "describe", tool: "automad_pages" }, guard)) as {
+    const described = (await handleDiscover(
+      { action: 'describe', tool: 'automad_pages' },
+      guard,
+    )) as {
       actions: Record<string, unknown>;
     };
-    expect(Object.keys(described.actions)).not.toContain("update_rename");
+    expect(Object.keys(described.actions)).not.toContain('update_rename');
   });
 });
 
-describe("registry flags drive real guard behavior", () => {
-  it("read-only mode allows exactly the read actions", () => {
-    const guard = new WriteGuard(config("read-only"));
+describe('registry flags drive real guard behavior', () => {
+  it('read-only mode allows exactly the read actions', () => {
+    const guard = new WriteGuard(config('read-only'));
     for (const cap of CAPABILITY_REGISTRY) {
       for (const [action, meta] of Object.entries(cap.actions)) {
-        const permit = guard.check(writeActionOf(cap.name, action), "/target");
+        const permit = guard.check(writeActionOf(cap.name, action), '/target');
         expect(permit.allowed, `${cap.name}.${action}`).toBe(meta.readOnly);
       }
     }
   });
 
   it("confirm-destructive mode asks for a token exactly for the registry's destructive actions", () => {
-    const guard = new WriteGuard(config("confirm-destructive"));
+    const guard = new WriteGuard(config('confirm-destructive'));
     for (const cap of CAPABILITY_REGISTRY) {
       for (const [action, meta] of Object.entries(cap.actions)) {
-        const permit = guard.check(writeActionOf(cap.name, action), "/target");
-        expect(permit.allowed, `${cap.name}.${action}`).toBe(meta.destructive ? "pending" : true);
+        const permit = guard.check(writeActionOf(cap.name, action), '/target');
+        expect(permit.allowed, `${cap.name}.${action}`).toBe(meta.destructive ? 'pending' : true);
       }
     }
   });

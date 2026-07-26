@@ -1,20 +1,20 @@
-import { spawn as cpSpawn } from "node:child_process";
-import * as path from "node:path";
-import type { ThemeFs } from "./fs.js";
-import { runCommand } from "./build.js";
-import { AutomadMcpError } from "../errors.js";
+import { spawn as cpSpawn } from 'node:child_process';
+import * as path from 'node:path';
+import type { ThemeFs } from './fs.js';
+import { runCommand } from './build.js';
+import { AutomadMcpError } from '../errors.js';
 
 export const REQUIRED_LAYOUT = [
-  "theme.json",
-  "components",
-  "blocks",
-  "client/index.ts",
-  "esbuild.js",
+  'theme.json',
+  'components',
+  'blocks',
+  'client/index.ts',
+  'esbuild.js',
 ] as const;
 
-export const DEV_DIR = ".automad-mcp";
-export const DEV_RECORD = "dev.json";
-export const DEV_LOG = "dev.log";
+export const DEV_DIR = '.automad-mcp';
+export const DEV_RECORD = 'dev.json';
+export const DEV_LOG = 'dev.log';
 export const LOG_CAP_BYTES = 1_048_576;
 export const LOG_TAIL_KEEP = 256 * 1024;
 export const PORT_REGEX = /(?:https?:\/\/)?(?:localhost|127\.0\.0\.1):(\d{4,5})(?=\b|$)/;
@@ -56,7 +56,7 @@ export interface StartDevResult extends DevRecord {
 
 export interface StopDevResult {
   stopped: boolean;
-  signalUsed: "SIGTERM" | "SIGKILL" | null;
+  signalUsed: 'SIGTERM' | 'SIGKILL' | null;
   wasLive: boolean;
 }
 
@@ -65,8 +65,8 @@ export interface DevSpawnHandle {
   unref(): void;
   kill(signal: NodeJS.Signals): boolean;
   exited(): Promise<void>;
-  stdout?: { on(event: "data", listener: (chunk: Buffer | string) => void): unknown };
-  stderr?: { on(event: "data", listener: (chunk: Buffer | string) => void): unknown };
+  stdout?: { on(event: 'data', listener: (chunk: Buffer | string) => void): unknown };
+  stderr?: { on(event: 'data', listener: (chunk: Buffer | string) => void): unknown };
 }
 
 export type SpawnFn = (
@@ -82,13 +82,13 @@ export function realSpawn(
   args: string[],
   opts: { cwd: string; detached: boolean },
 ): DevSpawnHandle {
-  const child = cpSpawn(cmd, args, { ...opts, stdio: ["ignore", "pipe", "pipe"] });
+  const child = cpSpawn(cmd, args, { ...opts, stdio: ['ignore', 'pipe', 'pipe'] });
   child.unref();
   return {
     pid: child.pid ?? 0,
     unref: () => child.unref(),
     kill: (sig) => child.kill(sig),
-    exited: () => new Promise<void>((resolve) => child.once("exit", () => resolve())),
+    exited: () => new Promise<void>((resolve) => child.once('exit', () => resolve())),
     stdout: child.stdout ?? undefined,
     stderr: child.stderr ?? undefined,
   };
@@ -96,10 +96,7 @@ export function realSpawn(
 
 export const detachSpawn = realSpawn;
 
-export async function assertStarterKitLayout(
-  starterKitPath: string,
-  fs: ThemeFs,
-): Promise<void> {
+export async function assertStarterKitLayout(starterKitPath: string, fs: ThemeFs): Promise<void> {
   const missing: string[] = [];
   for (const entry of REQUIRED_LAYOUT) {
     const p = path.join(starterKitPath, entry);
@@ -107,14 +104,14 @@ export async function assertStarterKitLayout(
       missing.push(entry);
       continue;
     }
-    if ((entry === "components" || entry === "blocks") && !(await fs.isDirectory(p))) {
+    if ((entry === 'components' || entry === 'blocks') && !(await fs.isDirectory(p))) {
       missing.push(`${entry}/`);
     }
   }
   if (missing.length) {
     throw new AutomadMcpError(
-      "VALIDATION",
-      `starter kit at ${starterKitPath} is missing required layout entries: ${missing.join(", ")}. Expected the canonical layout from automadcms/automad-theme-starter-kit.`,
+      'VALIDATION',
+      `starter kit at ${starterKitPath} is missing required layout entries: ${missing.join(', ')}. Expected the canonical layout from automadcms/automad-theme-starter-kit.`,
     );
   }
 }
@@ -143,7 +140,7 @@ async function readRecord(fs: ThemeFs, cwd: string): Promise<DevRecord | null> {
 
 async function writeRecord(fs: ThemeFs, cwd: string, rec: DevRecord): Promise<void> {
   await fs.mkdirp(path.join(cwd, DEV_DIR));
-  await fs.writeFile(recordPath(cwd), JSON.stringify(rec, null, 2) + "\n");
+  await fs.writeFile(recordPath(cwd), JSON.stringify(rec, null, 2) + '\n');
 }
 
 function defaultAlive(pid: number): boolean {
@@ -192,11 +189,11 @@ export async function stopDev(
     return !alive(rec.pid);
   };
 
-  kill(rec.pid, "SIGTERM");
-  let signalUsed: "SIGTERM" | "SIGKILL" = "SIGTERM";
+  kill(rec.pid, 'SIGTERM');
+  let signalUsed: 'SIGTERM' | 'SIGKILL' = 'SIGTERM';
   if (!(await waitForExited(SIGTERM_DEADLINE_MS))) {
-    kill(rec.pid, "SIGKILL");
-    signalUsed = "SIGKILL";
+    kill(rec.pid, 'SIGKILL');
+    signalUsed = 'SIGKILL';
     await waitForExited(SIGKILL_DEADLINE_MS);
   }
   await fs.remove(recordPath(cwd));
@@ -211,34 +208,44 @@ export async function startDev(opts: StartDevOptions): Promise<StartDevResult> {
   if (existing) {
     if (alive(existing.pid)) {
       throw new AutomadMcpError(
-        "CONFLICT",
+        'CONFLICT',
         `dev server already running for theme '${themeName}' (pid ${existing.pid}). Call dev_stop first.`,
       );
     }
     await opts.fs.remove(recordPath(opts.cwd));
   }
 
-  if (!(await opts.fs.exists(path.join(opts.cwd, "node_modules")))) {
+  // Pre-flight: refuse to spawn npm in a directory that isn't a theme. Without
+  // this, a stub directory triggers "spawn npm ENOENT" (or a misleading npm
+  // error) instead of a clear VALIDATION error pointing at the real cause.
+  if (!(await opts.fs.exists(path.join(opts.cwd, 'package.json')))) {
+    throw new AutomadMcpError(
+      'VALIDATION',
+      `theme '${themeName}' has no package.json — cannot run npm. Run \`theme.scaffold\` first to lay down a starter layout, or point \`theme\` at a directory with a package.json.`,
+    );
+  }
+
+  if (!(await opts.fs.exists(path.join(opts.cwd, 'node_modules')))) {
     const res = await (opts.runInstall ?? runCommand)(
-      "npm",
-      ["install", "--no-audit", "--no-fund"],
+      'npm',
+      ['install', '--no-audit', '--no-fund'],
       { cwd: opts.cwd, timeoutMs: DEFAULT_NPM_INSTALL_TIMEOUT_MS },
     );
     if (!res.ok) {
       throw new AutomadMcpError(
-        "BUILD",
+        'BUILD',
         `npm install failed (exit ${res.exitCode}): ${res.stderr.slice(-2048)}`,
       );
     }
   }
 
   let guess: number | null = opts.portHint ?? null;
-  if (guess === null && (await opts.fs.exists(path.join(opts.cwd, "package.json")))) {
+  if (guess === null && (await opts.fs.exists(path.join(opts.cwd, 'package.json')))) {
     try {
-      const pkg = JSON.parse(await opts.fs.readFile(path.join(opts.cwd, "package.json"))) as {
+      const pkg = JSON.parse(await opts.fs.readFile(path.join(opts.cwd, 'package.json'))) as {
         scripts?: { dev?: string };
       };
-      guess = parseScriptsPort(pkg.scripts?.dev ?? "");
+      guess = parseScriptsPort(pkg.scripts?.dev ?? '');
     } catch {
       // malformed package.json — ignore; port will be discovered from log
     }
@@ -255,20 +262,16 @@ export async function startDev(opts: StartDevOptions): Promise<StartDevResult> {
   };
   await opts.fs.mkdirp(path.join(opts.cwd, DEV_DIR));
 
-  const child = (opts.spawn ?? realSpawn)(
-    "npm",
-    ["run", "dev"],
-    { cwd: opts.cwd, detached: true },
-  );
+  const child = (opts.spawn ?? realSpawn)('npm', ['run', 'dev'], { cwd: opts.cwd, detached: true });
   child.unref();
 
   const emit = (d: Buffer | string): void => {
-    const s = typeof d === "string" ? d : d.toString();
+    const s = typeof d === 'string' ? d : d.toString();
     void opts.fs.appendLog(lp, s);
     opts.onLogChunk?.(s);
   };
-  child.stdout?.on("data", emit);
-  child.stderr?.on("data", emit);
+  child.stdout?.on('data', emit);
+  child.stderr?.on('data', emit);
 
   rec.pid = child.pid;
   rec.running = true;

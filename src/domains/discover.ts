@@ -1,20 +1,20 @@
-import { zodToJsonSchema } from "zod-to-json-schema";
-import { AutomadMcpError } from "../errors.js";
-import type { WriteGuard, WriteAction } from "../write-guard.js";
-import type { DiscoverInput } from "../schemas.js";
-import { TOOL_INPUT_SCHEMAS } from "../schemas.js";
+import { zodToJsonSchema } from 'zod-to-json-schema';
+import { AutomadMcpError } from '../errors.js';
+import type { WriteGuard, WriteAction } from '../write-guard.js';
+import type { DiscoverInput } from '../schemas.js';
+import { TOOL_INPUT_SCHEMAS } from '../schemas.js';
 import {
   CAPABILITY_REGISTRY,
   callableActions,
   getCapability,
   writeActionOf,
-} from "../capabilities/registry.js";
+} from '../capabilities/registry.js';
 
-type DiscoverAction = DiscoverInput["action"];
+type DiscoverAction = DiscoverInput['action'];
 
 const ACTION_MAP: Record<DiscoverAction, WriteAction> = {
-  list: "discover.list",
-  describe: "discover.describe",
+  list: 'discover.list',
+  describe: 'discover.describe',
 };
 
 /**
@@ -30,14 +30,17 @@ const ACTION_MAP: Record<DiscoverAction, WriteAction> = {
  * exist. Internal, guard-only actions are not advertised.
  */
 export async function handleDiscover(input: DiscoverInput, guard: WriteGuard): Promise<unknown> {
-  const target = input.tool ?? "*";
+  const target = input.tool ?? '*';
   const permit = guard.check(ACTION_MAP[input.action], target, input.confirm_token);
-  if (permit.allowed === false) throw new AutomadMcpError("FORBIDDEN", permit.reason);
+  if (permit.allowed === false) throw new AutomadMcpError('FORBIDDEN', permit.reason);
 
   switch (input.action) {
-    case "list": {
-      const capabilities = input.tool ? CAPABILITY_REGISTRY.filter((cap) => cap.name === input.tool) : CAPABILITY_REGISTRY;
-      if (input.tool && capabilities.length === 0) throw new AutomadMcpError("NOT_FOUND", `Unknown capability: ${input.tool}`);
+    case 'list': {
+      const capabilities = input.tool
+        ? CAPABILITY_REGISTRY.filter((cap) => cap.name === input.tool)
+        : CAPABILITY_REGISTRY;
+      if (input.tool && capabilities.length === 0)
+        throw new AutomadMcpError('NOT_FOUND', `Unknown capability: ${input.tool}`);
       return {
         capabilities: capabilities.flatMap((cap) =>
           callableActions(cap).map(([action, meta]) => ({
@@ -52,15 +55,20 @@ export async function handleDiscover(input: DiscoverInput, guard: WriteGuard): P
         ),
       };
     }
-    case "describe": {
-      if (!input.tool) throw new AutomadMcpError("VALIDATION", "tool is required for describe");
+    case 'describe': {
+      if (!input.tool) throw new AutomadMcpError('VALIDATION', 'tool is required for describe');
       const capability = getCapability(input.tool);
       const schema = TOOL_INPUT_SCHEMAS[capability.name];
-      if (!schema) throw new AutomadMcpError("NOT_FOUND", `No input schema registered for ${input.tool}`);
+      if (!schema)
+        throw new AutomadMcpError('NOT_FOUND', `No input schema registered for ${input.tool}`);
       let actions = Object.fromEntries(callableActions(capability));
       if (input.target_action) {
         const action = actions[input.target_action];
-        if (!action) throw new AutomadMcpError("NOT_FOUND", `Unknown action ${input.tool}.${input.target_action}`);
+        if (!action)
+          throw new AutomadMcpError(
+            'NOT_FOUND',
+            `Unknown action ${input.tool}.${input.target_action}`,
+          );
         actions = { [input.target_action]: action };
       }
       return {
@@ -70,7 +78,7 @@ export async function handleDiscover(input: DiscoverInput, guard: WriteGuard): P
         description: capability.description,
         requires: capability.requires,
         actions,
-        inputSchema: zodToJsonSchema(schema, { target: "jsonSchema7" }),
+        inputSchema: zodToJsonSchema(schema, { target: 'jsonSchema7' }),
       };
     }
   }

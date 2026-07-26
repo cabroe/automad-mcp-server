@@ -1,10 +1,10 @@
-import type { DocPage } from "../../kb.js";
+import type { DocPage } from '../../kb.js';
 
 export const page: DocPage = {
-  slug: "theme-json",
-  title: "theme.json",
-  tags: ["theme.json", "manifest", "masks", "fieldorder", "tooltips", "options"],
-  reference: "https://automad.org/developer-guide/building-themes/theme-json",
+  slug: 'theme-json',
+  title: 'theme.json',
+  tags: ['theme.json', 'manifest', 'masks', 'fieldorder', 'tooltips', 'options'],
+  reference: 'https://automad.org/developer-guide/building-themes/theme-json',
   body: `# theme.json
 
 The manifest that describes a theme to the dashboard.

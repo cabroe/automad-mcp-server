@@ -1,7 +1,7 @@
-import { describe, it, expect, vi } from "vitest";
-import { ThemeManager } from "../../../src/theme/manager.js";
-import type { ThemeFs } from "../../../src/theme/fs.js";
-import type { HttpClient } from "../../../src/client.js";
+import { describe, it, expect, vi } from 'vitest';
+import { ThemeManager } from '../../../src/theme/manager.js';
+import type { ThemeFs } from '../../../src/theme/fs.js';
+import type { HttpClient } from '../../../src/client.js';
 
 function mockDeps() {
   const fs: ThemeFs = {
@@ -13,17 +13,23 @@ function mockDeps() {
     copyDir: vi.fn(),
     isDir: vi.fn(),
   };
-  const client: HttpClient = { get: vi.fn(), post: vi.fn(), put: vi.fn(), delete: vi.fn(), upload: vi.fn() } as unknown as HttpClient;
+  const client: HttpClient = {
+    get: vi.fn(),
+    post: vi.fn(),
+    put: vi.fn(),
+    delete: vi.fn(),
+    upload: vi.fn(),
+  } as unknown as HttpClient;
   return {
     fs,
     client,
-    themesPath: "/themes",
-    starterKitPath: "/starter",
+    themesPath: '/themes',
+    starterKitPath: '/starter',
   };
 }
 
-describe("ThemeManager", () => {
-  it("list returns empty array if no directories exist", async () => {
+describe('ThemeManager', () => {
+  it('list returns empty array if no directories exist', async () => {
     const deps = mockDeps();
     vi.mocked(deps.fs.exists).mockResolvedValue(true);
     vi.mocked(deps.fs.readDir).mockResolvedValue([]);
@@ -32,18 +38,18 @@ describe("ThemeManager", () => {
     expect(list).toEqual([]);
   });
 
-  it("uninstall prevents path traversal", async () => {
+  it('uninstall prevents path traversal', async () => {
     const deps = mockDeps();
     const mgr = new ThemeManager(deps);
-    await expect(mgr.uninstall("../outside")).rejects.toThrow("invalid theme slug");
+    await expect(mgr.uninstall('../outside')).rejects.toThrow('invalid theme slug');
   });
 
-  it("activate handles API errors gracefully", async () => {
+  it('activate handles API errors gracefully', async () => {
     const deps = mockDeps();
     vi.mocked(deps.fs.exists).mockResolvedValue(true);
-    vi.mocked(deps.client.post).mockRejectedValue(new Error("API Fail"));
+    vi.mocked(deps.client.post).mockRejectedValue(new Error('API Fail'));
     const mgr = new ThemeManager(deps);
-    const res = await mgr.activate("test-theme");
+    const res = await mgr.activate('test-theme');
     expect(res.activated).toBe(false);
   });
 });

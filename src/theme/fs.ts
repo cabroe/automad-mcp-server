@@ -5,14 +5,13 @@
  * interface. All theme tooling consumes `ThemeFs` rather than touching
  * `node:fs` directly.
  */
-import { promises as fs, statSync, openSync, writeSync, closeSync, readSync } from "node:fs";
-import * as path from "node:path";
-import { AutomadMcpError } from "../errors.js";
+import { promises as fs, statSync, openSync, writeSync, closeSync, readSync } from 'node:fs';
+import * as path from 'node:path';
+import { AutomadMcpError } from '../errors.js';
 /** 1 MiB cap for log files. */
 const LOG_CAP_BYTES = 1_048_576;
 /** 256 KiB tail retained when rotating a log that exceeded the cap. */
 const LOG_TAIL_KEEP = 256 * 1024;
-
 
 export interface ThemeFs {
   exists(p: string): Promise<boolean>;
@@ -50,15 +49,18 @@ export class LocalThemeFs implements ThemeFs {
   }
 
   async readFile(p: string): Promise<string> {
-    return fs.readFile(p, "utf8");
+    return fs.readFile(p, 'utf8');
   }
 
   async writeFile(p: string, content: string): Promise<void> {
     await fs.mkdir(path.dirname(p), { recursive: true });
-    await fs.writeFile(p, content, "utf8");
+    await fs.writeFile(p, content, 'utf8');
   }
 
-  async list(p: string, opts: { recursive?: boolean; extensions?: string[] } = {}): Promise<string[]> {
+  async list(
+    p: string,
+    opts: { recursive?: boolean; extensions?: string[] } = {},
+  ): Promise<string[]> {
     const found: string[] = [];
     const exts = opts.extensions;
     async function walk(dir: string): Promise<void> {
@@ -102,12 +104,16 @@ export class LocalThemeFs implements ThemeFs {
     await fs.mkdir(path.dirname(p), { recursive: true });
     const chunkBytes = Buffer.byteLength(content);
     let size = 0;
-    try { size = statSync(p).size; } catch { /* ENOENT first write */ }
+    try {
+      size = statSync(p).size;
+    } catch {
+      /* ENOENT first write */
+    }
     if (size + chunkBytes > LOG_CAP_BYTES) {
       const keepSize = Math.min(LOG_TAIL_KEEP, Math.max(0, size));
       const tmp = `${p}.tmp`;
-      const srcFd = openSync(p, "r");
-      const dstFd = openSync(tmp, "w");
+      const srcFd = openSync(p, 'r');
+      const dstFd = openSync(tmp, 'w');
       try {
         if (keepSize > 0) {
           const buf = Buffer.alloc(keepSize);
@@ -121,20 +127,32 @@ export class LocalThemeFs implements ThemeFs {
       await fs.rename(tmp, p);
       size = keepSize;
     }
-    const fd = openSync(p, "a");
-    try { writeSync(fd, content); } finally { closeSync(fd); }
+    const fd = openSync(p, 'a');
+    try {
+      writeSync(fd, content);
+    } finally {
+      closeSync(fd);
+    }
   }
 
   async readLogTail(p: string, maxBytes: number): Promise<string> {
-    if (maxBytes <= 0) return "";
+    if (maxBytes <= 0) return '';
     let size: number;
-    try { size = statSync(p).size; } catch { return ""; }
+    try {
+      size = statSync(p).size;
+    } catch {
+      return '';
+    }
     const len = Math.min(maxBytes, size);
-    if (len === 0) return "";
+    if (len === 0) return '';
     const buf = Buffer.alloc(len);
-    const fd = openSync(p, "r");
-    try { readSync(fd, buf, 0, len, size - len); } finally { closeSync(fd); }
-    return buf.toString("utf8");
+    const fd = openSync(p, 'r');
+    try {
+      readSync(fd, buf, 0, len, size - len);
+    } finally {
+      closeSync(fd);
+    }
+    return buf.toString('utf8');
   }
 }
 
@@ -143,10 +161,7 @@ export function assertWithinRoot(root: string, target: string): string {
   const absRoot = path.resolve(root);
   const absTarget = path.resolve(target);
   if (absTarget !== absRoot && !absTarget.startsWith(absRoot + path.sep)) {
-    throw new AutomadMcpError(
-      "VALIDATION",
-      `Path '${target}' escapes allowed root '${root}'`,
-    );
+    throw new AutomadMcpError('VALIDATION', `Path '${target}' escapes allowed root '${root}'`);
   }
   return absTarget;
 }

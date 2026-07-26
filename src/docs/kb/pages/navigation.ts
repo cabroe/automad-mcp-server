@@ -1,10 +1,11 @@
-import type { DocPage } from "../../kb.js";
+import type { DocPage } from '../../kb.js';
 
 export const page: DocPage = {
-  slug: "navigation",
-  title: "Navigation",
-  tags: ["nav", "navtree", "breadcrumbs", "pagelist", "menu", "recursive"],
-  reference: "https://automad.org/developer-guide/building-themes/template-language/recursive-navigations",
+  slug: 'navigation',
+  title: 'Navigation',
+  tags: ['nav', 'navtree', 'breadcrumbs', 'pagelist', 'menu', 'recursive'],
+  reference:
+    'https://automad.org/developer-guide/building-themes/template-language/recursive-navigations',
   body: `# Navigation
 
 ## Helpers

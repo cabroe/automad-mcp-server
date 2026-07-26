@@ -1,10 +1,10 @@
-import type { DocPage } from "../../kb.js";
+import type { DocPage } from '../../kb.js';
 
 export const page: DocPage = {
-  slug: "include-path-resolution",
-  title: "Include path resolution",
-  tags: ["include", "path", "snippet", "resolve", "directory"],
-  reference: "https://automad.org/developer-guide/building-themes/template-language/includes",
+  slug: 'include-path-resolution',
+  title: 'Include path resolution',
+  tags: ['include', 'path', 'snippet', 'resolve', 'directory'],
+  reference: 'https://automad.org/developer-guide/building-themes/template-language/includes',
   body: `# Include path resolution
 
 The single biggest source of "my template renders empty" bugs is misunderstanding

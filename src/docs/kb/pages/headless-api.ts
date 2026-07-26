@@ -1,10 +1,10 @@
-import type { DocPage } from "../../kb.js";
+import type { DocPage } from '../../kb.js';
 
 export const page: DocPage = {
-  slug: "headless",
-  title: "Headless / REST API",
-  tags: ["headless", "rest", "api", "json", "endpoints", "csrf", "session"],
-  reference: "https://automad.org/headless-mode",
+  slug: 'headless',
+  title: 'Headless / REST API',
+  tags: ['headless', 'rest', 'api', 'json', 'endpoints', 'csrf', 'session'],
+  reference: 'https://automad.org/headless-mode',
   body: `# Headless / REST API
 
 Automad v2 exposes a JSON dispatch layer at \`/_api/{controller}/{method}\`. The

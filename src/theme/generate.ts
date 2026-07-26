@@ -1,4 +1,4 @@
-import { AutomadMcpError } from "../errors.js";
+import { AutomadMcpError } from '../errors.js';
 
 /**
  * Snippet / block / component generator. Produces authentic Automad v2 template
@@ -42,16 +42,15 @@ export function listGeneratorKinds(): string[] {
 export function generate(opts: GenerateOptions): GeneratedFile {
   const builder = BUILDERS[opts.kind];
   if (!builder) {
-    throw new AutomadMcpError(
-      "VALIDATION",
-      `unknown generator kind '${opts.kind}'`,
-      { available: Object.keys(BUILDERS) },
-    );
+    throw new AutomadMcpError('VALIDATION', `unknown generator kind '${opts.kind}'`, {
+      available: Object.keys(BUILDERS),
+    });
   }
-  const fallback = opts.kind === "block" ? "custom" : opts.kind === "component" ? "part" : opts.kind;
+  const fallback =
+    opts.kind === 'block' ? 'custom' : opts.kind === 'component' ? 'part' : opts.kind;
   const name = (opts.name ?? fallback).trim();
-  if (!SLUG_RE.test(name) || name.includes("..")) {
-    throw new AutomadMcpError("VALIDATION", `invalid name '${name}'`);
+  if (!SLUG_RE.test(name) || name.includes('..')) {
+    throw new AutomadMcpError('VALIDATION', `invalid name '${name}'`);
   }
   const built = builder(name);
   const path = normalizePath(opts.path ?? built.path);
@@ -59,8 +58,9 @@ export function generate(opts: GenerateOptions): GeneratedFile {
 }
 
 function normalizePath(p: string): string {
-  const clean = p.replace(/^\/+/, "").replace(/\\/g, "/");
-  if (clean.includes("..")) throw new AutomadMcpError("VALIDATION", `path must not contain '..': ${p}`);
+  const clean = p.replace(/^\/+/, '').replace(/\\/g, '/');
+  if (clean.includes('..'))
+    throw new AutomadMcpError('VALIDATION', `path must not contain '..': ${p}`);
   return clean;
 }
 
@@ -95,7 +95,7 @@ function buildPagelist(name: string): { path: string; content: string; notes: st
   </article>
 <@ end @>
 `,
-    notes: "Pagelist loop. Adjust the `type`/`sort` options as needed (children, related, all).",
+    notes: 'Pagelist loop. Adjust the `type`/`sort` options as needed (children, related, all).',
   };
 }
 
@@ -108,7 +108,7 @@ function buildBreadcrumbs(name: string): { path: string; content: string; notes:
   <@ end @>
 </nav>
 `,
-    notes: "Breadcrumb trail using the breadcrumbs object.",
+    notes: 'Breadcrumb trail using the breadcrumbs object.',
   };
 }
 
@@ -146,14 +146,14 @@ function buildBlock(name: string): { path: string; content: string; notes: strin
 }
 
 function buildI18n(name: string): { path: string; content: string; notes: string } {
-  const locale = name === "i18n" ? "en" : name;
+  const locale = name === 'i18n' ? 'en' : name;
   return {
     path: `i18n/${locale}.json`,
     content: `${JSON.stringify(
       {
-        "nav.home": "Home",
-        "nav.products": "Products",
-        "msg.greeting": "Hello {name}",
+        'nav.home': 'Home',
+        'nav.products': 'Products',
+        'msg.greeting': 'Hello {name}',
       },
       null,
       2,

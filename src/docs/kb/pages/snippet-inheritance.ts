@@ -1,10 +1,10 @@
-import type { DocPage } from "../../kb.js";
+import type { DocPage } from '../../kb.js';
 
 export const page: DocPage = {
-  slug: "snippet-inheritance",
-  title: "Snippet inheritance (the `main` pattern)",
-  tags: ["snippet", "main", "inheritance", "two-pass", "page.php", "layout.php"],
-  reference: "https://automad.org/developer-guide/building-themes/template-language/inheritance",
+  slug: 'snippet-inheritance',
+  title: 'Snippet inheritance (the `main` pattern)',
+  tags: ['snippet', 'main', 'inheritance', 'two-pass', 'page.php', 'layout.php'],
+  reference: 'https://automad.org/developer-guide/building-themes/template-language/inheritance',
   body: `# Snippet inheritance (the \`main\` pattern)
 
 If a template invokes \`<@ main @>\` but no \`<@~ snippet main ~@>\` is reachable,

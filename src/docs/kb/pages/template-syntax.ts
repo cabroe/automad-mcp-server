@@ -1,10 +1,10 @@
-import type { DocPage } from "../../kb.js";
+import type { DocPage } from '../../kb.js';
 
 export const page: DocPage = {
-  slug: "template-syntax",
-  title: "Template syntax",
-  tags: ["template", "syntax", "statements", "variables", "blocks", "pipe"],
-  reference: "https://automad.org/developer-guide/building-themes/template-language",
+  slug: 'template-syntax',
+  title: 'Template syntax',
+  tags: ['template', 'syntax', 'statements', 'variables', 'blocks', 'pipe'],
+  reference: 'https://automad.org/developer-guide/building-themes/template-language',
   body: `# Template syntax
 
 Automad v2 templates mix three distinct constructs. Getting them right is the

@@ -1,12 +1,12 @@
-import { AutomadMcpError } from "../errors.js";
-import { API_BASE } from "../config.js";
-import type { HttpClient } from "../client.js";
-import type { WriteGuard, WriteAction } from "../write-guard.js";
-import type { ConfigInput } from "../schemas.js";
-type ConfigAction = "get" | "set";
+import { AutomadMcpError } from '../errors.js';
+import { API_BASE } from '../config.js';
+import type { HttpClient } from '../client.js';
+import type { WriteGuard, WriteAction } from '../write-guard.js';
+import type { ConfigInput } from '../schemas.js';
+type ConfigAction = 'get' | 'set';
 const ACTION_MAP: Record<ConfigAction, WriteAction> = {
-  get: "config.get",
-  set: "config.set",
+  get: 'config.get',
+  set: 'config.set',
 };
 interface BootstrapData {
   version?: string;
@@ -25,16 +25,16 @@ export async function handleConfig(
   guard: WriteGuard,
 ): Promise<unknown> {
   const action = input.action;
-  const permit = guard.check(ACTION_MAP[action], "/", input.confirm_token);
+  const permit = guard.check(ACTION_MAP[action], '/', input.confirm_token);
   if (permit.allowed === false) {
-    throw new AutomadMcpError("FORBIDDEN", permit.reason);
+    throw new AutomadMcpError('FORBIDDEN', permit.reason);
   }
-  if (permit.allowed === "pending") {
+  if (permit.allowed === 'pending') {
     return permit;
   }
 
   switch (action) {
-    case "get": {
+    case 'get': {
       const data = (await client.get<BootstrapData>(`${API_BASE}/app/bootstrap`)) ?? {};
       // v2's dashboard API exposes no read endpoint for runtime config; the
       // closest authoritative surface is `envKeys` from bootstrap (which the
@@ -46,9 +46,9 @@ export async function handleConfig(
         dashboard: data.dashboard,
       };
     }
-    case "set": {
+    case 'set': {
       if (!input.type || !input.payload) {
-        throw new AutomadMcpError("VALIDATION", "type and payload are required for set");
+        throw new AutomadMcpError('VALIDATION', 'type and payload are required for set');
       }
       return client.post(`${API_BASE}/config/update`, { type: input.type, ...input.payload });
     }

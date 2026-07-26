@@ -1,10 +1,10 @@
-import type { DocPage } from "../../kb.js";
+import type { DocPage } from '../../kb.js';
 
 export const page: DocPage = {
-  slug: "common-pitfalls",
-  title: "Common pitfalls (v2 themes)",
-  tags: ["pitfalls", "debug", "gotchas", "include", "snippet", "lang", "fpm"],
-  reference: "https://automad.org/developer-guide",
+  slug: 'common-pitfalls',
+  title: 'Common pitfalls (v2 themes)',
+  tags: ['pitfalls', 'debug', 'gotchas', 'include', 'snippet', 'lang', 'fpm'],
+  reference: 'https://automad.org/developer-guide',
   body: `# Common pitfalls (v2 themes)
 
 Hard-won lessons from real theme builds. Read this before chasing a "why does my

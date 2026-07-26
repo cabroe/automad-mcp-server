@@ -1,11 +1,11 @@
-import { promises as nodeFs } from "node:fs";
-import * as path from "node:path";
-import { AutomadMcpError } from "../errors.js";
-import { runCommand, composerInstall, npmBuild, npmInstall, type BuildResult } from "./build.js";
-import type { HttpClient } from "../client.js";
-import { API_BASE } from "../config.js";
-import { type ThemeFs, assertWithinRoot } from "./fs.js";
-import { assertSafeThemeSlug } from "./slug.js";
+import { promises as nodeFs } from 'node:fs';
+import * as path from 'node:path';
+import { AutomadMcpError } from '../errors.js';
+import { runCommand, composerInstall, npmBuild, npmInstall, type BuildResult } from './build.js';
+import type { HttpClient } from '../client.js';
+import { API_BASE } from '../config.js';
+import { type ThemeFs, assertWithinRoot } from './fs.js';
+import { assertSafeThemeSlug } from './slug.js';
 
 export interface ThemeManifest {
   name?: string;
@@ -42,7 +42,7 @@ export class ThemeManager {
   async list(): Promise<ThemeInfo[]> {
     const { fs, themesPath } = this.deps;
     if (!(await fs.exists(themesPath))) {
-      throw new AutomadMcpError("NOT_FOUND", `themesPath not found: ${themesPath}`);
+      throw new AutomadMcpError('NOT_FOUND', `themesPath not found: ${themesPath}`);
     }
     const entries = await listDirs(themesPath);
     const themes: ThemeInfo[] = [];
@@ -53,8 +53,8 @@ export class ThemeManager {
   /** Read a theme's `theme.json` and check build output. */
   async inspect(themePath: string): Promise<ThemeInfo> {
     const { fs } = this.deps;
-    const manifestPath = path.join(themePath, "theme.json");
-    const distPath = path.join(themePath, "dist");
+    const manifestPath = path.join(themePath, 'theme.json');
+    const distPath = path.join(themePath, 'dist');
     const slug = path.basename(themePath);
     const errors: string[] = [];
     let manifest: ThemeManifest | null = null;
@@ -66,7 +66,7 @@ export class ThemeManager {
         errors.push(`theme.json: ${e instanceof Error ? e.message : String(e)}`);
       }
     } else {
-      errors.push("missing theme.json");
+      errors.push('missing theme.json');
     }
     const buildOutputExists = await fs.isDirectory(distPath);
     return { slug, path: themePath, manifest, buildOutputExists, errors };
@@ -83,25 +83,25 @@ export class ThemeManager {
     assertSafeThemeSlug(slug);
     const target = assertWithinRoot(themesPath, path.join(themesPath, slug));
     if (await fs.exists(target)) {
-      throw new AutomadMcpError("CONFLICT", `theme '${slug}' already exists at ${target}`);
+      throw new AutomadMcpError('CONFLICT', `theme '${slug}' already exists at ${target}`);
     }
-    if (/^https?:\/\//.test(source) || source.startsWith("git@")) {
+    if (/^https?:\/\//.test(source) || source.startsWith('git@')) {
       // Reuse runCommand so git-clone is subject to the same hard timeout and
       // output cap as `theme.build` (npm/composer). Otherwise a slow remote
       // or huge repo can block the MCP indefinitely.
-      const res = await runCommand("git", ["clone", "--depth", "1", source, target], {
+      const res = await runCommand('git', ['clone', '--depth', '1', source, target], {
         cwd: themesPath,
         timeoutMs: 5 * 60 * 1000,
         maxOutputBytes: 64 * 1024,
       });
       if (!res.ok) {
         await fs.remove(target, { recursive: true });
-        throw new AutomadMcpError("NETWORK", `git clone failed: ${res.stderr || res.stdout}`);
+        throw new AutomadMcpError('NETWORK', `git clone failed: ${res.stderr || res.stdout}`);
       }
     } else {
       if (!(await fs.exists(source))) {
         await fs.remove(target, { recursive: true });
-        throw new AutomadMcpError("NOT_FOUND", `source path not found: ${source}`);
+        throw new AutomadMcpError('NOT_FOUND', `source path not found: ${source}`);
       }
       await fs.copyDir(source, target);
     }
@@ -118,7 +118,7 @@ export class ThemeManager {
     assertSafeThemeSlug(theme);
     const target = assertWithinRoot(themesPath, path.join(themesPath, theme));
     if (!(await fs.exists(target))) {
-      throw new AutomadMcpError("NOT_FOUND", `theme '${theme}' not found at ${target}`);
+      throw new AutomadMcpError('NOT_FOUND', `theme '${theme}' not found at ${target}`);
     }
     try {
       const res = await client.post(`${API_BASE}/package-manager/install`, {
@@ -130,9 +130,10 @@ export class ThemeManager {
     } catch (err) {
       return {
         activated: false,
-        remote: err instanceof AutomadMcpError
-          ? { code: err.code, message: err.message }
-          : { message: err instanceof Error ? err.message : String(err) },
+        remote:
+          err instanceof AutomadMcpError
+            ? { code: err.code, message: err.message }
+            : { message: err instanceof Error ? err.message : String(err) },
       };
     }
   }
@@ -143,14 +144,17 @@ export class ThemeManager {
     assertSafeThemeSlug(theme);
     const target = assertWithinRoot(themesPath, path.join(themesPath, theme));
     if (!(await fs.exists(target))) {
-      throw new AutomadMcpError("NOT_FOUND", `theme '${theme}' not found`);
+      throw new AutomadMcpError('NOT_FOUND', `theme '${theme}' not found`);
     }
     await fs.remove(target, { recursive: true });
     return { removed: target };
   }
 
   /** Run composer install (if composer.json exists) + npm install + npm run build. */
-  async build(theme: string, opts: { install?: boolean | undefined; timeoutMs?: number | undefined } = {}): Promise<{
+  async build(
+    theme: string,
+    opts: { install?: boolean | undefined; timeoutMs?: number | undefined } = {},
+  ): Promise<{
     composer?: BuildResult;
     install?: BuildResult;
     build: BuildResult;
@@ -158,13 +162,13 @@ export class ThemeManager {
     const { fs, themesPath } = this.deps;
     const target = assertWithinRoot(themesPath, path.join(themesPath, theme));
     if (!(await fs.exists(target))) {
-      throw new AutomadMcpError("NOT_FOUND", `theme '${theme}' not found`);
+      throw new AutomadMcpError('NOT_FOUND', `theme '${theme}' not found`);
     }
     if (opts.install === false) {
       return { build: await npmBuild(target, opts.timeoutMs) };
     }
 
-    const composer = (await fs.exists(path.join(target, "composer.json")))
+    const composer = (await fs.exists(path.join(target, 'composer.json')))
       ? await composerInstall(target, opts.timeoutMs)
       : undefined;
 
@@ -177,17 +181,21 @@ export class ThemeManager {
           ok: false,
           exitCode: -1,
           durationMs: 0,
-          stdout: "",
-          stderr: "skipped: npm install failed",
-          command: "npm run build",
+          stdout: '',
+          stderr: 'skipped: npm install failed',
+          command: 'npm run build',
         },
       };
     }
-    return { ...(composer ? { composer } : {}), install, build: await npmBuild(target, opts.timeoutMs) };
+    return {
+      ...(composer ? { composer } : {}),
+      install,
+      build: await npmBuild(target, opts.timeoutMs),
+    };
   }
 }
 
-export { startDev, stopDev, getDevStatus, assertStarterKitLayout } from "./dev.js";
+export { startDev, stopDev, getDevStatus, assertStarterKitLayout } from './dev.js';
 
 async function listDirs(dir: string): Promise<string[]> {
   try {
@@ -199,6 +207,9 @@ async function listDirs(dir: string): Promise<string[]> {
 }
 
 function slugify(input: string): string {
-  const tail = input.split("/").filter(Boolean).pop() ?? "theme";
-  return tail.replace(/\.git$/, "").replace(/[^a-zA-Z0-9._-]/g, "-").toLowerCase();
+  const tail = input.split('/').filter(Boolean).pop() ?? 'theme';
+  return tail
+    .replace(/\.git$/, '')
+    .replace(/[^a-zA-Z0-9._-]/g, '-')
+    .toLowerCase();
 }

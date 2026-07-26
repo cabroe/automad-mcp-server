@@ -1,7 +1,7 @@
-import { AutomadMcpError } from "./errors.js";
-import { logger } from "./logger.js";
-import { safeJson } from "./client.js";
-import { API_BASE, type Config } from "./config.js";
+import { AutomadMcpError } from './errors.js';
+import { logger } from './logger.js';
+import { safeJson } from './client.js';
+import { API_BASE, type Config } from './config.js';
 
 /** AuthProvider hands the HttpClient the session cookie and CSRF token. */
 export interface AuthProvider {
@@ -10,7 +10,6 @@ export interface AuthProvider {
   /** Returns the current CSRF token, scraping a fresh one if needed. */
   getCsrfToken(force?: boolean): Promise<string>;
 }
-
 
 /**
  * Extract the CSRF token from Automad dashboard HTML.
@@ -26,14 +25,13 @@ export function extractCsrfToken(html: string): string | undefined {
   let match: RegExpExecArray | null;
   while ((match = metaTagRe.exec(html)) !== null) {
     const tag = match[0];
-    const nameMatch = /\bname\s*=\s*(["'])csrf\1/i.exec(tag)
-      ?? /\bname\s*=\s*csrf\b/i.exec(tag);
+    const nameMatch = /\bname\s*=\s*(["'])csrf\1/i.exec(tag) ?? /\bname\s*=\s*csrf\b/i.exec(tag);
     if (!nameMatch) continue;
     const contentMatch =
-      /\bcontent\s*=\s*(["'])([0-9a-fA-F]{64})\1/i.exec(tag)
-      ?? /\bcontent\s*=\s*([0-9a-fA-F]{64})\b/i.exec(tag);
+      /\bcontent\s*=\s*(["'])([0-9a-fA-F]{64})\1/i.exec(tag) ??
+      /\bcontent\s*=\s*([0-9a-fA-F]{64})\b/i.exec(tag);
     if (!contentMatch) continue;
-    const token = (contentMatch[2] ?? contentMatch[1] ?? "").toLowerCase();
+    const token = (contentMatch[2] ?? contentMatch[1] ?? '').toLowerCase();
     if (/^[0-9a-f]{64}$/.test(token)) return token;
   }
   // 2) Last-resort fallbacks for malformed tags where the per-tag scan above
@@ -73,7 +71,7 @@ export class AuthManager implements AuthProvider {
       await this.scrapeCsrf();
     } catch (e) {
       if (force) {
-        logger.warn("CSRF scrape failed on forced refresh, forcing re-login");
+        logger.warn('CSRF scrape failed on forced refresh, forcing re-login');
         await this.login();
       } else {
         throw e;
@@ -83,27 +81,27 @@ export class AuthManager implements AuthProvider {
   }
 
   private async login(): Promise<void> {
-    const loginUrl = this.cfg.url.replace(/\/$/, "") + `${API_BASE}/session/login`;
-    logger.info({ url: loginUrl, user: this.cfg.username }, "Logging into Automad v2 dashboard");
+    const loginUrl = this.cfg.url.replace(/\/$/, '') + `${API_BASE}/session/login`;
+    logger.info({ url: loginUrl, user: this.cfg.username }, 'Logging into Automad v2 dashboard');
 
     const res = await fetch(loginUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
-        "name-or-email": this.cfg.username,
+        'name-or-email': this.cfg.username,
         password: this.cfg.password,
       }).toString(),
-      redirect: "manual",
+      redirect: 'manual',
     });
 
     if (!res.ok) {
-      throw new AutomadMcpError("AUTH", `Login failed: HTTP ${res.status}`, await safeJson(res));
+      throw new AutomadMcpError('AUTH', `Login failed: HTTP ${res.status}`, await safeJson(res));
     }
 
     // Cookie is set on the login response AND any redirect response.
-    this.cookie = collectCookie([res.headers as HeaderLike | undefined ?? undefined]);
+    this.cookie = collectCookie([(res.headers as HeaderLike | undefined) ?? undefined]);
     if (!this.cookie) {
-      throw new AutomadMcpError("AUTH", "No session cookie returned by Automad v2 login");
+      throw new AutomadMcpError('AUTH', 'No session cookie returned by Automad v2 login');
     }
 
     // A freshly started v2 (cold container) can 403 the probe while the session
@@ -114,12 +112,15 @@ export class AuthManager implements AuthProvider {
       await this.scrapeCsrf();
       try {
         await this.probeAuthenticated();
-        logger.info("Dashboard login successful");
+        logger.info('Dashboard login successful');
         return;
       } catch (err) {
-        const retryable = err instanceof AutomadMcpError && isRecord(err.details) && err.details["retryable"] === true;
+        const retryable =
+          err instanceof AutomadMcpError &&
+          isRecord(err.details) &&
+          err.details['retryable'] === true;
         if (retryable && attempt < LOGIN_PROBE_ATTEMPTS) {
-          logger.warn({ attempt }, "auth probe transient (cold session), retrying");
+          logger.warn({ attempt }, 'auth probe transient (cold session), retrying');
           await new Promise<void>((r) => setTimeout(r, LOGIN_PROBE_DELAY_MS * attempt));
           continue;
         }
@@ -138,53 +139,59 @@ export class AuthManager implements AuthProvider {
    * (a populated `data.sitename`) or a generic error / empty body.
    */
   private async probeAuthenticated(): Promise<void> {
-    const url = this.cfg.url.replace(/\/$/, "") + `${API_BASE}/app/bootstrap`;
+    const url = this.cfg.url.replace(/\/$/, '') + `${API_BASE}/app/bootstrap`;
     const csrf = this.csrf;
-    if (!csrf) throw new AutomadMcpError("AUTH", "Cannot probe without CSRF token");
+    if (!csrf) throw new AutomadMcpError('AUTH', 'Cannot probe without CSRF token');
     const fdata = new FormData();
-    fdata.set("__csrf__", csrf);
-    fdata.set("__json__", "{}");
+    fdata.set('__csrf__', csrf);
+    fdata.set('__json__', '{}');
     const res = await fetch(url, {
-      method: "POST",
+      method: 'POST',
       headers: { Cookie: this.cookie! },
       body: fdata,
     });
     if (!res.ok) {
       // 403 on a cold session/CSRF is transient (retryable); other statuses are not.
       // State is cleared by the caller (login) only after the final attempt.
-      throw new AutomadMcpError("AUTH", `Login probe failed: HTTP ${res.status}`, { retryable: res.status === 403, status: res.status });
+      throw new AutomadMcpError('AUTH', `Login probe failed: HTTP ${res.status}`, {
+        retryable: res.status === 403,
+        status: res.status,
+      });
     }
     const body = (await safeJson(res)) as
-      | { code?: number; data?: { sitename?: string }; error?: string }
-      | undefined;
+      { code?: number; data?: { sitename?: string }; error?: string } | undefined;
     // Bad credentials come back as {code: 200, error: "Invalid username or password."}.
-    if (typeof body?.error === "string" && body.error.length > 0) {
-      throw new AutomadMcpError("AUTH", `Login probe failed: ${body.error}`, { retryable: false });
+    if (typeof body?.error === 'string' && body.error.length > 0) {
+      throw new AutomadMcpError('AUTH', `Login probe failed: ${body.error}`, { retryable: false });
     }
     // For a logged-in session, /app/bootstrap returns {code: 200, data: {sitename, ...}}.
     if (!body?.data?.sitename) {
-      throw new AutomadMcpError("AUTH", "Login probe failed: session is not authenticated (no sitename in response data)", { retryable: false });
+      throw new AutomadMcpError(
+        'AUTH',
+        'Login probe failed: session is not authenticated (no sitename in response data)',
+        { retryable: false },
+      );
     }
   }
 
   private async scrapeCsrf(): Promise<void> {
-    const url = this.cfg.url.replace(/\/$/, "") + "/dashboard";
+    const url = this.cfg.url.replace(/\/$/, '') + '/dashboard';
     const res = await fetch(url, {
       headers: this.cookie ? { Cookie: this.cookie } : {},
-      redirect: "follow",
+      redirect: 'follow',
     });
     if (!res.ok) {
-      throw new AutomadMcpError("AUTH", `Failed to fetch dashboard for CSRF: HTTP ${res.status}`);
+      throw new AutomadMcpError('AUTH', `Failed to fetch dashboard for CSRF: HTTP ${res.status}`);
     }
     // v2 may rotate the session cookie on /dashboard (e.g. when the previous
     // session expired or the bootstrap completed mid-request). Adopt the new
     // cookie so the next authenticated request uses the matching session.
-    const rotated = collectCookie([res.headers as HeaderLike | undefined ?? undefined]);
+    const rotated = collectCookie([(res.headers as HeaderLike | undefined) ?? undefined]);
     if (rotated) this.cookie = rotated;
     const html = await res.text();
     const token = extractCsrfToken(html);
     if (!token) {
-      throw new AutomadMcpError("AUTH", "Could not extract CSRF token from dashboard HTML");
+      throw new AutomadMcpError('AUTH', 'Could not extract CSRF token from dashboard HTML');
     }
     this.csrf = token;
   }
@@ -192,33 +199,35 @@ export class AuthManager implements AuthProvider {
 
 type HeaderLike = { getSetCookie?: () => string[] | undefined; get?: (k: string) => string | null };
 function isHeaderLike(v: unknown): v is HeaderLike {
-  return typeof v === "object" && v !== null;
+  return typeof v === 'object' && v !== null;
 }
 
 /** Pulls the first session cookie (HttpOnly `Automad-<md5>=<id>`) out of one or more Set-Cookie headers. */
-function collectCookie(setCookies: Array<string | HeaderLike | null | undefined>): string | undefined {
+function collectCookie(
+  setCookies: Array<string | HeaderLike | null | undefined>,
+): string | undefined {
   for (const sc of setCookies) {
     if (!sc) continue;
     // Headers object form (test mocks / older runtimes): `getSetCookie()` may be missing.
     if (isHeaderLike(sc)) {
-      if (typeof sc.getSetCookie === "function") {
+      if (typeof sc.getSetCookie === 'function') {
         const multi = sc.getSetCookie();
         if (multi && multi.length > 0) return collectCookie(multi);
       }
-      const single = sc.get?.("set-cookie");
+      const single = sc.get?.('set-cookie');
       if (single) {
-        const first = single.split(";")[0];
-        if (first && first.includes("=")) return first;
+        const first = single.split(';')[0];
+        if (first && first.includes('=')) return first;
       }
       continue;
     }
     // String form (real Set-Cookie header line).
-    const first = sc.split(";")[0];
-    if (first && first.includes("=")) return first;
+    const first = sc.split(';')[0];
+    if (first && first.includes('=')) return first;
   }
   return undefined;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
+  return typeof value === 'object' && value !== null;
 }

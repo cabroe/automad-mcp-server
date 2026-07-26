@@ -1,5 +1,5 @@
-import { spawn } from "node:child_process";
-import { logger } from "../logger.js";
+import { spawn } from 'node:child_process';
+import { logger } from '../logger.js';
 
 export interface BuildResult {
   ok: boolean;
@@ -37,16 +37,16 @@ export async function runCommand(
     const child = spawn(cmd, args, {
       cwd: opts.cwd,
       env: { ...process.env, ...(opts.env ?? {}) },
-      stdio: ["ignore", "pipe", "pipe"],
+      stdio: ['ignore', 'pipe', 'pipe'],
     });
 
     let stdoutBytes = 0;
     let stderrBytes = 0;
-    let stdout = "";
-    let stderr = "";
-    const append = (target: "stdout" | "stderr", data: Buffer): void => {
-      const bytes = data.toString("utf8");
-      if (target === "stdout") {
+    let stdout = '';
+    let stderr = '';
+    const append = (target: 'stdout' | 'stderr', data: Buffer): void => {
+      const bytes = data.toString('utf8');
+      if (target === 'stdout') {
         stdoutBytes += bytes.length;
         if (stdoutBytes <= maxOutput) stdout += bytes;
       } else {
@@ -55,21 +55,21 @@ export async function runCommand(
       }
     };
 
-    child.stdout.on("data", (d: Buffer) => append("stdout", d));
-    child.stderr.on("data", (d: Buffer) => append("stderr", d));
+    child.stdout.on('data', (d: Buffer) => append('stdout', d));
+    child.stderr.on('data', (d: Buffer) => append('stderr', d));
 
     let killed = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
     if (timeoutMs > 0) {
       timer = setTimeout(() => {
         killed = true;
-        logger.warn({ cmd, args, cwd: opts.cwd, timeoutMs }, "build timeout, killing process");
-        child.kill("SIGTERM");
-        setTimeout(() => child.kill("SIGKILL"), 5000);
+        logger.warn({ cmd, args, cwd: opts.cwd, timeoutMs }, 'build timeout, killing process');
+        child.kill('SIGTERM');
+        setTimeout(() => child.kill('SIGKILL'), 5000);
       }, timeoutMs);
     }
 
-    child.on("error", (err) => {
+    child.on('error', (err) => {
       clearTimeout(timer);
       resolve({
         ok: false,
@@ -77,11 +77,11 @@ export async function runCommand(
         durationMs: Date.now() - start,
         stdout,
         stderr: stderr + `\n[spawn error] ${err.message}`,
-        command: `${cmd} ${args.join(" ")}`,
+        command: `${cmd} ${args.join(' ')}`,
       });
     });
 
-    child.on("close", (code) => {
+    child.on('close', (code) => {
       clearTimeout(timer);
       resolve({
         ok: code === 0 && !killed,
@@ -89,7 +89,7 @@ export async function runCommand(
         durationMs: Date.now() - start,
         stdout,
         stderr,
-        command: `${cmd} ${args.join(" ")}`,
+        command: `${cmd} ${args.join(' ')}`,
       });
     });
   });
@@ -97,7 +97,7 @@ export async function runCommand(
 
 /** Run `npm install` in `cwd`. */
 export async function npmInstall(cwd: string, timeoutMs?: number): Promise<BuildResult> {
-  return runCommand("npm", ["install", "--no-audit", "--no-fund", "--loglevel=warn"], {
+  return runCommand('npm', ['install', '--no-audit', '--no-fund', '--loglevel=warn'], {
     cwd,
     ...(timeoutMs !== undefined ? { timeoutMs } : {}),
   });
@@ -105,7 +105,7 @@ export async function npmInstall(cwd: string, timeoutMs?: number): Promise<Build
 
 /** Run `npm run build` in `cwd`. */
 export async function npmBuild(cwd: string, timeoutMs?: number): Promise<BuildResult> {
-  return runCommand("npm", ["run", "build", "--loglevel=warn"], {
+  return runCommand('npm', ['run', 'build', '--loglevel=warn'], {
     cwd,
     ...(timeoutMs !== undefined ? { timeoutMs } : {}),
   });
@@ -113,7 +113,7 @@ export async function npmBuild(cwd: string, timeoutMs?: number): Promise<BuildRe
 
 /** Run `composer install` in `cwd` (only call when composer.json exists). */
 export async function composerInstall(cwd: string, timeoutMs?: number): Promise<BuildResult> {
-  return runCommand("composer", ["install", "--no-interaction", "--no-progress"], {
+  return runCommand('composer', ['install', '--no-interaction', '--no-progress'], {
     cwd,
     ...(timeoutMs !== undefined ? { timeoutMs } : {}),
   });

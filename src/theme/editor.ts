@@ -1,6 +1,6 @@
-import * as path from "node:path";
-import { AutomadMcpError } from "../errors.js";
-import { type ThemeFs, assertWithinRoot } from "./fs.js";
+import * as path from 'node:path';
+import { AutomadMcpError } from '../errors.js';
+import { type ThemeFs, assertWithinRoot } from './fs.js';
 
 export interface FileEntry {
   /** Path relative to the theme root, using forward slashes. */
@@ -16,18 +16,36 @@ export interface EditorDeps {
 }
 
 const ALLOWED_EXTENSIONS: string[] = [
-  ".php", ".json", ".ts", ".js", ".mjs", ".cjs",
-  ".css", ".less", ".scss",
-  ".html", ".htm", ".svg", ".md", ".txt",
-  ".yml", ".yaml", ".env", ".sh",
+  '.php',
+  '.json',
+  '.ts',
+  '.js',
+  '.mjs',
+  '.cjs',
+  '.css',
+  '.less',
+  '.scss',
+  '.html',
+  '.htm',
+  '.svg',
+  '.md',
+  '.txt',
+  '.yml',
+  '.yaml',
+  '.env',
+  '.sh',
 ];
 
 /** Resolve a `theme/rel/path` to an absolute path inside the theme, with guards. */
-export function resolveInTheme(theme: string, relPath: string, themesPath: string): { abs: string; rel: string } {
-  if (relPath.includes("..")) {
-    throw new AutomadMcpError("VALIDATION", `relative path '${relPath}' must not contain '..'`);
+export function resolveInTheme(
+  theme: string,
+  relPath: string,
+  themesPath: string,
+): { abs: string; rel: string } {
+  if (relPath.includes('..')) {
+    throw new AutomadMcpError('VALIDATION', `relative path '${relPath}' must not contain '..'`);
   }
-  const cleanRel = relPath.replace(/^\/+/, "");
+  const cleanRel = relPath.replace(/^\/+/, '');
   const themesRoot = path.resolve(themesPath);
   const themeRoot = assertWithinRoot(themesRoot, path.resolve(themesRoot, theme));
   const target = assertWithinRoot(themeRoot, path.resolve(themeRoot, cleanRel));
@@ -50,7 +68,7 @@ export async function listFiles(
     ? resolveInTheme(theme, opts.path, themesPath).abs
     : path.resolve(themesPath, theme);
   if (!(await fs.exists(baseAbs))) {
-    throw new AutomadMcpError("NOT_FOUND", `path not found: ${opts.path ?? "/"}`);
+    throw new AutomadMcpError('NOT_FOUND', `path not found: ${opts.path ?? '/'}`);
   }
   const exts = opts.extensions ?? ALLOWED_EXTENSIONS;
   const absFiles = await fs.list(baseAbs, { recursive: true, extensions: exts });
@@ -61,7 +79,7 @@ export async function listFiles(
       const content = await fs.readFile(abs);
       entries.push({
         absPath: abs,
-        relPath: path.relative(themeRoot, abs).split(path.sep).join("/"),
+        relPath: path.relative(themeRoot, abs).split(path.sep).join('/'),
         size: content.length,
       });
     } catch {
@@ -80,7 +98,7 @@ export async function readFile(
   const { fs, themesPath } = deps;
   const { abs, rel } = resolveInTheme(theme, relPath, themesPath);
   if (!(await fs.exists(abs))) {
-    throw new AutomadMcpError("NOT_FOUND", `file not found: ${relPath}`);
+    throw new AutomadMcpError('NOT_FOUND', `file not found: ${relPath}`);
   }
   const content = await fs.readFile(abs);
   return { relPath: rel, content, size: content.length };

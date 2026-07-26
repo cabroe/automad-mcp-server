@@ -1,10 +1,11 @@
-import type { DocPage } from "../../kb.js";
+import type { DocPage } from '../../kb.js';
 
 export const page: DocPage = {
-  slug: "i18n",
-  title: "Multilingual (i18n)",
-  tags: ["i18n", "multilingual", "translation", "locale", "language"],
-  reference: "https://automad.org/developer-guide/building-themes/template-language/multilingual-content",
+  slug: 'i18n',
+  title: 'Multilingual (i18n)',
+  tags: ['i18n', 'multilingual', 'translation', 'locale', 'language'],
+  reference:
+    'https://automad.org/developer-guide/building-themes/template-language/multilingual-content',
   body: `# Multilingual (i18n)
 
 Translation dictionaries live in \`i18n/<locale>.json\` inside the theme.

@@ -1,6 +1,6 @@
-import { AutomadMcpError } from "./errors.js";
+import { AutomadMcpError } from './errors.js';
 
-export type WriteMode = "read-only" | "confirm-destructive" | "unrestricted";
+export type WriteMode = 'read-only' | 'confirm-destructive' | 'unrestricted';
 
 /**
  * Operating mode:
@@ -10,7 +10,7 @@ export type WriteMode = "read-only" | "confirm-destructive" | "unrestricted";
  *   instance and no credentials required; the live-API tools return a clear
  *   `UNSUPPORTED` error.
  */
-export type ServerMode = "full" | "docs";
+export type ServerMode = 'full' | 'docs';
 
 export interface Config {
   mode: ServerMode;
@@ -35,12 +35,12 @@ export interface Config {
 }
 
 /** Automad v2 only: JSON API base path. */
-export const API_BASE = "/_api";
+export const API_BASE = '/_api';
 
 const VALID_MODES: Record<WriteMode, true> = {
-  "read-only": true,
-  "confirm-destructive": true,
-  "unrestricted": true,
+  'read-only': true,
+  'confirm-destructive': true,
+  unrestricted: true,
 };
 
 const VALID_SERVER_MODES: Record<ServerMode, true> = {
@@ -48,7 +48,7 @@ const VALID_SERVER_MODES: Record<ServerMode, true> = {
   docs: true,
 };
 
-const VALID_LOG_LEVELS: Record<string, true> = {
+export const VALID_LOG_LEVELS: Record<string, true> = {
   trace: true,
   debug: true,
   info: true,
@@ -59,53 +59,52 @@ const VALID_LOG_LEVELS: Record<string, true> = {
 };
 
 export function loadConfig(): Config {
-  const serverModeRaw = process.env["AUTOMAD_MODE"] ?? "full";
+  const serverModeRaw = process.env['AUTOMAD_MODE'] ?? 'full';
   if (!(serverModeRaw in VALID_SERVER_MODES)) {
     throw new AutomadMcpError(
-      "VALIDATION",
-      `Invalid AUTOMAD_MODE: ${serverModeRaw}. Must be one of: ${Object.keys(VALID_SERVER_MODES).join(", ")}`,
+      'VALIDATION',
+      `Invalid AUTOMAD_MODE: ${serverModeRaw}. Must be one of: ${Object.keys(VALID_SERVER_MODES).join(', ')}`,
     );
   }
   const mode = serverModeRaw as ServerMode;
 
-  const themesPath = optionalPath("AUTOMAD_THEMES_PATH");
-  const starterKitPath = optionalPath("AUTOMAD_STARTER_KIT_PATH") ?? themesPath;
+  const themesPath = optionalPath('AUTOMAD_THEMES_PATH');
+  const starterKitPath = optionalPath('AUTOMAD_STARTER_KIT_PATH') ?? themesPath;
 
-  const writeModeRaw = process.env["AUTOMAD_WRITE_MODE"] ?? "confirm-destructive";
+  const writeModeRaw = process.env['AUTOMAD_WRITE_MODE'] ?? 'confirm-destructive';
   if (!(writeModeRaw in VALID_MODES)) {
     throw new AutomadMcpError(
-      "VALIDATION",
-      `Invalid write mode in AUTOMAD_WRITE_MODE: ${writeModeRaw}. Must be one of: ${Object.keys(VALID_MODES).join(", ")}`,
+      'VALIDATION',
+      `Invalid write mode in AUTOMAD_WRITE_MODE: ${writeModeRaw}. Must be one of: ${Object.keys(VALID_MODES).join(', ')}`,
     );
   }
 
-  const logLevel = process.env["LOG_LEVEL"] ?? "info";
+  const logLevel = process.env['LOG_LEVEL'] ?? 'info';
   if (!(logLevel in VALID_LOG_LEVELS)) {
     throw new AutomadMcpError(
-      "VALIDATION",
-      `Invalid LOG_LEVEL: ${logLevel}. Must be one of: ${Object.keys(VALID_LOG_LEVELS).join(", ")}`,
+      'VALIDATION',
+      `Invalid LOG_LEVEL: ${logLevel}. Must be one of: ${Object.keys(VALID_LOG_LEVELS).join(', ')}`,
     );
   }
 
-  let url = "";
-  let username = "";
-  let password = "";
+  let url = '';
+  let username = '';
+  let password = '';
   let liveEnabled = false;
 
-  if (mode === "full") {
-    url = validateUrl(required("AUTOMAD_URL"));
-    username = required("AUTOMAD_USER");
-    password = required("AUTOMAD_PASS");
+  if (mode === 'full') {
+    url = validateUrl(required('AUTOMAD_URL'));
+    username = required('AUTOMAD_USER');
+    password = required('AUTOMAD_PASS');
     liveEnabled = true;
   } else {
     // docs mode: credentials optional. If a URL is supplied, still validate it.
-    const rawUrl = process.env["AUTOMAD_URL"];
+    const rawUrl = process.env['AUTOMAD_URL'];
     if (rawUrl) url = validateUrl(rawUrl);
-    username = process.env["AUTOMAD_USER"] ?? "";
-    password = process.env["AUTOMAD_PASS"] ?? "";
+    username = process.env['AUTOMAD_USER'] ?? '';
+    password = process.env['AUTOMAD_PASS'] ?? '';
     liveEnabled = false;
   }
-
 
   return {
     mode,
@@ -117,7 +116,7 @@ export function loadConfig(): Config {
     liveEnabled,
     themesPath,
     starterKitPath,
-    requestTimeoutMs: parsePositiveInt(process.env["AUTOMAD_REQUEST_TIMEOUT_MS"], 30_000),
+    requestTimeoutMs: parsePositiveInt(process.env['AUTOMAD_REQUEST_TIMEOUT_MS'], 30_000),
   };
 }
 
@@ -131,7 +130,7 @@ function parsePositiveInt(raw: string | undefined, fallback: number): number {
 function required(name: string): string {
   const value = process.env[name];
   if (!value) {
-    throw new AutomadMcpError("VALIDATION", `Missing required environment variable: ${name}`);
+    throw new AutomadMcpError('VALIDATION', `Missing required environment variable: ${name}`);
   }
   return value;
 }
@@ -149,10 +148,10 @@ function validateUrl(raw: string): string {
   try {
     parsed = new URL(raw);
   } catch {
-    throw new AutomadMcpError("VALIDATION", `AUTOMAD_URL is not a valid URL: ${raw}`);
+    throw new AutomadMcpError('VALIDATION', `AUTOMAD_URL is not a valid URL: ${raw}`);
   }
-  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-    throw new AutomadMcpError("VALIDATION", `AUTOMAD_URL must use http or https: ${raw}`);
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    throw new AutomadMcpError('VALIDATION', `AUTOMAD_URL must use http or https: ${raw}`);
   }
-  return raw.replace(/\/+$/, "");
+  return raw.replace(/\/+$/, '');
 }

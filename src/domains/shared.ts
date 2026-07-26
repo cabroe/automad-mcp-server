@@ -1,14 +1,14 @@
-import { AutomadMcpError } from "../errors.js";
-import { API_BASE } from "../config.js";
-import type { HttpClient } from "../client.js";
-import type { WriteGuard, WriteAction } from "../write-guard.js";
-import type { SharedInput } from "../schemas.js";
+import { AutomadMcpError } from '../errors.js';
+import { API_BASE } from '../config.js';
+import type { HttpClient } from '../client.js';
+import type { WriteGuard, WriteAction } from '../write-guard.js';
+import type { SharedInput } from '../schemas.js';
 
-type SharedAction = SharedInput["action"];
+type SharedAction = SharedInput['action'];
 
 const ACTION_MAP: Record<SharedAction, WriteAction> = {
-  get: "shared.get",
-  set: "shared.set",
+  get: 'shared.get',
+  set: 'shared.set',
 };
 
 export async function handleShared(
@@ -16,20 +16,20 @@ export async function handleShared(
   client: HttpClient,
   guard: WriteGuard,
 ): Promise<unknown> {
-  const permit = guard.check(ACTION_MAP[input.action], "/", input.confirm_token);
+  const permit = guard.check(ACTION_MAP[input.action], '/', input.confirm_token);
   if (permit.allowed === false) {
-    throw new AutomadMcpError("FORBIDDEN", permit.reason);
+    throw new AutomadMcpError('FORBIDDEN', permit.reason);
   }
-  if (permit.allowed === "pending") {
+  if (permit.allowed === 'pending') {
     return permit;
   }
 
   switch (input.action) {
-    case "get":
+    case 'get':
       return client.post(`${API_BASE}/shared/data`, {});
-    case "set": {
+    case 'set': {
       if (!input.fields) {
-        throw new AutomadMcpError("VALIDATION", "fields is required for set");
+        throw new AutomadMcpError('VALIDATION', 'fields is required for set');
       }
       return client.post(`${API_BASE}/shared/data`, { data: input.fields });
     }

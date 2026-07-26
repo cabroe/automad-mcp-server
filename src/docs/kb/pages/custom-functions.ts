@@ -1,10 +1,10 @@
-import type { DocPage } from "../../kb.js";
+import type { DocPage } from '../../kb.js';
 
 export const page: DocPage = {
-  slug: "custom-functions",
-  title: "Custom functions (CustomFunction registry)",
-  tags: ["function", "CustomFunction", "registry", "t", "i18n"],
-  reference: "https://automad.org/developer-guide/developing-extensions",
+  slug: 'custom-functions',
+  title: 'Custom functions (CustomFunction registry)',
+  tags: ['function', 'CustomFunction', 'registry', 't', 'i18n'],
+  reference: 'https://automad.org/developer-guide/developing-extensions',
   body: `# Custom functions
 
 The Automad template engine looks up \`<@ myFn { ... } @>\` via a **registry**, not

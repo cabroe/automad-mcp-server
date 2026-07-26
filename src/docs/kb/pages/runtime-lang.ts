@@ -1,10 +1,11 @@
-import type { DocPage } from "../../kb.js";
+import type { DocPage } from '../../kb.js';
 
 export const page: DocPage = {
-  slug: "runtime-lang",
-  title: "Runtime :lang vs per-page textLanguage",
-  tags: ["lang", "i18n", "textLanguage", "AM_I18N_ENABLED"],
-  reference: "https://automad.org/developer-guide/building-themes/template-language/multilingual-content",
+  slug: 'runtime-lang',
+  title: 'Runtime :lang vs per-page textLanguage',
+  tags: ['lang', 'i18n', 'textLanguage', 'AM_I18N_ENABLED'],
+  reference:
+    'https://automad.org/developer-guide/building-themes/template-language/multilingual-content',
   body: `# Runtime \`:lang\` vs per-page \`textLanguage\`
 
 A common confusion: setting \`textLanguage\` on a page does NOT change

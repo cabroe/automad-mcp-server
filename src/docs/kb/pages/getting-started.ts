@@ -1,10 +1,10 @@
-import type { DocPage } from "../../kb.js";
+import type { DocPage } from '../../kb.js';
 
 export const page: DocPage = {
-  slug: "getting-started",
-  title: "Getting started",
-  tags: ["install", "docker", "packages", "setup", "requirements"],
-  reference: "https://automad.org/getting-started",
+  slug: 'getting-started',
+  title: 'Getting started',
+  tags: ['install', 'docker', 'packages', 'setup', 'requirements'],
+  reference: 'https://automad.org/getting-started',
   body: `# Getting started
 
 ## Docker (fastest)

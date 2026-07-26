@@ -1,14 +1,14 @@
 export type AutomadErrorCode =
-  | "AUTH"
-  | "FORBIDDEN"
-  | "NOT_FOUND"
-  | "VALIDATION"
-  | "CONFLICT"
-  | "BUILD"
-  | "NETWORK"
-  | "RATE_LIMITED"
-  | "UNSUPPORTED"
-  | "UNKNOWN";
+  | 'AUTH'
+  | 'FORBIDDEN'
+  | 'NOT_FOUND'
+  | 'VALIDATION'
+  | 'CONFLICT'
+  | 'BUILD'
+  | 'NETWORK'
+  | 'RATE_LIMITED'
+  | 'UNSUPPORTED'
+  | 'UNKNOWN';
 
 export class AutomadMcpError extends Error {
   constructor(
@@ -17,7 +17,7 @@ export class AutomadMcpError extends Error {
     public readonly details?: unknown,
   ) {
     super(message);
-    this.name = "AutomadMcpError";
+    this.name = 'AutomadMcpError';
   }
 }
 
@@ -34,7 +34,7 @@ export function errorToJson(err: unknown): SerializedError {
     return out;
   }
   if (err instanceof Error) {
-    return { code: "UNKNOWN", message: err.message };
+    return { code: 'UNKNOWN', message: err.message };
   }
-  return { code: "UNKNOWN", message: String(err) };
+  return { code: 'UNKNOWN', message: String(err) };
 }

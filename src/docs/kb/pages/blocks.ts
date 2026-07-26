@@ -1,10 +1,10 @@
-import type { DocPage } from "../../kb.js";
+import type { DocPage } from '../../kb.js';
 
 export const page: DocPage = {
-  slug: "blocks",
-  title: "Blocks",
-  tags: ["blocks", "editor", "pagelist", "section", "columns", "content"],
-  reference: "https://automad.org/user-guide/using-blocks",
+  slug: 'blocks',
+  title: 'Blocks',
+  tags: ['blocks', 'editor', 'pagelist', 'section', 'columns', 'content'],
+  reference: 'https://automad.org/user-guide/using-blocks',
   body: `# Blocks
 
 Content is authored in the block editor and rendered where a template places a
