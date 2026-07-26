@@ -1,4 +1,4 @@
-## [0.7.4] - 2026-07-26
+## [0.7.5] - 2026-07-26
 
 ### Changed
 - **Package renamed: `@automadcms/mcp-server` → `automad-mcp-server`** (drop the scope).
@@ -74,10 +74,8 @@
  schema validation before dispatch, and dispatch into the domain routers.
 - `tests/unit/drift.test.ts` rewritten around the derivations: Zod enum values
  vs. advertised actions, guard sets vs. registry flags, internal actions hidden
- from every advertised surface, and real `WriteGuard` behavior per write mode.
-
-## [0.7.4] - 2026-07-26
-
+ 
+## [0.7.1] - 2026-07-26
 ### Added
 - **Theme dev server** — `automad_theme` gains `dev` / `dev_stop` / `dev_status`
  actions. `dev` runs `npm run dev` as a **detached background process**, writes
