@@ -165,7 +165,7 @@ export class AuthManager implements AuthProvider {
       throw new AutomadMcpError('AUTH', `Login probe failed: ${body.error}`, { retryable: false });
     }
     // For a logged-in session, /app/bootstrap returns {code: 200, data: {sitename, ...}}.
-    if (!body?.data?.sitename) {
+    if (typeof body?.data?.sitename !== 'string') {
       throw new AutomadMcpError(
         'AUTH',
         'Login probe failed: session is not authenticated (no sitename in response data)',

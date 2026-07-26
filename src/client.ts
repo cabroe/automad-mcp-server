@@ -142,12 +142,21 @@ export class HttpClient {
       const init: RequestInit = { method, headers };
       if (body !== undefined) init.body = body;
       // Per-request timeout (AbortController). 0 disables. Default 30s, override via AUTOMAD_REQUEST_TIMEOUT_MS.
+      let timer: ReturnType<typeof setTimeout> | undefined;
       if (timeoutMs > 0) {
         const ac = new AbortController();
         init.signal = ac.signal;
-        setTimeout(() => ac.abort(), timeoutMs).unref();
+        timer = setTimeout(() => ac.abort(), timeoutMs);
+        if (typeof timer === 'object' && timer && 'unref' in timer) {
+          (timer as { unref: () => void }).unref();
+        }
       }
-      const res = await fetch(url, init);
+      let res: Response;
+      try {
+        res = await fetch(url, init);
+      } finally {
+        if (timer !== undefined) clearTimeout(timer);
+      }
 
       // Detect v2's "session is dead" marker BEFORE the regular retry/error
       // handling. v2 returns 200 OK with `{data: {message: "No session"}}` when

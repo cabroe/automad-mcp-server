@@ -90,6 +90,12 @@ export class WriteGuard {
       return { allowed: true };
     }
 
+    if (this.pending.size > 50) {
+      const now = Date.now();
+      for (const [k, v] of this.pending.entries()) {
+        if (v.expiresAt < now) this.pending.delete(k);
+      }
+    }
     const token = randomUUID();
     const expiresAt = Date.now() + this.ttlMs;
     this.pending.set(token, { token, action, target, expiresAt });

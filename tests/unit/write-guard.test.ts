@@ -164,6 +164,20 @@ describe('WriteGuard', () => {
     const ok = guard.check('pages.delete', '/a', pending.confirmToken);
     expect(ok.allowed).toBe(true);
   });
+  it('prunes expired pending entries when map exceeds threshold', async () => {
+    const shortGuard = new WriteGuard(
+      { ...emptyCfg(), writeMode: 'confirm-destructive' },
+      { ttlMs: 10 },
+    );
+    // Fill 52 tokens that expire in 10ms
+    for (let i = 0; i < 52; i++) {
+      shortGuard.check('pages.delete', `/target-${i}`);
+    }
+    await new Promise((res) => setTimeout(res, 20));
+    // Trigger check 53 (prune sweep occurs)
+    const fresh = shortGuard.check('pages.delete', '/fresh');
+    expect(fresh.allowed).toBe('pending');
+  });
 });
 
 function emptyCfg(): Config {
