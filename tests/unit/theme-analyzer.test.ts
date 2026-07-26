@@ -237,9 +237,8 @@ describe("main snippet detection", () => {
     });
     const result = await analyzer().validate("snippet-bucket");
     expect(result.findings.some((f) => f.code === "MAIN_SNIPPET_UNDEFINED")).toBe(false);
-    // The second pass runs the define probe ONLY: no field extraction, no truncation findings.
+    // The second pass runs the define probe ONLY: no field extraction.
     expect(result.findings.some((f) => f.code === "FIELD_NOT_MASKED" && f.message.includes("snippetOnlyField"))).toBe(false);
-    expect(result.findings.some((f) => f.code === "SOURCE_TRUNCATED")).toBe(false);
   });
 
   it("still flags MAIN_SNIPPET_UNDEFINED when unscanned buckets hold no definition", async () => {
@@ -253,6 +252,22 @@ describe("main snippet detection", () => {
     expect(finding).toBeDefined();
     expect(finding?.severity).toBe("warning");
     expect(finding?.path).toBe("default.php");
+  });
+
+  it("caps oversized snippets/ sources silently while still warning for scanned templates", async () => {
+    // Both bodies exceed the injected 32-byte cap; the snippet keeps its define within
+    // the first 32 bytes so the truncation itself cannot change the define outcome.
+    await writeTheme("cap", {
+      "theme.json": JSON.stringify({ name: "Cap", masks: { page: [], shared: [] } }),
+      "default.php": "<main><@ main @></main><!-- padding beyond the cap -->",
+      "snippets/main.php": "<@ snippet main @><!-- padding beyond the cap -->",
+    });
+    const result = await new ThemeAnalyzer({ fs: new LocalThemeFs(), themesPath: themes, maxSourceBytes: 32 }).validate("cap");
+    const truncated = result.findings.filter((f) => f.code === "SOURCE_TRUNCATED");
+    // Positive control: the cap really is active at this threshold for the scanned bucket.
+    expect(truncated.map((f) => f.path)).toContain("default.php");
+    // The define-only second pass caps silently — it never raises SOURCE_TRUNCATED.
+    expect(truncated.some((f) => f.path === "snippets/main.php")).toBe(false);
   });
 });
 

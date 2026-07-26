@@ -40,9 +40,10 @@ const DEF_FALLBACK_RE = /\bdef\s*\(/;
 const REQUIRED_BUILD_MARKERS = ["package.json", "client/index.ts", "client/styles", "esbuild.js"];
 
 export class ThemeAnalyzer {
-  constructor(private readonly deps: { fs: ThemeFs; themesPath: string }) {}
+  constructor(private readonly deps: { fs: ThemeFs; themesPath: string; maxSourceBytes?: number }) {}
 
   async analyze(theme: string): Promise<ThemeAnalysis> {
+    const maxSourceBytes = this.deps.maxSourceBytes ?? MAX_SOURCE_BYTES;
     const themePath = await this.resolveTheme(theme);
     const files = await this.discoverFiles(themePath);
     const issues: ThemeFinding[] = [];
@@ -71,9 +72,9 @@ export class ThemeAnalyzer {
     const sourceMap = new Map<string, Set<string>>();
     for (const relPath of [...files.templates, ...files.components, ...files.blocks]) {
       let source = await this.deps.fs.readFile(path.join(themePath, relPath));
-      if (Buffer.byteLength(source, "utf8") > MAX_SOURCE_BYTES) {
-        issues.push({ severity: "warning", code: "SOURCE_TRUNCATED", message: `source exceeded ${MAX_SOURCE_BYTES} bytes and was truncated`, path: relPath });
-        source = Buffer.from(source, "utf8").subarray(0, MAX_SOURCE_BYTES).toString("utf8");
+      if (Buffer.byteLength(source, "utf8") > maxSourceBytes) {
+        issues.push({ severity: "warning", code: "SOURCE_TRUNCATED", message: `source exceeded ${maxSourceBytes} bytes and was truncated`, path: relPath });
+        source = Buffer.from(source, "utf8").subarray(0, maxSourceBytes).toString("utf8");
       }
       for (const match of source.matchAll(FIELD_RE)) {
         const field = match[1];
@@ -95,8 +96,8 @@ export class ThemeAnalyzer {
     for (const relPath of [...files.lib, ...files.other.filter((p) => p.startsWith("snippets/"))]) {
       if (!relPath.endsWith(".php")) continue;
       const source = await this.deps.fs.readFile(path.join(themePath, relPath));
-      const capped = Buffer.byteLength(source, "utf8") > MAX_SOURCE_BYTES
-        ? Buffer.from(source, "utf8").subarray(0, MAX_SOURCE_BYTES).toString("utf8")
+      const capped = Buffer.byteLength(source, "utf8") > maxSourceBytes
+        ? Buffer.from(source, "utf8").subarray(0, maxSourceBytes).toString("utf8")
         : source;
       if (MAIN_SNIPPET_DEFINE_RE.test(capped)) mainSnippetDefinedIn.push(relPath);
     }
