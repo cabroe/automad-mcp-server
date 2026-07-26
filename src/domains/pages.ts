@@ -119,7 +119,12 @@ export async function handlePages(
       if (input.template) payload['theme_template'] = input.template;
       if (input.private !== undefined) payload['private'] = input.private;
       const created = (await client.post(`${API_BASE}/page/add`, payload)) as { redirect?: string };
-      const slug = extractSlugFromRedirect(created.redirect) ?? input.url;
+      const rawSlug = extractSlugFromRedirect(created.redirect);
+      const slug = rawSlug
+        ? rawSlug.startsWith('/')
+          ? rawSlug
+          : `/${rawSlug}`
+        : input.url;
       if (slug && input.publish !== false) await publishAndWait(client, slug, slug);
       return { ok: true, url: slug, ...created };
     }
@@ -280,7 +285,11 @@ async function updateOnePage(
   const payload: Record<string, unknown> = { url: item.url, data };
   if (item.template) payload['theme_template'] = item.template;
   const saved = (await client.post(`${API_BASE}/page/data`, payload)) as { slug?: string };
-  const resultingUrl = saved.slug ? `/${saved.slug}` : item.url;
+  const resultingUrl = saved.slug
+    ? saved.slug.startsWith('/')
+      ? saved.slug
+      : `/${saved.slug}`
+    : item.url;
   if (item.publish !== false) await publishAndWait(client, item.url, resultingUrl);
   return { ok: true, url: resultingUrl };
 }

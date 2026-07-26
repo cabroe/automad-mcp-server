@@ -83,6 +83,16 @@ export async function handleSite(
         if (permit.allowed === 'pending') return permit;
         if (permit.allowed === false) throw new AutomadMcpError('FORBIDDEN', permit.reason);
       }
+      if (input.is_regex) {
+        try {
+          new RegExp(input.query);
+        } catch (err) {
+          throw new AutomadMcpError(
+            'VALIDATION',
+            `Invalid regex pattern in query: ${err instanceof Error ? err.message : String(err)}`,
+          );
+        }
+      }
       const payload: Record<string, unknown> = {
         searchValue: input.query,
         isRegex: input.is_regex ?? false,

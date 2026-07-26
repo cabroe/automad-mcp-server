@@ -49,7 +49,8 @@ export function resolveInTheme(
   const themesRoot = path.resolve(themesPath);
   const themeRoot = assertWithinRoot(themesRoot, path.resolve(themesRoot, theme));
   const target = assertWithinRoot(themeRoot, path.resolve(themeRoot, cleanRel));
-  return { abs: target, rel: path.relative(themeRoot, target) };
+  const rel = path.relative(themeRoot, target).replace(/\\/g, '/');
+  return { abs: target, rel };
 }
 
 export interface ListFilesOptions {

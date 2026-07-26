@@ -96,6 +96,16 @@ describe('handleSite (v2 /_api)', () => {
       replaceValue: 'bar',
     });
   });
+  it('search with is_regex rejects invalid regex pattern with VALIDATION', async () => {
+    const c = mockClient();
+    await expect(
+      handleSite(
+        { action: 'search', query: '[unclosed', is_regex: true },
+        c,
+        new WriteGuard(cfg()),
+      ),
+    ).rejects.toMatchObject({ code: 'VALIDATION' });
+  });
 
   it('search with replace requires a confirm_token in confirm-destructive mode', async () => {
     const c = mockClient();
