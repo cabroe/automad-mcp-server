@@ -83,16 +83,17 @@ docs/index.html          GitHub Pages landing page (https://cabroe.github.io/aut
 | `AUTOMAD_URL` | full mode | Base URL of the Automad v2 site; validated as http(s), trailing slash stripped |
 | `AUTOMAD_USER` | full mode | Dashboard username (sent as `name-or-email`) |
 | `AUTOMAD_PASS` | full mode | Dashboard password (no bearer-token support in v2) |
-| `AUTOMAD_THEMES_PATH` | optional | Absolute path to the local themes directory (enables `automad_theme`) |
-| `AUTOMAD_STARTER_KIT_PATH` | optional | Starter-kit template path for `theme.scaffold` (defaults to `AUTOMAD_THEMES_PATH`) |
+| `AUTOMAD_THEMES_PATH` | no | Absolute path to the local themes directory; defaults to `<cwd>/automad-themes` so `automad_theme` always works |
+| `AUTOMAD_STARTER_KIT_PATH` | no | Starter-kit template path for `theme.scaffold`; defaults to the starter kit bundled in `templates/starter-kit` |
 | `AUTOMAD_WRITE_MODE` | no | `read-only` \| `confirm-destructive` (default) \| `unrestricted` |
 | `LOG_LEVEL` | no | Pino log level (default `info`); validated in `config.ts` against the static `VALID_LOG_LEVELS` set (`trace`/`debug`/`info`/`warn`/`error`/`fatal`/`silent`) |
 
 `config.ts` sets `liveEnabled = (mode === "full")`. In `docs` mode the live-API
 tools throw `UNSUPPORTED` (gated in `server.ts` via `liveGate()`); `automad_docs`
-always works and `automad_theme` works when `AUTOMAD_THEMES_PATH` is set.
-If `AUTOMAD_THEMES_PATH` is unset, the server still starts; the `automad_theme`
-tool returns `isError code=UNSUPPORTED` for every action with a clear message.
+and `automad_theme` always work. `AUTOMAD_THEMES_PATH` defaults to
+`<cwd>/automad-themes` (resolved in `config.ts`), so `themeDeps` is always wired
+and `theme.scaffold` needs no configuration — it copies the bundled starter kit
+(`templates/starter-kit`, via `BUNDLED_STARTER_KIT_PATH`).
 
 ## Authentication model (v2 only)
 
@@ -277,12 +278,12 @@ implementation; treat them as load-bearing constraints:
 | `automad_config` | `get` `set` | `/_api/app/bootstrap`, `/_api/config/update` (type discriminator) |
 | `automad_site` | `info` `search` `health` | `/_api/app/bootstrap` (info/health), `/_api/search/search-replace` (`search` becomes `site.search_replace` and requires a confirm token when `replace` is set) |
 | `automad_docs` | `list` `search` `get` | offline bundled KB (`docs/kb.ts`); no HTTP, works in docs mode |
-| `automad_theme` | `list` `install` `activate` `uninstall` `scaffold` `build` `read` `write` `files` `analyze` `validate` `schema` `diff` `generate` | local FS (`AUTOMAD_THEMES_PATH`); `diff` previews a write, `generate` returns snippet/block content, `build` runs composer (if present) + npm |
+| `automad_theme` | `list` `install` `activate` `uninstall` `scaffold` `build` `read` `write` `files` `analyze` `validate` `schema` `diff` `generate` | local FS (themes dir, default `<cwd>/automad-themes`); `diff` previews a write, `generate` returns snippet/block content, `build` runs composer (if present) + npm |
 | `automad_discover` | `list` `describe` | reads `capabilities/registry.ts` + `TOOL_INPUT_SCHEMAS` in-process (same source the server registers from); no HTTP, works in docs mode |
 
-`automad_theme` is **disabled** (returns `isError code=UNSUPPORTED`) when
-`AUTOMAD_THEMES_PATH` is unset. The five live-API tools are disabled in
-`AUTOMAD_MODE=docs`. `automad_docs` and `automad_discover` always work.
+`automad_theme` always works (themes dir defaults to `<cwd>/automad-themes`).
+The five live-API tools are disabled in `AUTOMAD_MODE=docs`. `automad_docs` and
+`automad_discover` always work.
 
 ### Resources
 
@@ -291,7 +292,7 @@ Four read-only MCP resources (registered in `server.ts`; themes backed by
 
 | URI | Contents |
 |---|---|
-| `automad://themes` | JSON list of discovered themes (slug, name, path, manifest); empty when `AUTOMAD_THEMES_PATH` unset |
+| `automad://themes` | JSON list of discovered themes (slug, name, path, manifest); empty until a theme exists in the themes dir |
 | `automad://themes/{slug}/schema` | Normalized theme schema (via `ThemeAnalyzer` → `ThemeSchemaBuilder`) |
 | `automad://docs` | JSON index of bundled knowledge-base pages |
 | `automad://docs/{slug}` | Markdown body of one knowledge-base page |

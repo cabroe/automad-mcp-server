@@ -31,13 +31,13 @@ describe('loadConfig', () => {
     expect(cfg.starterKitPath).toMatch(/templates[/\\]starter-kit$/); // default = bundled starter kit
   });
 
-  it('does NOT require AUTOMAD_THEMES_PATH (theme tool is optional)', () => {
+  it('defaults AUTOMAD_THEMES_PATH to <cwd>/automad-themes (theme tool always works)', () => {
     process.env['AUTOMAD_URL'] = 'https://x';
     process.env['AUTOMAD_USER'] = 'u';
     process.env['AUTOMAD_PASS'] = 'p';
     expect(() => loadConfig()).not.toThrow();
     const cfg = loadConfig();
-    expect(cfg.themesPath).toBeUndefined();
+    expect(cfg.themesPath).toMatch(/automad-themes$/);
     expect(cfg.starterKitPath).toMatch(/templates[/\\]starter-kit$/); // bundled default even without themes
   });
 

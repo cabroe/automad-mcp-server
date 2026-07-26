@@ -117,8 +117,8 @@ npm run build                 # outputs dist/index.js
 #      AUTOMAD_URL             = https://your-site.example.com
 #      AUTOMAD_USER            = admin
 #      AUTOMAD_PASS            = <password>
-#      AUTOMAD_THEMES_PATH     = /absolute/path/to/automad/packages
-#      AUTOMAD_STARTER_KIT_PATH= /absolute/path/to/automad-theme-starter-kit
+#      AUTOMAD_THEMES_PATH     = /absolute/path/to/automad/packages   # optional; default <cwd>/automad-themes
+#      AUTOMAD_STARTER_KIT_PATH= /absolute/path/to/automad-theme-starter-kit  # optional; default = bundled kit
 #      AUTOMAD_WRITE_MODE      = confirm-destructive   # or: unrestricted | read-only
 
 # 4. Sanity-check the install: the server should start without crashing
@@ -154,12 +154,12 @@ All configuration is via environment variables.
 | `AUTOMAD_URL` | full | — | Base URL of the site, e.g. `https://blog.example.com` (validated as http/https) |
 | `AUTOMAD_USER` | full | — | Dashboard username (sent as `name-or-email`) |
 | `AUTOMAD_PASS` | full | — | Dashboard password |
-| `AUTOMAD_THEMES_PATH` | for theme tool | — | Absolute path to the local themes directory (Automad's `packages`) |
-| `AUTOMAD_STARTER_KIT_PATH` | no | = themes path | Local [starter-kit](https://github.com/automadcms/automad-theme-starter-kit) checkout used by `theme.scaffold` |
+| `AUTOMAD_THEMES_PATH` | no | `<cwd>/automad-themes` | Absolute path to the local themes directory (Automad's `packages`). Defaults to `automad-themes/` in the working directory, so `theme.scaffold` works with zero config |
+| `AUTOMAD_STARTER_KIT_PATH` | no | bundled kit | Local [starter-kit](https://github.com/automadcms/automad-theme-starter-kit) checkout used by `theme.scaffold`. Defaults to the [starter kit](https://github.com/automadcms/automad-theme-starter-kit) bundled with this package |
 | `AUTOMAD_WRITE_MODE` | no | `confirm-destructive` | `read-only` · `confirm-destructive` · `unrestricted` |
 | `LOG_LEVEL` | no | `info` | `trace` · `debug` · `info` · `warn` · `error` · `fatal` · `silent` |
 
-In **`docs` mode** the live-API tools (`pages`, `media`, `shared`, `config`, `site`) return `UNSUPPORTED`; `automad_docs` and `automad_discover` always work, and (when `AUTOMAD_THEMES_PATH` is set) `automad_theme` does too. Invalid `AUTOMAD_URL` / `LOG_LEVEL` / `AUTOMAD_MODE` fail fast at startup.
+In **`docs` mode** the live-API tools (`pages`, `media`, `shared`, `config`, `site`) return `UNSUPPORTED`; `automad_docs`, `automad_discover`, and `automad_theme` always work. Invalid `AUTOMAD_URL` / `LOG_LEVEL` / `AUTOMAD_MODE` fail fast at startup.
 
 > [!IMPORTANT]
 > **v2 has no bearer-token auth.** All authenticated calls use a PHP session cookie + a CSRF token scraped from the dashboard HTML.
@@ -308,7 +308,7 @@ Pair it with `confirm_token` flow when `AUTOMAD_WRITE_MODE=confirm-destructive`.
 | `automad://docs` | JSON index of the bundled knowledge-base pages |
 | `automad://docs/{slug}` | Markdown body of one page (e.g. `automad://docs/template-syntax`) |
 
-`{slug}` must match `^[a-z0-9._-]+$`; invalid slugs return `NOT_FOUND`. Theme resources need `AUTOMAD_THEMES_PATH` for meaningful output.
+`{slug}` must match `^[a-z0-9._-]+$`; invalid slugs return `NOT_FOUND`. Theme resources read from the themes directory (`AUTOMAD_THEMES_PATH`, default `<cwd>/automad-themes`) and list nothing until a theme exists there.
 
 **Prompts** (arguments are strings, per the MCP prompt contract):
 
@@ -402,10 +402,10 @@ via the API — it's set in the dashboard.
 Generator kinds: `nav` · `pagelist` · `breadcrumbs` · `component` · `block` · `i18n` · `snippet`.
 
 <details>
-<summary>Setting up the Starter Kit for <code>theme.scaffold</code></summary>
-`theme.scaffold` copies a **local** directory into `AUTOMAD_THEMES_PATH/<slug>` and rewrites `theme.json` + `package.json` — it does not fetch the starter kit itself. `AUTOMAD_STARTER_KIT_PATH` must already point at a local checkout. Before copying, `scaffold` verifies the starter kit has the canonical layout (`theme.json`, `components/`, `blocks/`, `client/index.ts`, `esbuild.js`); missing entries fail with `VALIDATION` and no files are written.
+<summary>Using a custom Starter Kit for <code>theme.scaffold</code></summary>
+`theme.scaffold` ships with the full [Automad theme starter kit](https://github.com/automadcms/automad-theme-starter-kit) **bundled inside the package** (`templates/starter-kit`), so it works out of the box — no download, no `AUTOMAD_STARTER_KIT_PATH`. It copies the kit into `AUTOMAD_THEMES_PATH/<slug>` (default `<cwd>/automad-themes/<slug>`) and rewrites `theme.json` + `package.json`. Before copying, it verifies the kit has the canonical layout (`theme.json`, `components/`, `blocks/`, `client/index.ts`, `esbuild.js`, `bin/dev.sh`, `bin/server.sh`); missing entries fail with `VALIDATION` and no files are written.
 
-**Option A — clone anywhere, point at it directly:**
+Set `AUTOMAD_STARTER_KIT_PATH` only to override the bundled kit with your own local checkout:
 
 ```bash
 git clone --depth 1 https://github.com/automadcms/automad-theme-starter-kit.git ~/automad-starter-kit
@@ -413,17 +413,6 @@ git clone --depth 1 https://github.com/automadcms/automad-theme-starter-kit.git 
 ```json
 "AUTOMAD_STARTER_KIT_PATH": "/Users/you/automad-starter-kit"
 ```
-
-**Option B — stage it inside the themes path via `theme.install`** (prefix with `_` so it's clearly not a real theme):
-
-```jsonc
-{ "action": "install", "source": "https://github.com/automadcms/automad-theme-starter-kit", "theme": "_starter-kit-template" }
-```
-```json
-"AUTOMAD_STARTER_KIT_PATH": "/app/packages/_starter-kit-template"
-```
-
-Only `theme.scaffold` rewrites manifest metadata — `theme.install` is a plain clone/copy. Don't activate `_starter-kit-template` itself.
 </details>
 
 ## Editor setup
@@ -443,7 +432,6 @@ Add to `claude_desktop_config.json` (macOS: `~/Library/Application Support/Claud
         "AUTOMAD_USER": "admin",
         "AUTOMAD_PASS": "your-password",
         "AUTOMAD_THEMES_PATH": "/app/packages",
-        "AUTOMAD_STARTER_KIT_PATH": "/path/to/automad-theme-starter-kit",
         "AUTOMAD_WRITE_MODE": "confirm-destructive"
       }
     }
@@ -461,7 +449,7 @@ To run a local build instead: `"command": "node", "args": ["/absolute/path/to/di
     "automad-docs": {
       "command": "node",
       "args": ["/absolute/path/to/automad-mcp-server/dist/index.js"],
-      "env": { "AUTOMAD_MODE": "docs", "AUTOMAD_THEMES_PATH": "/app/packages" }
+      "env": { "AUTOMAD_MODE": "docs" }
     }
   }
 }

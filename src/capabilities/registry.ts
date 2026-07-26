@@ -140,9 +140,9 @@ const CAPABILITY_SPECS = {
     title: 'Theme',
     summary: 'Manage and inspect local themes.',
     description:
-      'Local-filesystem theme tooling (requires AUTOMAD_THEMES_PATH). ' +
+      'Local-filesystem theme tooling (zero config: themes default to `<cwd>/automad-themes`, override with AUTOMAD_THEMES_PATH). ' +
       'list/install/activate/uninstall/scaffold/build/dev/dev_stop/dev_status, plus read/write/files for theme files (theme.json, .php, blocks/, .ts). ' +
-      'Scaffold copies the starter kit into a new theme dir; build runs `npm install` + `npm run build`; dev runs `npm install` (if needed) + `npm run dev` as a detached process.',
+      'Scaffold copies the bundled starter kit into a new theme dir; build runs `npm install` + `npm run build`; dev runs `npm install` (if needed) + `npm run dev` as a detached process.',
     requires: 'themes',
     actions: {
       list: read('List themes.'),

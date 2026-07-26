@@ -38,7 +38,7 @@ export interface ToolContext {
   readonly client: HttpClient;
   readonly guard: WriteGuard;
   readonly config: Config;
-  /** Present only when `AUTOMAD_THEMES_PATH` is configured. */
+  /** Theme tooling deps; always present since themes default to `<cwd>/automad-themes`. */
   readonly themeDeps?: ThemeHandlerDeps | undefined;
 }
 

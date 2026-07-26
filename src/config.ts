@@ -1,3 +1,4 @@
+import * as path from 'node:path';
 import { AutomadMcpError } from './errors.js';
 import { BUNDLED_STARTER_KIT_PATH } from './theme/starter-kit.js';
 
@@ -74,7 +75,11 @@ export function loadConfig(): Config {
   }
   const mode = serverModeRaw as ServerMode;
 
-  const themesPath = optionalPath('AUTOMAD_THEMES_PATH');
+  // Theme tooling always works: fall back to `<cwd>/automad-themes` so
+  // `theme.scaffold` needs zero config. Override with AUTOMAD_THEMES_PATH to
+  // point at a live Automad install's `packages/` dir.
+  const themesPath =
+    optionalPath('AUTOMAD_THEMES_PATH') ?? path.resolve(process.cwd(), 'automad-themes');
   const starterKitPath = optionalPath('AUTOMAD_STARTER_KIT_PATH') ?? BUNDLED_STARTER_KIT_PATH;
 
   const writeModeRaw = process.env['AUTOMAD_WRITE_MODE'] ?? 'confirm-destructive';

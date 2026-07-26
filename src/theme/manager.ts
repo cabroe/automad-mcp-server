@@ -41,8 +41,10 @@ export class ThemeManager {
   /** List all themes found as direct subdirectories of `themesPath`. */
   async list(): Promise<ThemeInfo[]> {
     const { fs, themesPath } = this.deps;
+    // A not-yet-created themes dir (e.g. the zero-config default) simply has no
+    // themes yet — return empty rather than erroring.
     if (!(await fs.exists(themesPath))) {
-      throw new AutomadMcpError('NOT_FOUND', `themesPath not found: ${themesPath}`);
+      return [];
     }
     const entries = await listDirs(themesPath);
     const themes: ThemeInfo[] = [];
