@@ -38,6 +38,24 @@
  vs. advertised actions, guard sets vs. registry flags, internal actions hidden
  from every advertised surface, and real `WriteGuard` behavior per write mode.
 
+## [0.7.3] - 2026-07-26
+
+### Added
+
+### Changed
+
+### Fixed
+
+
+## [0.7.2] - 2026-07-26
+
+### Added
+
+### Changed
+
+### Fixed
+
+
 ## [0.7.1] - 2026-07-26
 
 ### Added
