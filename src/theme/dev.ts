@@ -17,7 +17,7 @@ export const DEV_RECORD = 'dev.json';
 export const DEV_LOG = 'dev.log';
 export const LOG_CAP_BYTES = 1_048_576;
 export const LOG_TAIL_KEEP = 256 * 1024;
-export const PORT_REGEX = /(?:https?:\/\/)?(?:localhost|127\.0\.0\.1):(\d{4,5})(?=\b|$)/;
+export const PORT_REGEX = /(?:https?:\/\/)?(?:localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\]):(\d{4,5})(?=\b|$)/;
 
 const SIGTERM_DEADLINE_MS = 5_000;
 const SIGKILL_DEADLINE_MS = 1_000;
@@ -118,9 +118,9 @@ export async function assertStarterKitLayout(starterKitPath: string, fs: ThemeFs
 
 export function parseScriptsPort(devScript: string): number | null {
   if (!devScript) return null;
-  const m = /(?:--port(?:=|\s+)(\d{1,5}))|(?:^|\s)PORT[=\s](\d{1,5})\b/.exec(devScript);
+  const m = /(?:--port(?:=|\s+)(\d{1,5}))|(?:^|\s|\b)PORT\s*=\s*(\d{1,5})\b|(?:^|\s)PORT\s+(\d{1,5})\b/.exec(devScript);
   if (!m) return null;
-  const n = Number(m[1] ?? m[2]);
+  const n = Number(m[1] ?? m[2] ?? m[3]);
   return Number.isFinite(n) && n >= 1 && n <= 65535 ? n : null;
 }
 

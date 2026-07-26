@@ -184,6 +184,8 @@ describe('parseScriptsPort', () => {
   it('finds --port=4321', () => expect(parseScriptsPort('vite --port=4321')).toBe(4321));
   it('finds PORT=4321', () => expect(parseScriptsPort('PORT=4321 node dev.js')).toBe(4321));
   it('finds PORT 4321', () => expect(parseScriptsPort('PORT 4321 node dev.js')).toBe(4321));
+  it('finds PORT = 4321 (spaces around =)', () =>
+    expect(parseScriptsPort('PORT = 4321 node dev.js')).toBe(4321));
   it('finds --port 4321 (space)', () =>
     expect(parseScriptsPort('node dev.js --port 4321')).toBe(4321));
   it('ignores out-of-range port', () => expect(parseScriptsPort('--port=9999999')).toBeNull());
@@ -196,6 +198,8 @@ describe('PORT_REGEX', () => {
     const m = PORT_REGEX.exec('Server ready at http://localhost:8080');
     expect(m?.[1]).toBe('8080');
   });
+  it('matches 0.0.0.0:8080', () => expect('Server at http://0.0.0.0:8080\n'.match(PORT_REGEX)?.[1]).toBe('8080'));
+  it('matches [::1]:4321', () => expect('Server at http://[::1]:4321\n'.match(PORT_REGEX)?.[1]).toBe('4321'));
   it('matches 127.0.0.1:4321', () => {
     const m = PORT_REGEX.exec('listening on 127.0.0.1:4321');
     expect(m?.[1]).toBe('4321');
