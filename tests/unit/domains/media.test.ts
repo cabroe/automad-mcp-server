@@ -74,6 +74,28 @@ describe('handleMedia (v2 /_api)', () => {
       handleMedia({ action: 'delete', url: '/shared/images' }, mockClient(), new WriteGuard(cfg())),
     ).rejects.toMatchObject({ code: 'VALIDATION', message: expect.stringMatching(/filename/) });
   });
+  it('upload and delete reject filename containing path separators', async () => {
+    const c = mockClient();
+    await expect(
+      handleMedia(
+        {
+          action: 'upload',
+          url: '/shared',
+          source: { base64: 'aGVsbG8=', filename: '../evil.png', mimeType: 'image/png' },
+        },
+        c,
+        new WriteGuard(cfg()),
+      ),
+    ).rejects.toMatchObject({ code: 'VALIDATION' });
+
+    await expect(
+      handleMedia(
+        { action: 'delete', url: '/shared', filename: 'sub/file.png' },
+        c,
+        new WriteGuard(cfg()),
+      ),
+    ).rejects.toMatchObject({ code: 'VALIDATION' });
+  });
 
   it('delete requires a confirm_token in confirm-destructive mode', async () => {
     const c = mockClient();

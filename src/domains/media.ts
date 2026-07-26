@@ -33,6 +33,22 @@ export async function handleMedia(
       if (!input.source) {
         throw new AutomadMcpError('VALIDATION', 'source is required for upload');
       }
+      if (!input.source.filename || !input.source.filename.trim()) {
+        throw new AutomadMcpError('VALIDATION', 'source.filename must not be empty or whitespace-only');
+      }
+      if (
+        input.source.filename.includes('/') ||
+        input.source.filename.includes('\\') ||
+        input.source.filename.includes('..')
+      ) {
+        throw new AutomadMcpError(
+          'VALIDATION',
+          'source.filename must be a plain file name without path separators',
+        );
+      }
+      if (!input.source.mimeType || !input.source.mimeType.trim()) {
+        throw new AutomadMcpError('VALIDATION', 'source.mimeType must not be empty or whitespace-only');
+      }
       return client.upload(`${API_BASE}/file-collection/upload`, {
         ...input.source,
         url: input.url ?? '',
@@ -42,10 +58,20 @@ export async function handleMedia(
       if (!input.url) {
         throw new AutomadMcpError('VALIDATION', 'url (parent directory) is required for delete');
       }
-      if (!input.filename) {
+      if (!input.filename || !input.filename.trim()) {
         throw new AutomadMcpError(
           'VALIDATION',
           "filename is required for delete (file name within url's directory)",
+        );
+      }
+      if (
+        input.filename.includes('/') ||
+        input.filename.includes('\\') ||
+        input.filename.includes('..')
+      ) {
+        throw new AutomadMcpError(
+          'VALIDATION',
+          'filename must be a plain file name without path separators',
         );
       }
       // v2's file-collection/list endpoint handles multi-file delete via a
