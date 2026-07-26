@@ -184,8 +184,8 @@ Set via `AUTOMAD_WRITE_MODE`:
 
 | Mode | Behavior |
 |---|---|
-| `read-only` | Only the **<!-- AUTOGEN:READCOUNT -->26<!-- /AUTOGEN:READCOUNT --> read actions** succeed (all `docs.*`; all `discover.*`; `pages.list/get`; `media.list`; `shared.get`; `config.get`; `site.info/search/health`; `theme.list/read/files/analyze/validate/schema/diff/generate`). Everything else → `FORBIDDEN`. |
-| `confirm-destructive` *(default)* | Ordinary writes run directly (`pages.create/update/duplicate/publish/batch_update`, `media.upload/delete`, `shared.set`, `config.set`). The **<!-- AUTOGEN:DESTRUCTIVECOUNT -->21<!-- /AUTOGEN:DESTRUCTIVECOUNT --> destructive actions** return a `confirmToken` (5-min TTL, bound to `(action, target)`) — replay with `confirm_token` to execute. |
+| `read-only` | Only the **<!-- AUTOGEN:READCOUNT -->29<!-- /AUTOGEN:READCOUNT --> read actions** succeed (all `docs.*`; all `discover.*`; `pages.list/get`; `media.list`; `shared.get`; `config.get`; `site.info/search/health`; `theme.list/read/files/analyze/validate/schema/diff/generate`). Everything else → `FORBIDDEN`. |
+| `confirm-destructive` *(default)* | Ordinary writes run directly (`pages.create/update/duplicate/publish/batch_update`, `media.upload/delete`, `shared.set`, `config.set`). The **<!-- AUTOGEN:DESTRUCTIVECOUNT -->22<!-- /AUTOGEN:DESTRUCTIVECOUNT --> destructive actions** return a `confirmToken` (5-min TTL, bound to `(action, target)`) — replay with `confirm_token` to execute. |
 | `unrestricted` | Everything runs immediately. |
 
 Destructive actions: `pages.delete` · `pages.move` · `pages.update_rename` *(title-rename inside `pages.update`/`pages.batch_update`)* · `media.delete` · `site.search_replace` *(global replace inside `site.search`)* · `theme.install` · `theme.activate` · `theme.uninstall` · `theme.scaffold` · `theme.build` · `theme.write`.
@@ -199,7 +199,7 @@ Destructive actions: `pages.delete` · `pages.move` · `pages.update_rename` *(t
      src/capabilities/registry.ts. Do not edit by hand. -->
 | Tool | Actions | What it does |
 |---|---|---|
-| `automad_pages` | `list` `get` `create` `update` `delete` `move` `duplicate` `publish` `batch_update` `trash_list` `trash_restore` `trash_permanently_delete` `trash_clear` `history` `history_restore` | Manage Automad pages |
+| `automad_pages` | `list` `get` `create` `update` `delete` `move` `duplicate` `publish` `batch_update` `trash_list` `trash_restore` `trash_permanently_delete` `trash_clear` `history` `history_restore` `breadcrumbs` `publication_state` `recent` `discard_draft` | Manage Automad pages |
 | `automad_media` | `list` `upload` `delete` | Manage Automad media |
 | `automad_shared` | `get` `set` | Manage site-wide shared data |
 | `automad_config` | `get` `set` `cache_clear` `cache_purge` | Manage Automad configuration |

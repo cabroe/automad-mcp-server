@@ -157,7 +157,7 @@
         <thead><tr><th>Tool</th><th>Actions</th><th>What it does</th></tr></thead>
         <tbody>
 <!-- AUTOGEN:TOOLS_HTML:START -->
-<tr><td><code>automad_pages</code></td><td class="actions"><code>list</code> <code>get</code> <code>create</code> <code>update</code> <code>delete</code> <code>move</code> <code>duplicate</code> <code>publish</code> <code>batch_update</code> <code>trash_list</code> <code>trash_restore</code> <code>trash_permanently_delete</code> <code>trash_clear</code> <code>history</code> <code>history_restore</code></td><td>Manage Automad pages</td></tr>
+<tr><td><code>automad_pages</code></td><td class="actions"><code>list</code> <code>get</code> <code>create</code> <code>update</code> <code>delete</code> <code>move</code> <code>duplicate</code> <code>publish</code> <code>batch_update</code> <code>trash_list</code> <code>trash_restore</code> <code>trash_permanently_delete</code> <code>trash_clear</code> <code>history</code> <code>history_restore</code> <code>breadcrumbs</code> <code>publication_state</code> <code>recent</code> <code>discard_draft</code></td><td>Manage Automad pages</td></tr>
 <tr><td><code>automad_media</code></td><td class="actions"><code>list</code> <code>upload</code> <code>delete</code></td><td>Manage Automad media</td></tr>
 <tr><td><code>automad_shared</code></td><td class="actions"><code>get</code> <code>set</code></td><td>Manage site-wide shared data</td></tr>
 <tr><td><code>automad_config</code></td><td class="actions"><code>get</code> <code>set</code> <code>cache_clear</code> <code>cache_purge</code></td><td>Manage Automad configuration</td></tr>
@@ -221,11 +221,11 @@ npm install &amp;&amp; npm run build</code></pre>
     <div class="grid">
       <div class="card">
         <h3><code>read-only</code></h3>
-        <p>Only the <!-- AUTOGEN:READCOUNT -->26<!-- /AUTOGEN:READCOUNT --> read actions succeed. Everything else returns <code>FORBIDDEN</code>.</p>
+        <p>Only the <!-- AUTOGEN:READCOUNT -->29<!-- /AUTOGEN:READCOUNT --> read actions succeed. Everything else returns <code>FORBIDDEN</code>.</p>
       </div>
       <div class="card">
         <h3><code>confirm-destructive</code> <span style="color:var(--ink-soft);font-weight:400">· default</span></h3>
-        <p>Ordinary writes run directly. The <!-- AUTOGEN:DESTRUCTIVECOUNT -->21<!-- /AUTOGEN:DESTRUCTIVECOUNT --> destructive actions return a confirm token (5-minute TTL, bound to <code>(action, target)</code>) that has to be replayed.</p>
+        <p>Ordinary writes run directly. The <!-- AUTOGEN:DESTRUCTIVECOUNT -->22<!-- /AUTOGEN:DESTRUCTIVECOUNT --> destructive actions return a confirm token (5-minute TTL, bound to <code>(action, target)</code>) that has to be replayed.</p>
       </div>
       <div class="card">
         <h3><code>unrestricted</code></h3>

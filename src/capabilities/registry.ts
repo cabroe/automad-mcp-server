@@ -74,6 +74,10 @@ const CAPABILITY_SPECS = {
       trash_clear: destructive('Empty the trash (deletes all trashed pages permanently).'),
       history: read('List the change history for a page (v2 history log).'),
       history_restore: destructive('Restore a page to a prior history entry (by logId).'),
+      breadcrumbs: read('Get the breadcrumb trail for a page.'),
+      publication_state: read('Get the publication state (draft / published) for a page.'),
+      recent: read('List recently edited pages (v2 page-collection/get-recently-edited, alias of list).'),
+      discard_draft: destructive('Discard a page draft and revert to the last published version.'),
       update_rename: internal(
         'Rename a page — raised by update/batch_update when the title changes.',
       ),

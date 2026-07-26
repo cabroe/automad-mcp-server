@@ -37,6 +37,10 @@ const ACTION_MAP: Record<PagesAction, WriteAction> = {
   trash_clear: 'pages.trash_clear',
   history: 'pages.history',
   history_restore: 'pages.history_restore',
+  breadcrumbs: 'pages.breadcrumbs',
+  publication_state: 'pages.publication_state',
+  recent: 'pages.recent',
+  discard_draft: 'pages.discard_draft',
 };
 
 const READ_RETRY_TOTAL_MS = 3000;
@@ -234,6 +238,26 @@ export async function handlePages(
         url: input.url,
         logId: input.history_id,
       });
+    }
+    case 'breadcrumbs': {
+      if (!input.url) {
+        throw new AutomadMcpError('VALIDATION', 'url is required for breadcrumbs');
+      }
+      return client.post(`${API_BASE}/page/breadcrumbs`, { url: input.url });
+    }
+    case 'publication_state': {
+      if (!input.url) {
+        throw new AutomadMcpError('VALIDATION', 'url is required for publication_state');
+      }
+      return client.post(`${API_BASE}/page/get-publication-state`, { url: input.url });
+    }
+    case 'recent':
+      return client.post(`${API_BASE}/page-collection/get-recently-edited`, {});
+    case 'discard_draft': {
+      if (!input.url) {
+        throw new AutomadMcpError('VALIDATION', 'url is required for discard_draft');
+      }
+      return client.post(`${API_BASE}/page/discard-draft`, { url: input.url });
     }
   }
 }

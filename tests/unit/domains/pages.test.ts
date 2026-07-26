@@ -531,4 +531,61 @@ describe('handlePages (v2 /_api)', () => {
     await handlePages({ action: 'trash_clear' }, c, new WriteGuard(cfg()));
     expect(c.post).toHaveBeenCalledWith('/_api/page-trash/clear', {});
   });
+
+  it('breadcrumbs requires url and POSTs /_api/page/breadcrumbs', async () => {
+    const c = mockClient();
+    await expect(handlePages({ action: 'breadcrumbs' }, c, new WriteGuard(cfg()))).rejects.toMatchObject({
+      code: 'VALIDATION',
+    });
+    (c.post as ReturnType<typeof vi.fn>).mockResolvedValueOnce([{ url: '/', title: 'Home' }]);
+    const out = await handlePages({ action: 'breadcrumbs', url: '/foo' }, c, new WriteGuard(cfg()));
+    expect(out).toEqual([{ url: '/', title: 'Home' }]);
+    expect(c.post).toHaveBeenCalledWith('/_api/page/breadcrumbs', { url: '/foo' });
+  });
+
+  it('publication_state requires url and POSTs /_api/page/get-publication-state', async () => {
+    const c = mockClient();
+    await expect(
+      handlePages({ action: 'publication_state' }, c, new WriteGuard(cfg())),
+    ).rejects.toMatchObject({ code: 'VALIDATION' });
+    (c.post as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ hasDraft: true });
+    const out = await handlePages(
+      { action: 'publication_state', url: '/foo' },
+      c,
+      new WriteGuard(cfg()),
+    );
+    expect(out).toEqual({ hasDraft: true });
+    expect(c.post).toHaveBeenCalledWith('/_api/page/get-publication-state', { url: '/foo' });
+  });
+
+  it('recent POSTs /_api/page-collection/get-recently-edited', async () => {
+    const c = mockClient();
+    (c.post as ReturnType<typeof vi.fn>).mockResolvedValueOnce([{ url: '/x' }]);
+    const out = await handlePages({ action: 'recent' }, c, new WriteGuard(cfg()));
+    expect(out).toEqual([{ url: '/x' }]);
+    expect(c.post).toHaveBeenCalledWith('/_api/page-collection/get-recently-edited', {});
+  });
+
+  it('discard_draft requires url and POSTs /_api/page/discard-draft', async () => {
+    const c = mockClient();
+    await expect(
+      handlePages({ action: 'discard_draft' }, c, new WriteGuard(cfg())),
+    ).rejects.toMatchObject({ code: 'VALIDATION' });
+    (c.post as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ ok: true });
+    const out = await handlePages(
+      { action: 'discard_draft', url: '/foo' },
+      c,
+      new WriteGuard(cfg()),
+    );
+    expect(out).toEqual({ ok: true });
+    expect(c.post).toHaveBeenCalledWith('/_api/page/discard-draft', { url: '/foo' });
+  });
+
+  it('discard_draft returns pending confirm token in confirm-destructive mode', async () => {
+    const c = mockClient();
+    const guard = new WriteGuard({ ...cfg(), writeMode: 'confirm-destructive' });
+    const out = await handlePages({ action: 'discard_draft', url: '/foo' }, c, guard);
+    expect(out).toMatchObject({ allowed: 'pending' });
+    expect(c.post).not.toHaveBeenCalled();
+  });
 });
