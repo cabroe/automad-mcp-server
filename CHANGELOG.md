@@ -146,6 +146,11 @@
  returned a single newline. The function now strips the current
  header first; returns the full section block up to the next `## [`
  (or end of file).
+- **Length-cap user-facing Zod string fields** — introduced `MAX_SHORT` (255), `MAX_MEDIUM` (1024), `MAX_LONG` (4096), `MAX_SLUG` (96) across tool Zod schemas to reject unconstrained payloads early.
+- **`theme.dev` pre-flight check** — checks for `package.json` presence before running `npm` and returns a clear `VALIDATION` error instead of a cryptic `ENOENT` / child process error.
+- **Split confirm-token error reasons** — `WriteGuard` now distinguishes between `"unknown token"`, `"expired token"`, and target/action mismatch.
+- **`LOG_LEVEL` pre-flight validation** — validates `LOG_LEVEL` in `logger.ts` before Pino instantiation to produce clean error messages instead of raw Pino stacktraces.
+- **Updated dependencies** — bumped `@modelcontextprotocol/sdk` and transitive packages via `npm audit fix`.
 
 
 ## [0.5.4] – [0.5.14]
