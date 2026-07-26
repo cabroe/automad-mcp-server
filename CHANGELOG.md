@@ -1,11 +1,40 @@
-## [Unreleased]
+## [0.7.4] - 2026-07-26
+
+### Changed
+- **Package renamed: `@automadcms/mcp-server` → `automad-mcp-server`** (drop the scope).
+ Consumers using the old name need to update `mcpServers.{name}.command` and
+ any `package.json` references. `npx automad-mcp-server` continues to work
+ (npx resolves the new name).
 
 ### Added
-- New `automad_pages` actions: `breadcrumbs`, `publication_state`, `recent` (alias of `list`), `discard_draft` (v2 `PageController`).
-- Five new tools: `automad_image` (list/save), `automad_components` (data/discard_draft/publication_state/publish), `automad_mail` (save/test/reset), `automad_system` (check_for_update/update), `automad_file_meta` (edit_info). AI tooling deferred to a future spec.
- - New `automad_pages` actions: `trash_list`, `trash_restore`, `trash_permanently_delete`, `trash_clear`, `history`, `history_restore` (v2 `PageTrashController` + `HistoryController`).
- - New `automad_config` actions: `cache_clear`, `cache_purge` (v2 `CacheController`).
- - New `automad_theme` actions: `list_installed`, `outdated`, `update`, `update_all`, `uninstall` (rewritten: v2 PackageManager.remove first, fs fallback).
+- **HTTP transport** (`AUTOMAD_HTTP_PORT/HOST/TOKEN` env vars): a Bearer-token-gated
+ Streamable-HTTP endpoint so multiple local MCP clients can share one server
+ process. Default bind is `127.0.0.1` with DNS-rebinding protection. When the
+ token is unset the server generates one and logs it once at startup.
+- **Theme dev server** (`automad_theme.dev`/`dev_stop`/`dev_status`): start
+ `npm run dev` as a detached background process, get its PID, and stop it
+ cleanly. Pinned via port-file state so a stale PID never fools a restart.
+- **Better theme analysis** (`automad_theme.analyze`/`validate`/`schema`):
+ 12 static-analysis findings, bundled theme.json knowledge, and a normalised
+ schema builder. Each finding is one of the wired `theme.analyze` codes
+ (`THEME_NAME_MISSING`, `MAIN_SNIPPET_UNDEFINED`, `LANG_WITHOUT_I18N`, etc.).
+- **Trash** (`automad_pages.trash_list`/`trash_restore`/`trash_permanently_delete`/`trash_clear`): v2 `PageTrashController`.
+- **History** (`automad_pages.history`/`history_restore`): v2 `HistoryController` log + restore by logId.
+- **Cache** (`automad_config.cache_clear`/`cache_purge`): v2 `CacheController`.
+- **Package manager** (`automad_theme.list_installed`/`outdated`/`update`/`update_all`/`uninstall`): v2 `PackageManagerController` (v2 `remove` for uninstall with an fs fallback on `NOT_FOUND`).
+- **Page utilities** (`automad_pages.breadcrumbs`/`publication_state`/`recent`/`discard_draft`): v2 `PageController` + `PageCollectionController` (recent is an alias of `list`).
+- **New tools** (5): `automad_image` (list/save), `automad_components` (data/discard_draft/publication_state/publish), `automad_mail` (save/test/reset), `automad_system` (check_for_update/update), `automad_file_meta` (edit_info). AI tooling, edit-lock, in-page editing, and file import are deferred to a future spec.
+- **Zero-config defaults**: `AUTOMAD_THEMES_PATH` defaults to `<cwd>/automad-themes`
+ and `AUTOMAD_STARTER_KIT_PATH` to the kit bundled inside the package
+ (`templates/starter-kit/`). `theme.scaffold` works with no env vars at all.
+- **Bundled starter kit**: the full `automadcms/automad-theme-starter-kit` ships
+ inside the npm package; the existing FS-based `theme.scaffold` now copies
+ from the bundled copy by default.
+
+### Tests
+- 391 → 445 tests across 35 files (54 net new). Coverage gate holds at 80% stmt / 70% branch.
+- docs-drift tests pin the autogen tool table, destructive-action count, and the
+ `discover`-vs-`hand-rolled-list` equivalence.
 
 ## [0.6.0] - 2026-07-25
 
