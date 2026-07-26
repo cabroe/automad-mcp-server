@@ -102,7 +102,7 @@
       <span class="chip"><strong><!-- AUTOGEN:TOOLCOUNT -->8<!-- /AUTOGEN:TOOLCOUNT --></strong> tools</span>
       <span class="chip"><strong>4</strong> resources</span>
       <span class="chip"><strong>5</strong> prompts</span>
-      <span class="chip"><strong><!-- AUTOGEN:TESTCOUNT -->410 tests, 35 files<!-- /AUTOGEN:TESTCOUNT --></strong></span>
+      <span class="chip"><strong><!-- AUTOGEN:TESTCOUNT -->420 tests, 35 files<!-- /AUTOGEN:TESTCOUNT --></strong></span>
       <span class="chip">Node <strong>≥ 20</strong></span>
       <span class="chip">stdio transport</span>
       <span class="chip">MIT</span>
@@ -163,7 +163,7 @@
 <tr><td><code>automad_config</code></td><td class="actions"><code>get</code> <code>set</code> <code>cache_clear</code> <code>cache_purge</code></td><td>Manage Automad configuration</td></tr>
 <tr><td><code>automad_site</code></td><td class="actions"><code>info</code> <code>search</code> <code>health</code></td><td>Inspect and search the site</td></tr>
 <tr><td><code>automad_docs</code></td><td class="actions"><code>list</code> <code>search</code> <code>get</code></td><td>Offline Automad v2 knowledge base</td></tr>
-<tr><td><code>automad_theme</code></td><td class="actions"><code>list</code> <code>install</code> <code>activate</code> <code>uninstall</code> <code>scaffold</code> <code>build</code> <code>dev</code> <code>dev_stop</code> <code>dev_status</code> <code>read</code> <code>write</code> <code>files</code> <code>analyze</code> <code>validate</code> <code>schema</code> <code>diff</code> <code>generate</code></td><td>Manage and inspect local themes</td></tr>
+<tr><td><code>automad_theme</code></td><td class="actions"><code>list</code> <code>install</code> <code>activate</code> <code>uninstall</code> <code>list_installed</code> <code>outdated</code> <code>update</code> <code>update_all</code> <code>scaffold</code> <code>build</code> <code>dev</code> <code>dev_stop</code> <code>dev_status</code> <code>read</code> <code>write</code> <code>files</code> <code>analyze</code> <code>validate</code> <code>schema</code> <code>diff</code> <code>generate</code></td><td>Manage and inspect local themes</td></tr>
 <tr><td><code>automad_discover</code></td><td class="actions"><code>list</code> <code>describe</code></td><td>Introspect available tools and actions</td></tr>
 <!-- AUTOGEN:TOOLS_HTML:END -->
         </tbody>
@@ -221,11 +221,11 @@ npm install &amp;&amp; npm run build</code></pre>
     <div class="grid">
       <div class="card">
         <h3><code>read-only</code></h3>
-        <p>Only the <!-- AUTOGEN:READCOUNT -->24<!-- /AUTOGEN:READCOUNT --> read actions succeed. Everything else returns <code>FORBIDDEN</code>.</p>
+        <p>Only the <!-- AUTOGEN:READCOUNT -->26<!-- /AUTOGEN:READCOUNT --> read actions succeed. Everything else returns <code>FORBIDDEN</code>.</p>
       </div>
       <div class="card">
         <h3><code>confirm-destructive</code> <span style="color:var(--ink-soft);font-weight:400">· default</span></h3>
-        <p>Ordinary writes run directly. The <!-- AUTOGEN:DESTRUCTIVECOUNT -->19<!-- /AUTOGEN:DESTRUCTIVECOUNT --> destructive actions return a confirm token (5-minute TTL, bound to <code>(action, target)</code>) that has to be replayed.</p>
+        <p>Ordinary writes run directly. The <!-- AUTOGEN:DESTRUCTIVECOUNT -->21<!-- /AUTOGEN:DESTRUCTIVECOUNT --> destructive actions return a confirm token (5-minute TTL, bound to <code>(action, target)</code>) that has to be replayed.</p>
       </div>
       <div class="card">
         <h3><code>unrestricted</code></h3>

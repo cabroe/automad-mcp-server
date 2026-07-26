@@ -110,6 +110,7 @@ export async function handleTheme(input: ThemeInput, deps: ThemeHandlerDeps): Pr
       return manager.list();
     case 'install': {
       if (!input.source) throw new AutomadMcpError('VALIDATION', 'source is required for install');
+      return manager.install(input.source, input.theme);
     }
     case 'list_installed':
       return deps.client.post(`${API_BASE}/package-manager/get-package-collection`, {});
@@ -201,6 +202,9 @@ export async function handleTheme(input: ThemeInput, deps: ThemeHandlerDeps): Pr
       if (!input.theme) throw new AutomadMcpError('VALIDATION', 'theme is required for dev_status');
       const themePath = assertWithinRoot(deps.themesPath, path.join(deps.themesPath, input.theme));
       return getDevStatus(themePath, fs);
+    }
+    default: {
+      throw new AutomadMcpError('VALIDATION', `unknown theme action: ${String(input.action)}`);
     }
   }
 }

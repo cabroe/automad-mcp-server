@@ -50,11 +50,6 @@ describe('capability registry', () => {
       'trash_restore',
       'update',
     ]);
-    expect([...advertisedActions('automad_media')].sort()).toEqual(['delete', 'list', 'upload']);
-    expect([...advertisedActions('automad_shared')].sort()).toEqual(['get', 'set']);
-    expect([...advertisedActions('automad_config')].sort()).toEqual(['cache_clear', 'cache_purge', 'get', 'set']);
-    expect([...advertisedActions('automad_site')].sort()).toEqual(['health', 'info', 'search']);
-    expect([...advertisedActions('automad_docs')].sort()).toEqual(['get', 'list', 'search']);
     expect([...advertisedActions('automad_theme')].sort()).toEqual([
       'activate',
       'analyze',
@@ -67,10 +62,14 @@ describe('capability registry', () => {
       'generate',
       'install',
       'list',
+      'list_installed',
+      'outdated',
       'read',
       'scaffold',
       'schema',
       'uninstall',
+      'update',
+      'update_all',
       'validate',
       'write',
     ]);

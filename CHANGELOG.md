@@ -1,7 +1,8 @@
 ## [Unreleased]
 
-### Added
-- New `automad_pages` actions: `trash_list`, `trash_restore`, `trash_permanently_delete`, `trash_clear`, `history`, `history_restore` (v2 `PageTrashController` + `HistoryController`).
+ ### Added
+ - New `automad_pages` actions: `trash_list`, `trash_restore`, `trash_permanently_delete`, `trash_clear`, `history`, `history_restore` (v2 `PageTrashController` + `HistoryController`).
+ - New `automad_theme` actions: `list_installed`, `outdated`, `update`, `update_all`, `uninstall` (rewritten: v2 PackageManager.remove first, fs fallback).
 - New `automad_config` actions: `cache_clear`, `cache_purge` (v2 `CacheController`).
 
 ## [0.6.0] - 2026-07-25
