@@ -125,11 +125,17 @@ export class ThemeSchemaBuilder {
       if (order !== undefined) field.order = order;
       return field;
     });
-    fields.sort(
-      (a, b) =>
-        (a.order === undefined ? 1 : b.order === undefined ? -1 : a.order - b.order) ||
-        a.name.localeCompare(b.name),
-    );
+    fields.sort((a, b) => {
+      const orderDiff =
+        a.order === undefined && b.order === undefined
+          ? 0
+          : a.order === undefined
+            ? 1
+            : b.order === undefined
+              ? -1
+              : a.order - b.order;
+      return orderDiff || a.name.localeCompare(b.name);
+    });
     const { locales, translations } = buildTranslations(analysis, manifest, warnings);
     warnings.sort(
       (a, b) =>

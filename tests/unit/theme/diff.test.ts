@@ -43,4 +43,10 @@ describe('unifiedDiff', () => {
     expect(res.diff).toContain('+X');
     expect(res.diff).toContain(' e');
   });
+  it('normalises bare CR line endings', () => {
+    const res = unifiedDiff('line1\rline2\r', 'line1\rCHANGED\r', { path: 'cr.php' });
+    expect(res.changed).toBe(true);
+    expect(res.added).toBe(1);
+    expect(res.removed).toBe(1);
+  });
 });

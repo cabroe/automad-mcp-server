@@ -46,6 +46,15 @@ function analysis(overrides: Partial<ThemeAnalysis> = {}): ThemeAnalysis {
 }
 
 describe('ThemeSchemaBuilder', () => {
+  it('sorts unordered fields alphabetically', () => {
+    const unorderedAnalysis = analysis({
+      fields: ['zebra', 'apple', 'mango'],
+      fieldSources: { zebra: ['a.php'], apple: ['a.php'], mango: ['a.php'] },
+      masks: { page: ['zebra', 'apple', 'mango'], shared: [] },
+    });
+    const result = new ThemeSchemaBuilder().build(unorderedAnalysis);
+    expect(result.fields.map((f) => f.name)).toEqual(['apple', 'mango', 'zebra']);
+  });
   it('maps Automad field prefixes, scopes, and sources', () => {
     const result = new ThemeSchemaBuilder().build(analysis());
     const byName = Object.fromEntries(result.fields.map((field) => [field.name, field]));

@@ -48,7 +48,7 @@ interface Op {
 
 function splitLines(str: string): string[] {
   if (str === '') return [];
-  const parts = str.replace(/\r\n/g, '\n').split('\n');
+  const parts = str.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
   // A trailing newline terminates the last line; drop the empty tail element.
   if (parts.length > 0 && parts[parts.length - 1] === '') parts.pop();
   return parts;
