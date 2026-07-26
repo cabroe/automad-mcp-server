@@ -34,7 +34,8 @@ const IGNORED_FIELDS = new Set(["true", "false", "null", "if", "else", "foreach"
 const STARTER_MARKERS = ["theme.json", "package.json", "client/index.ts", "client/styles", "esbuild.js"];
 const MAIN_SNIPPET_DEFINE_RE = /<@~?\s*snippet\s+main\s*~?@>/;
 const MAIN_SNIPPET_INVOKE_RE = /<@~?\s*main\s*~?@>/;
-const RUNTIME_LANG_RE = /@\{\s*:lang\b/;
+const RUNTIME_LANG_RE = /@\{\s*:lang\b([^}]*)\}/g;
+const DEF_FALLBACK_RE = /\bdef\s*\(/;
 const REQUIRED_BUILD_MARKERS = ["package.json", "client/index.ts", "client/styles", "esbuild.js"];
 
 export class ThemeAnalyzer {
@@ -83,7 +84,20 @@ export class ThemeAnalyzer {
       }
       if (MAIN_SNIPPET_DEFINE_RE.test(source)) mainSnippetDefinedIn.push(relPath);
       if (MAIN_SNIPPET_INVOKE_RE.test(source)) mainSnippetInvokedIn.push(relPath);
-      if (RUNTIME_LANG_RE.test(source)) runtimeLangFiles.push(relPath);
+      for (const match of source.matchAll(RUNTIME_LANG_RE)) {
+        if (!DEF_FALLBACK_RE.test(match[1] ?? "")) {
+          runtimeLangFiles.push(relPath);
+          break;
+        }
+      }
+    }
+    for (const relPath of [...files.lib, ...files.other]) {
+      if (!relPath.endsWith(".php")) continue;
+      const source = await this.deps.fs.readFile(path.join(themePath, relPath));
+      const capped = Buffer.byteLength(source, "utf8") > MAX_SOURCE_BYTES
+        ? Buffer.from(source, "utf8").subarray(0, MAX_SOURCE_BYTES).toString("utf8")
+        : source;
+      if (MAIN_SNIPPET_DEFINE_RE.test(capped)) mainSnippetDefinedIn.push(relPath);
     }
     const fieldList = [...fields].sort();
     const fieldSources = Object.fromEntries(

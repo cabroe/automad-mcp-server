@@ -228,6 +228,29 @@ describe("main snippet detection", () => {
     const result = await analyzer().validate("has-main");
     expect(result.findings.some((f) => f.code === "MAIN_SNIPPET_UNDEFINED")).toBe(false);
   });
+
+  it("stays silent when the snippet is defined outside the scanned buckets", async () => {
+    await writeTheme("snippet-bucket", {
+      "theme.json": JSON.stringify({ name: "Snippet Bucket", masks: { page: [], shared: [] } }),
+      "default.php": "<main><@ main @></main>",
+      "snippets/main.php": "<@ snippet main @>\n<h1>Home</h1>\n<@ end @>",
+    });
+    const result = await analyzer().validate("snippet-bucket");
+    expect(result.findings.some((f) => f.code === "MAIN_SNIPPET_UNDEFINED")).toBe(false);
+  });
+
+  it("still flags MAIN_SNIPPET_UNDEFINED when unscanned buckets hold no definition", async () => {
+    await writeTheme("lib-no-main", {
+      "theme.json": JSON.stringify({ name: "Lib No Main", masks: { page: [], shared: [] } }),
+      "default.php": "<main><@ main @></main>",
+      "lib/helpers.php": "<?php function helper() { return 1; }",
+    });
+    const result = await analyzer().validate("lib-no-main");
+    const finding = result.findings.find((f) => f.code === "MAIN_SNIPPET_UNDEFINED");
+    expect(finding).toBeDefined();
+    expect(finding?.severity).toBe("warning");
+    expect(finding?.path).toBe("default.php");
+  });
 });
 
 describe("runtime :lang detection", () => {
@@ -251,5 +274,27 @@ describe("runtime :lang detection", () => {
     });
     const result = await analyzer().validate("with-i18n");
     expect(result.findings.some((f) => f.code === "LANG_WITHOUT_I18N")).toBe(false);
+  });
+
+  it("stays silent when :lang carries an explicit def() fallback", async () => {
+    await writeTheme("lang-def", {
+      "theme.json": JSON.stringify({ name: "Lang Def", masks: { page: [], shared: [] } }),
+      "default.php": '<html lang="@{ :lang | def(\'en\') }"></html>',
+    });
+    const result = await analyzer().validate("lang-def");
+    expect(result.findings.some((f) => f.code === "LANG_WITHOUT_I18N")).toBe(false);
+  });
+
+  it("flags LANG_WITHOUT_I18N when the only locale file is malformed", async () => {
+    await writeTheme("lang-bad-locale", {
+      "theme.json": JSON.stringify({ name: "Lang Bad Locale", masks: { page: [], shared: [] } }),
+      "default.php": '<html lang="@{ :lang }"></html>',
+      "i18n/de.json": "{ not json",
+    });
+    const result = await analyzer().validate("lang-bad-locale");
+    const finding = result.findings.find((f) => f.code === "LANG_WITHOUT_I18N");
+    expect(finding).toBeDefined();
+    expect(finding?.severity).toBe("warning");
+    expect(finding?.path).toBe("default.php");
   });
 });
