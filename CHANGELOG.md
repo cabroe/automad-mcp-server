@@ -38,6 +38,15 @@
  vs. advertised actions, guard sets vs. registry flags, internal actions hidden
  from every advertised surface, and real `WriteGuard` behavior per write mode.
 
+## [0.7.0] - 2026-07-26
+
+### Added
+
+### Changed
+
+### Fixed
+
+
 ## [0.5.4] – [0.5.14]
 
 _Reconstructed from git history: these were tagged per commit without their own

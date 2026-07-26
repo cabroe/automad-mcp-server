@@ -1,14 +1,23 @@
 {
   "name": "@automadcms/mcp-server",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "MCP server for the Automad CMS — full site management, theme tooling, and offline docs via AI",
   "license": "MIT",
   "author": "Carsten Bröckert <cabroe@gmail.com>",
   "type": "module",
   "main": "./dist/index.js",
-  "bin": { "automad-mcp": "./dist/index.js" },
-  "files": ["dist", "README.md", "LICENSE", "CHANGELOG.md"],
-  "engines": { "node": ">=20" },
+  "bin": {
+    "automad-mcp": "./dist/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
   "keywords": [
     "mcp",
     "model-context-protocol",
@@ -24,8 +33,12 @@
     "url": "git+https://github.com/cabroe/automad-mcp-server.git"
   },
   "homepage": "https://github.com/cabroe/automad-mcp-server#readme",
-  "bugs": { "url": "https://github.com/cabroe/automad-mcp-server/issues" },
-  "publishConfig": { "access": "public" },
+  "bugs": {
+    "url": "https://github.com/cabroe/automad-mcp-server/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "tsc",
     "dev": "tsx src/index.ts",
