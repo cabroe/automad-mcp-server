@@ -72,8 +72,8 @@ export async function scaffold(opts: ScaffoldOptions, deps: ScaffoldDeps): Promi
   if (await fs.exists(target)) {
     throw new AutomadMcpError('CONFLICT', `theme '${slug}' already exists at ${target}`);
   }
-  await fs.mkdirp(target);
   await assertStarterKitLayout(starterKitPath, fs);
+  await fs.mkdirp(target);
   await fs.copyDir(starterKitPath, target);
 
   const tmplManifest = JSON.parse(await fs.readFile(manifestPath)) as ThemeManifest;

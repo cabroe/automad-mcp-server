@@ -122,5 +122,6 @@ describe('scaffold', () => {
       scaffold({ name: 'Drift' }, { fs, themesPath: themes, starterKitPath: driftStarter }),
     ).rejects.toMatchObject({ code: 'VALIDATION' });
     expect(copyDirSpy).not.toHaveBeenCalled();
+    expect(await fs.exists(path.join(themes, 'drift'))).toBe(false);
   });
 });

@@ -34,7 +34,7 @@ async function listThemes(themesPath: string, fs: ThemeFs): Promise<ThemeListEnt
   if (!(await fs.exists(themesPath))) return [];
   const names = new Set<string>();
   for (const file of await fs.list(themesPath, { recursive: true })) {
-    const rel = path.relative(themesPath, file).split(path.sep).filter(Boolean);
+    const rel = path.relative(themesPath, file).split(/[/\\]/).filter(Boolean);
     if (rel.length === 2 && rel[1] === 'theme.json' && SLUG_RE.test(rel[0]!)) {
       names.add(rel[0]!);
     }
