@@ -160,6 +160,20 @@ walks those directories too. The original report's case (a custom theme
 that inlined its HTML in `page.php` and never defined `main`) is still
 caught verbatim.
 
+### Truncation asymmetry between the two passes
+
+The first pass — over `templates + components + blocks` — emits
+`SOURCE_TRUNCATED` for sources exceeding `MAX_SOURCE_BYTES` (512 KiB by
+default; injectable as `maxSourceBytes` on the constructor for tests). The
+second pass — over `lib/` and `snippets/` — caps oversized sources
+**silently** and does not emit `SOURCE_TRUNCATED`. Reason: those files were
+never scanned before the ruling; adding a new truncation finding for them
+is outside the rule's scope and would surprise the same users the ruling
+intended to protect. The asymmetry is pinned by a test that runs both
+passes against a small injectable cap and asserts truncation is reported
+only for the first-pass file.
+
+
 The code is named `MAIN_SNIPPET_UNDEFINED`, not `MAIN_SNIPPET_UNREACHABLE`:
 "unreachable" would assert graph analysis this check does not perform, which
 is the very defect being fixed. `MAIN_SNIPPET_UNREACHABLE` remains free for
