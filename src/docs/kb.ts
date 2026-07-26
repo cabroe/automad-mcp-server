@@ -40,8 +40,8 @@ export function getDoc(slug: string): DocPage {
 const DEFAULT_LIMIT = 5;
 const SNIPPET_PADDING = 60;
 const SNIPPET_TAIL = 140;
-const SCORE_TITLE = 5;
-const SCORE_TAG = 3;
+const SCORE_TITLE = 10;
+const SCORE_TAG = 5;
 
 export function searchDocs(query: string, limit = DEFAULT_LIMIT): DocSearchHit[] {
   const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
@@ -58,7 +58,8 @@ export function searchDocs(query: string, limit = DEFAULT_LIMIT): DocSearchHit[]
       if (!term) continue;
       if (titleLc.includes(term)) score += SCORE_TITLE;
       if (tagsLc.includes(term)) score += SCORE_TAG;
-      score += bodyLc.split(term).length - 1;
+      const count = bodyLc.split(term).length - 1;
+      score += Math.min(5, count);
     }
     if (score > 0) {
       hits.push({
