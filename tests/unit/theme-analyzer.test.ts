@@ -233,10 +233,13 @@ describe("main snippet detection", () => {
     await writeTheme("snippet-bucket", {
       "theme.json": JSON.stringify({ name: "Snippet Bucket", masks: { page: [], shared: [] } }),
       "default.php": "<main><@ main @></main>",
-      "snippets/main.php": "<@ snippet main @>\n<h1>Home</h1>\n<@ end @>",
+      "snippets/main.php": "<@ snippet main @>@{ snippetOnlyField }<@ end @>",
     });
     const result = await analyzer().validate("snippet-bucket");
     expect(result.findings.some((f) => f.code === "MAIN_SNIPPET_UNDEFINED")).toBe(false);
+    // The second pass runs the define probe ONLY: no field extraction, no truncation findings.
+    expect(result.findings.some((f) => f.code === "FIELD_NOT_MASKED" && f.message.includes("snippetOnlyField"))).toBe(false);
+    expect(result.findings.some((f) => f.code === "SOURCE_TRUNCATED")).toBe(false);
   });
 
   it("still flags MAIN_SNIPPET_UNDEFINED when unscanned buckets hold no definition", async () => {

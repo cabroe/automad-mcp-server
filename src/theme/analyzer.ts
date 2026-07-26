@@ -34,6 +34,7 @@ const IGNORED_FIELDS = new Set(["true", "false", "null", "if", "else", "foreach"
 const STARTER_MARKERS = ["theme.json", "package.json", "client/index.ts", "client/styles", "esbuild.js"];
 const MAIN_SNIPPET_DEFINE_RE = /<@~?\s*snippet\s+main\s*~?@>/;
 const MAIN_SNIPPET_INVOKE_RE = /<@~?\s*main\s*~?@>/;
+/** matchAll-only: never call .test()/.exec() on this — matchAll seeds from lastIndex. */
 const RUNTIME_LANG_RE = /@\{\s*:lang\b([^}]*)\}/g;
 const DEF_FALLBACK_RE = /\bdef\s*\(/;
 const REQUIRED_BUILD_MARKERS = ["package.json", "client/index.ts", "client/styles", "esbuild.js"];
@@ -91,7 +92,7 @@ export class ThemeAnalyzer {
         }
       }
     }
-    for (const relPath of [...files.lib, ...files.other]) {
+    for (const relPath of [...files.lib, ...files.other.filter((p) => p.startsWith("snippets/"))]) {
       if (!relPath.endsWith(".php")) continue;
       const source = await this.deps.fs.readFile(path.join(themePath, relPath));
       const capped = Buffer.byteLength(source, "utf8") > MAX_SOURCE_BYTES
