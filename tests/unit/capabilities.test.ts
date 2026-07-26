@@ -40,7 +40,9 @@ describe("capability registry", () => {
     expect([...advertisedActions("automad_site")].sort()).toEqual(["health", "info", "search"]);
     expect([...advertisedActions("automad_docs")].sort()).toEqual(["get", "list", "search"]);
     expect([...advertisedActions("automad_theme")].sort()).toEqual([
-      "activate", "analyze", "build", "diff", "files", "generate", "install", "list", "read", "scaffold", "schema", "uninstall", "validate", "write",
+      "activate", "analyze", "build", "dev", "dev_status", "dev_stop",
+      "diff", "files", "generate", "install", "list", "read",
+      "scaffold", "schema", "uninstall", "validate", "write",
     ]);
     expect([...advertisedActions("automad_discover")].sort()).toEqual(["describe", "list"]);
   });

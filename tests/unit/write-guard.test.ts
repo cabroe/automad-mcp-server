@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { WriteGuard } from "../../src/write-guard.js";
+import { DESTRUCTIVE_ACTIONS, READ_ACTIONS, WriteGuard } from "../../src/write-guard.js";
 import type { Config } from "../../src/config.js";
 
 describe("WriteGuard", () => {
@@ -31,6 +31,12 @@ describe("WriteGuard", () => {
   it("permits theme schema in read-only mode", () => {
     guard = new WriteGuard({ ...emptyCfg(), writeMode: "read-only" });
     expect(guard.check("theme.schema", "/starter")).toEqual({ allowed: true });
+  });
+
+  it("classifies automad_theme dev actions destructively/read-only", () => {
+    expect(DESTRUCTIVE_ACTIONS.has("theme.dev")).toBe(true);
+    expect(DESTRUCTIVE_ACTIONS.has("theme.dev_stop")).toBe(true);
+    expect(READ_ACTIONS.has("theme.dev_status")).toBe(true);
   });
 
   it("permits non-destructive in confirm mode", () => {

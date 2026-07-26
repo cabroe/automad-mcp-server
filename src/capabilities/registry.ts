@@ -137,8 +137,8 @@ const CAPABILITY_SPECS = {
     summary: "Manage and inspect local themes.",
     description:
       "Local-filesystem theme tooling (requires AUTOMAD_THEMES_PATH). " +
-      "list/install/activate/uninstall/scaffold/build, plus read/write/files for theme files (theme.json, .php, blocks/, .ts). " +
-      "Scaffold copies the starter kit into a new theme dir; build runs `npm install` + `npm run build`.",
+      "list/install/activate/uninstall/scaffold/build/dev/dev_stop/dev_status, plus read/write/files for theme files (theme.json, .php, blocks/, .ts). " +
+      "Scaffold copies the starter kit into a new theme dir; build runs `npm install` + `npm run build`; dev runs `npm install` (if needed) + `npm run dev` as a detached process.",
     requires: "themes",
     actions: {
       list: read("List themes."),
@@ -147,6 +147,9 @@ const CAPABILITY_SPECS = {
       uninstall: destructive("Uninstall a theme."),
       scaffold: destructive("Create a theme from the starter kit."),
       build: destructive("Build a theme."),
+      dev: destructive("Install dependencies and start the theme dev server in the background."),
+      dev_stop: destructive("Stop the theme dev server started by `dev`."),
+      dev_status: read("Read the status of the theme dev server."),
       read: read("Read a theme file."),
       write: destructive("Write a theme file."),
       files: read("List theme files."),
