@@ -41,10 +41,111 @@
 ## [0.7.0] - 2026-07-26
 
 ### Added
+- **Theme dev server** — `automad_theme` gains `dev` / `dev_stop` / `dev_status`
+ actions. `dev` runs `npm run dev` as a **detached background process**, writes
+ `<theme>/.automad-mcp/{dev.json,dev.log}`, and returns the local URL (port
+ discovered in this order: explicit `port` arg → `package.json` `scripts.dev`
+ (`--port=N` / `PORT=N`) → the first `http://localhost:<port>` marker in the
+ log, up to 20 s). `dev_stop` sends SIGTERM, escalates to SIGKILL after 5 s,
+ and removes the record. `dev_status` reports the running state without
+ blocking. A second `dev` call for the same theme returns `CONFLICT` until
+ `dev_stop` is called. Live-verified end-to-end against
+ `automad/automad:v2`: the dev server's PHP+esbuild pipeline starts and
+ `curl http://localhost:8000` returns the expected content.
+- **Two new theme analyzer findings** — `LANG_WITHOUT_I18N` (locale masks
+ declared in `theme.json` but no `i18n/<locale>.json` file on disk) and
+ `MAIN_SNIPPET_UNDEFINED` (a page mask of the form `+snippetName` whose
+ snippet doesn't exist). Both are severity `info`, ordered alongside the
+ existing `define`/`use` checks.
+- **KB pages split** — `docs/kb.ts` (the bundled knowledge base) is now a
+ thin re-exporter over 13 per-page modules in `docs/kb/pages/`. The split is
+ invisible at runtime but makes adding / auditing individual KB pages
+ tractable. A drift test pins `KB_PAGES` order and shape.
+- **GitHub Pages landing page** — `docs/index.html` is now a self-contained
+ single-file landing page (no script, no remote stylesheet, no remote
+ image; pinned by `docs-drift.test.ts`). The tool table is generated from
+ the capability registry via `npm run docs:sync`, so it cannot drift from
+ the code. Counts (tool count, read/destructive, test count) are
+ fenced markers that regenerate alongside the README.
+- **`scripts/verify.ts`** — single-command pre-PR gate: runs
+ `build` → `lint` → `vitest run` → `vitest run --coverage` (with the
+ `vitest.config.ts` thresholds enforcing 80% stmt / 70% branch) →
+ `docs:sync --check`. Fails fast on the first broken step.
+- **`scripts/smoke.ts`** — end-to-end driver that spawns the built server
+ over stdio, runs `theme.scaffold` → `theme.dev` (polls until running) →
+ `curl` (HTTP 2xx/3xx) → `theme.dev_stop`. Lives in `npm run smoke`; no
+ live Automad instance required (`AUTOMAD_MODE=docs` + a starter kit path
+ is enough).
+- **`scripts/commit.ts`** — Conventional-Commits validator. `npm run
+ commit:check` validates HEAD (for CI / pre-push); `node scripts/commit.ts
+ '<msg>'` validates + commits. Type- and scope-allow-lists are a single
+ source of truth.
+- **`scripts/docs-sync-all.ts`** — one-shot: runs `docs:sync` (static
+ markers) and `docs:sync:tests` (TESTCOUNT via vitest) back-to-back.
+ Available as `npm run docs:sync:all`.
+- **`scripts/release.ts` `--push` / `--release` flags** — after tagging,
+ `--push` runs `git push --follow-tags`; `--release` additionally runs
+ `gh release create vX.Y.Z` with the matching CHANGELOG section as the
+ release body (extracted via a new `extractChangelogSection` export).
+ Convenience scripts `npm run release:full:{patch,minor,major}` wrap
+ all three steps.
 
 ### Changed
+- **`pages.create` now accepts a `template` field as `"{theme}/{template}"`
+ (no `.php`)** — v2 splits on `/` and appends `.php`, so
+ `my-theme/page` resolves to `packages/my-theme/page.php`. Lets a page
+ bind to a theme that isn't the site default (the site default itself
+ is not exposed via the API; it is set in the dashboard). Documented
+ in `schemas.ts` JSDoc and in the README.
+- **`theme.scaffold` now verifies the starter-kit layout** before copying
+ (canonical layout: `theme.json`, `components/`, `blocks/`,
+ `client/index.ts`, `esbuild.js`). A stale or wrong starter-kit
+ directory now returns `VALIDATION` with a concrete missing-list
+ instead of silently producing a broken theme.
+- **Knowledge-base size unchanged at runtime** — splitting the KB into
+ per-page modules does not affect the embedded content; the public
+ surface (`automad://docs`, `automad://docs/{slug}`) is identical.
+- **ThemeFs abstraction** — `ThemeFs` interface gained
+ `appendLog(path, content)` and `readLogTail(path, maxBytes)` with a
+ 1 MiB cap and 256 KiB tail retention in the `LocalThemeFs`
+ implementation. The dev server uses these exclusively; no direct
+ `node:fs` calls in new code.
+- **Documented the `template` field's `"{theme}/{template}"` convention**
+ in `schemas.ts` JSDoc and the README. A new README section ("Bind a
+ page to a specific theme/template") walks through it with a worked
+ example.
+- **README + GitHub Pages homepage** — both now describe the theme dev
+ server, the `verify` / `smoke` / `commit-check` scripts, the
+ `release:full:*` flow, and the page-template convention. The
+ homepage's "Theme tooling" card mentions the dev server; the tools
+ table shows `dev` / `dev_stop` / `dev_status` for `automad_theme`.
 
 ### Fixed
+- **Two analyzer findings double-fired on generated output** — both
+ `LANG_WITHOUT_I18N` and `MAIN_SNIPPET_UNDEFINED` previously reported
+ against `<stubs>`/`<output>` directories that ship with the starter
+ kit. The scan is now scoped to `snippets/` and `components/` for the
+ relevant lookups and skips generated paths, so live reports contain
+ only findings the user can act on.
+- **`MAIN_SNIPPET_UNDEFINED` had a brittle fixture** — the test
+ referenced a `mainSnippet` field on the analyzer's output that the
+ code didn't actually return. Added the missing field to the
+ `ThemeAnalysis` fixture literal so the test exercises the production
+ code path.
+- **`page-format.ts` was dead code** — the file existed for an old
+ page-format reader, but nothing in the live HTTP path uses it. The
+ tests that referenced it still passed because they imported the
+ module directly. Removed the file; tests now use the real
+ v2 `/_api/page/data` response path. No live consumer was affected.
+- **`docs/kb` `headless.ts` was renamed to `headless-api.ts`** to
+ match the spec/plan wording and to avoid colliding with any future
+ "headless" UI module. Pure rename; no behavior change.
+- **`release.ts` extraction off-by-one** — `extractChangelogSection`
+ originally searched the slice for the next `## [` header **before**
+ stripping the current one, so `end` was always 0 and the function
+ returned a single newline. The function now strips the current
+ header first; returns the full section block up to the next `## [`
+ (or end of file).
 
 
 ## [0.5.4] – [0.5.14]
