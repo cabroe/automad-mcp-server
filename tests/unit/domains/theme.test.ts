@@ -6,7 +6,19 @@ import { handleTheme } from "../../../src/domains/theme.js";
 import { WriteGuard } from "../../../src/write-guard.js";
 import type { HttpClient } from "../../../src/client.js";
 import type { Config } from "../../../src/config.js";
+import type * as ThemeDevModule from "../../../src/theme/dev.js";
 
+vi.mock("../../../src/theme/dev.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof ThemeDevModule>();
+  return {
+    ...actual,
+    startDev: vi.fn(),
+    stopDev: vi.fn(),
+    getDevStatus: vi.fn(),
+  };
+});
+
+import { startDev, stopDev, getDevStatus } from "../../../src/theme/dev.js";
 function mockClient(): HttpClient {
   return { get: vi.fn(), post: vi.fn(), put: vi.fn(), delete: vi.fn(), upload: vi.fn() } as unknown as HttpClient;
 }
@@ -31,6 +43,11 @@ beforeEach(async () => {
   await nodeFs.mkdir(starter);
   await nodeFs.writeFile(path.join(starter, "theme.json"), JSON.stringify({ name: "Starter", description: "d" }));
   await nodeFs.writeFile(path.join(starter, "package.json"), JSON.stringify({ name: "starter", scripts: {} }));
+  await nodeFs.mkdir(path.join(starter, "components"));
+  await nodeFs.mkdir(path.join(starter, "blocks"));
+  await nodeFs.mkdir(path.join(starter, "client"));
+  await nodeFs.writeFile(path.join(starter, "client", "index.ts"), "");
+  await nodeFs.writeFile(path.join(starter, "esbuild.js"), "");
   await nodeFs.writeFile(path.join(starter, "page.php"), "<?php");
 });
 afterEach(async () => {
@@ -38,6 +55,12 @@ afterEach(async () => {
 });
 
 describe("handleTheme", () => {
+beforeEach(() => {
+  vi.mocked(startDev).mockReset();
+  vi.mocked(stopDev).mockReset();
+  vi.mocked(getDevStatus).mockReset();
+});
+
   it("list returns discovered themes from local fs", async () => {
     // create two theme dirs
     await nodeFs.mkdir(path.join(themes, "alpha"));
@@ -218,5 +241,40 @@ describe("handleTheme", () => {
       { action: "generate" },
       { client: mockClient(), guard: new WriteGuard(cfg()), themesPath: themes, starterKitPath: starter },
     )).rejects.toMatchObject({ code: "VALIDATION" });
+  });
+
+  it("dispatches dev actions to their lifecycle helpers", async () => {
+    const deps = { client: mockClient(), guard: new WriteGuard(cfg()), themesPath: themes, starterKitPath: starter };
+    const started = { running: true, pid: 42, port: 4321, url: "http://localhost:4321", startedAt: "now", logPath: "/tmp/dev.log" };
+    const stopped = { stopped: true, signalUsed: "SIGTERM", wasLive: true };
+    const status = { ...started };
+    vi.mocked(startDev).mockResolvedValue(started);
+    vi.mocked(stopDev).mockResolvedValue(stopped);
+    vi.mocked(getDevStatus).mockResolvedValue(status);
+
+    await expect(handleTheme({ action: "dev", theme: "demo", port: 4321 }, deps)).resolves.toEqual(started);
+    expect(startDev).toHaveBeenCalledWith(expect.objectContaining({
+      cwd: path.join(themes, "demo"),
+      fs: expect.any(Object),
+      portHint: 4321,
+      portTimeoutMs: 20_000,
+      runInstall: expect.any(Function),
+    }));
+
+    await expect(handleTheme({ action: "dev_stop", theme: "demo" }, deps)).resolves.toEqual(stopped);
+    expect(stopDev).toHaveBeenCalledWith(path.join(themes, "demo"), expect.any(Object));
+
+    await expect(handleTheme({ action: "dev_status", theme: "demo" }, deps)).resolves.toEqual(status);
+    expect(getDevStatus).toHaveBeenCalledWith(path.join(themes, "demo"), expect.any(Object));
+  });
+
+  it("requires theme for every dev action", async () => {
+    const deps = { client: mockClient(), guard: new WriteGuard(cfg()), themesPath: themes, starterKitPath: starter };
+    for (const action of ["dev", "dev_stop", "dev_status"] as const) {
+      await expect(handleTheme({ action }, deps)).rejects.toMatchObject({
+        code: "VALIDATION",
+        message: `theme is required for ${action}`,
+      });
+    }
   });
 });

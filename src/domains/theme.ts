@@ -1,8 +1,9 @@
+import * as path from "node:path";
 import { AutomadMcpError } from "../errors.js";
 import type { HttpClient } from "../client.js";
 import type { WriteGuard, WriteAction } from "../write-guard.js";
 import type { ThemeInput } from "../schemas.js";
-import { LocalThemeFs, type ThemeFs } from "../theme/fs.js";
+import { LocalThemeFs, assertWithinRoot, type ThemeFs } from "../theme/fs.js";
 import { ThemeManager } from "../theme/manager.js";
 import { scaffold, type ScaffoldDeps } from "../theme/scaffold.js";
 import { listFiles, readFile, writeFile, type EditorDeps } from "../theme/editor.js";
@@ -11,6 +12,8 @@ import { ThemeSchemaBuilder } from "../theme/schema.js";
 import { unifiedDiff } from "../theme/diff.js";
 import { generate } from "../theme/generate.js";
 import { assertSafeThemeSlug } from "../theme/slug.js";
+import { startDev, stopDev, getDevStatus } from "../theme/dev.js";
+import { runCommand as runInstall } from "../theme/build.js";
 
 type ThemeAction = ThemeInput["action"];
 
@@ -29,6 +32,9 @@ const ACTION_MAP: Record<ThemeAction, WriteAction> = {
   schema: "theme.schema",
   diff: "theme.diff",
   generate: "theme.generate",
+  dev: "theme.dev",
+  dev_stop: "theme.dev_stop",
+  dev_status: "theme.dev_status",
 };
 
 export interface ThemeHandlerDeps {
@@ -147,6 +153,28 @@ export async function handleTheme(
     case "generate": {
       if (!input.kind) throw new AutomadMcpError("VALIDATION", "kind is required for generate");
       return generate({ kind: input.kind, name: input.name, path: input.path });
+    }
+    case "dev": {
+      if (!input.theme) throw new AutomadMcpError("VALIDATION", "theme is required for dev");
+      const themePath = assertWithinRoot(deps.themesPath, path.join(deps.themesPath, input.theme));
+      const devOptions = {
+        cwd: themePath,
+        fs,
+        portTimeoutMs: 20_000,
+        runInstall,
+        ...(input.port !== undefined ? { portHint: input.port } : {}),
+      };
+      return startDev(devOptions);
+    }
+    case "dev_stop": {
+      if (!input.theme) throw new AutomadMcpError("VALIDATION", "theme is required for dev_stop");
+      const themePath = assertWithinRoot(deps.themesPath, path.join(deps.themesPath, input.theme));
+      return stopDev(themePath, fs);
+    }
+    case "dev_status": {
+      if (!input.theme) throw new AutomadMcpError("VALIDATION", "theme is required for dev_status");
+      const themePath = assertWithinRoot(deps.themesPath, path.join(deps.themesPath, input.theme));
+      return getDevStatus(themePath, fs);
     }
   }
 }

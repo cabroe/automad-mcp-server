@@ -67,6 +67,17 @@ describe("schemas", () => {
     expect(themeInput.parse({ action: "write", theme: "t", path: "x.php", content: ok })).toBeDefined();
   });
 
+  it("themeInput accepts dev actions and an optional valid port", () => {
+    expect(themeInput.parse({ action: "dev", theme: "t", port: 4321 })).toMatchObject({ action: "dev", port: 4321 });
+    expect(themeInput.parse({ action: "dev_stop", theme: "t" }).action).toBe("dev_stop");
+    expect(themeInput.parse({ action: "dev_status", theme: "t" }).action).toBe("dev_status");
+  });
+
+  it("themeInput rejects out-of-range dev ports", () => {
+    expect(() => themeInput.parse({ action: "dev", theme: "t", port: 0 })).toThrow();
+    expect(() => themeInput.parse({ action: "dev", theme: "t", port: 70000 })).toThrow();
+  });
+
   it("sharedInput accepts get", () => {
     expect(sharedInput.parse({ action: "get" })).toBeDefined();
   });

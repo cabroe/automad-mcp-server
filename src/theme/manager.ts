@@ -187,6 +187,8 @@ export class ThemeManager {
   }
 }
 
+export { startDev, stopDev, getDevStatus, assertStarterKitLayout } from "./dev.js";
+
 async function listDirs(dir: string): Promise<string[]> {
   try {
     const entries = await nodeFs.readdir(dir, { withFileTypes: true });

@@ -157,6 +157,8 @@ export const themeInput = z.object({
   content: z.string().max(MAX_THEME_FILE_BYTES, `theme.write content exceeds ${MAX_THEME_FILE_BYTES} bytes`).optional(),
   /** Build: run `npm install` first (default true). */
   install: z.boolean().optional(),
+  /** Dev: preferred local port for the detached server. */
+  port: z.number().int().min(1).max(65535).optional(),
   /** Generate: template kind (nav, pagelist, breadcrumbs, component, block, i18n, snippet). */
   kind: z.string().optional(),
   confirm_token: z.string().optional(),
