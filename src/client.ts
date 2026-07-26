@@ -343,11 +343,12 @@ async function unwrap<T>(res: Response, method: string, path: string): Promise<T
     !res.ok || (errorText && errorText.length > 0) || (codeNum !== undefined && codeNum >= 400);
   if (isErrorResponse) {
     const message = errorText ?? `HTTP ${res.status} on ${method} ${path}`;
-    // v2 has a known quirk: it returns 200 OK with `{code: 200, error: "..."}`
-    // for server-side validation failures. Detect that pattern and surface as
-    // VALIDATION rather than UNKNOWN so callers can correct the request.
-    let code: AutomadMcpError['code'] = mapStatusToCode(res.status);
-    if (res.ok && errorText && looksLikeServerValidation(errorText)) {
+    // v2 has a known quirk: it returns 200 OK with `{code: 4xx/5xx, error: "..."}`
+    // in its JSON envelope for server-side errors and validation failures.
+    // Respect `code` in the envelope over wire `res.status` (which is often 200).
+    const effectiveStatus = codeNum !== undefined && codeNum >= 400 ? codeNum : res.status;
+    let code: AutomadMcpError['code'] = mapStatusToCode(effectiveStatus);
+    if (res.ok && effectiveStatus < 400 && errorText && looksLikeServerValidation(errorText)) {
       code = 'VALIDATION';
     }
     throw new AutomadMcpError(code, message, payload);

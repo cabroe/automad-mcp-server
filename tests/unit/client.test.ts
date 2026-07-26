@@ -249,6 +249,33 @@ describe('HttpClient (v2 /_api)', () => {
     expect(res).toEqual({ ok: 1 });
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
+  it('HTTP 200 with code:404 in envelope surfaces as NOT_FOUND', async () => {
+    fetchMock.mockResolvedValueOnce({
+      status: 200,
+      ok: true,
+      json: async () => ({ code: 404, error: 'Page not found' }),
+      text: async () => '{"code":404,"error":"Page not found"}',
+    });
+    const client = new HttpClient({ baseUrl: 'https://x' }, mockAuth());
+    await expect(client.get('/_api/page/data')).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+      message: 'Page not found',
+    });
+  });
+
+  it('HTTP 200 with code:409 in envelope surfaces as CONFLICT', async () => {
+    fetchMock.mockResolvedValueOnce({
+      status: 200,
+      ok: true,
+      json: async () => ({ code: 409, error: 'Theme already exists' }),
+      text: async () => '{"code":409,"error":"Theme already exists"}',
+    });
+    const client = new HttpClient({ baseUrl: 'https://x' }, mockAuth());
+    await expect(client.get('/_api/page/data')).rejects.toMatchObject({
+      code: 'CONFLICT',
+      message: 'Theme already exists',
+    });
+  });
 
   it('repeated 5xx gives up after one retry (no hammering)', async () => {
     fetchMock.mockResolvedValue({
