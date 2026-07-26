@@ -6,10 +6,14 @@ import { AutomadMcpError } from '../errors.js';
 
 export const REQUIRED_LAYOUT = [
   'theme.json',
+  'package.json',
+  'default.php',
+  'esbuild.js',
+  'bin/dev.sh',
+  'bin/server.sh',
+  'client/index.ts',
   'components',
   'blocks',
-  'client/index.ts',
-  'esbuild.js',
 ] as const;
 
 export const DEV_DIR = '.automad-mcp';

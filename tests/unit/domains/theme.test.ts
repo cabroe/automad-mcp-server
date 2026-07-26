@@ -65,6 +65,10 @@ beforeEach(async () => {
   await nodeFs.writeFile(path.join(starter, 'client', 'index.ts'), '');
   await nodeFs.writeFile(path.join(starter, 'esbuild.js'), '');
   await nodeFs.writeFile(path.join(starter, 'page.php'), '<?php');
+  await nodeFs.writeFile(path.join(starter, 'default.php'), '<@ components/page.php @>');
+  await nodeFs.mkdir(path.join(starter, 'bin'));
+  await nodeFs.writeFile(path.join(starter, 'bin', 'dev.sh'), '#!/bin/bash');
+  await nodeFs.writeFile(path.join(starter, 'bin', 'server.sh'), '#!/bin/bash');
 });
 afterEach(async () => {
   await nodeFs.rm(root, { recursive: true, force: true });

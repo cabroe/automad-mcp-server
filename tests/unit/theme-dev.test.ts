@@ -150,10 +150,14 @@ class FakeCommandRunner {
 
 function repoWithLayout(fs: FakeThemeFs, root: string) {
   fs.files.set(`${root}/theme.json`, '{}');
+  fs.files.set(`${root}/package.json`, '{}');
+  fs.files.set(`${root}/default.php`, '');
+  fs.files.set(`${root}/esbuild.js`, '');
+  fs.files.set(`${root}/bin/dev.sh`, '');
+  fs.files.set(`${root}/bin/server.sh`, '');
+  fs.files.set(`${root}/client/index.ts`, '');
   fs.dirs.add(`${root}/components`);
   fs.dirs.add(`${root}/blocks`);
-  fs.files.set(`${root}/client/index.ts`, '');
-  fs.files.set(`${root}/esbuild.js`, '');
 }
 
 function parseRecord(fs: FakeThemeFs, themePath: string): DevRecord {
@@ -167,7 +171,7 @@ function parseRecord(fs: FakeThemeFs, themePath: string): DevRecord {
 
 describe('theme dev constants', () => {
   it('exports canonical layout', () => {
-    expect(REQUIRED_LAYOUT).toHaveLength(5);
+    expect(REQUIRED_LAYOUT).toHaveLength(9);
     expect(REQUIRED_LAYOUT).toContain('theme.json');
   });
   it('log cap is 1 MiB', () => {
