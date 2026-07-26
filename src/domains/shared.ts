@@ -28,8 +28,8 @@ export async function handleShared(
     case 'get':
       return client.post(`${API_BASE}/shared/data`, {});
     case 'set': {
-      if (!input.fields) {
-        throw new AutomadMcpError('VALIDATION', 'fields is required for set');
+      if (!input.fields || Object.keys(input.fields).length === 0) {
+        throw new AutomadMcpError('VALIDATION', 'fields is required for set (non-empty object)');
       }
       return client.post(`${API_BASE}/shared/data`, { data: input.fields });
     }

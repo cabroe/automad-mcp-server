@@ -47,8 +47,8 @@ export async function handleConfig(
       };
     }
     case 'set': {
-      if (!input.type || !input.payload) {
-        throw new AutomadMcpError('VALIDATION', 'type and payload are required for set');
+      if (!input.type || !input.payload || Object.keys(input.payload).length === 0) {
+        throw new AutomadMcpError('VALIDATION', 'type and payload are required for set (non-empty payload)');
       }
       return client.post(`${API_BASE}/config/update`, { type: input.type, ...input.payload });
     }
