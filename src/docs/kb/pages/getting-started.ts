@@ -5,7 +5,8 @@ export const page: DocPage = {
   title: "Getting started",
   tags: ["install", "docker", "packages", "setup", "requirements"],
   reference: "https://automad.org/getting-started",
-  body: `
+  body: `# Getting started
+
 ## Docker (fastest)
 \`\`\`
 docker run -dp 8080:80 automad/automad:v2
@@ -34,5 +35,6 @@ packages/my/theme/
 <html lang="@{ :lang | def('en') }">
   <body>@{ +main }</body>
 </html>
-\`\`\``,
+\`\`\`
+`,
 };

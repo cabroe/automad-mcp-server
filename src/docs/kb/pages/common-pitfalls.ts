@@ -5,7 +5,8 @@ export const page: DocPage = {
   title: "Common pitfalls (v2 themes)",
   tags: ["pitfalls", "debug", "gotchas", "include", "snippet", "lang", "fpm"],
   reference: "https://automad.org/developer-guide",
-  body: `
+  body: `# Common pitfalls (v2 themes)
+
 Hard-won lessons from real theme builds. Read this before chasing a "why does my
 page render empty?" mystery.
 
@@ -55,5 +56,6 @@ even with \`revalidate_freq=2\`. Force worker respawn with
 Older blog posts and tooling link to \`https://automad.org/version-2/blocks\`
 and friends — these all return 404. The real docs live at
 \`/developer-guide/building-themes/*\` and \`/user-guide/*\`. Always check
-\`https://automad.org/\` first.`,
+\`https://automad.org/\` first.
+`,
 };

@@ -5,7 +5,8 @@ export const page: DocPage = {
   title: "Snippet inheritance (the `main` pattern)",
   tags: ["snippet", "main", "inheritance", "two-pass", "page.php", "layout.php"],
   reference: "https://automad.org/developer-guide/building-themes/template-language/inheritance",
-  body: `
+  body: `# Snippet inheritance (the \`main\` pattern)
+
 If a template invokes \`<@ main @>\` but no \`<@~ snippet main ~@>\` is reachable,
 the page renders with an empty \`<main>\` — silently, with HTTP 200.
 
@@ -72,5 +73,6 @@ or shared component invokes \`<@ main @>\`, that section is empty. Either:
 
 \`automad_theme.analyze\` walks the call graph from \`default.php\` (and any
 other root templates) and reports any \`<@ main @>\` invocation that has no
-reachable \`<@~ snippet main ~@>\` definition.`,
+reachable \`<@~ snippet main ~@>\` definition.
+`,
 };

@@ -5,7 +5,8 @@ export const page: DocPage = {
   title: "Include path resolution",
   tags: ["include", "path", "snippet", "resolve", "directory"],
   reference: "https://automad.org/developer-guide/building-themes/template-language/includes",
-  body: `
+  body: `# Include path resolution
+
 The single biggest source of "my template renders empty" bugs is misunderstanding
 where \`<@ include @>\` looks.
 
@@ -70,5 +71,6 @@ processing means the defining directory is what matters.
   path from the snippet's defining file.
 - The starter kit's \`components/page.php\` includes \`<@ layout.php @>\` from the
   theme root — only works because \`layout.php\` lives there. Move \`page.php\`
-  into a subdirectory and the include silently breaks.`,
+  into a subdirectory and the include silently breaks.
+`,
 };

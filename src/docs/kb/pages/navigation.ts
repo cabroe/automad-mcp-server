@@ -5,7 +5,8 @@ export const page: DocPage = {
   title: "Navigation",
   tags: ["nav", "navtree", "breadcrumbs", "pagelist", "menu", "recursive"],
   reference: "https://automad.org/developer-guide/building-themes/template-language/recursive-navigations",
-  body: `
+  body: `# Navigation
+
 ## Helpers
 \`\`\`
 <@ navTree @>         <!-- full navigation tree -->
@@ -44,5 +45,6 @@ A snippet may call itself for nested menus.
 \`\`\`
 
 \`:current\` = "this is the current page"; \`:currentPath\` = "this page is on the
-way to the current page" (keeps the branch open).`,
+way to the current page" (keeps the branch open).
+`,
 };

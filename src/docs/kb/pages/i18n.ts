@@ -5,7 +5,8 @@ export const page: DocPage = {
   title: "Multilingual (i18n)",
   tags: ["i18n", "multilingual", "translation", "locale", "language"],
   reference: "https://automad.org/developer-guide/building-themes/template-language/multilingual-content",
-  body: `
+  body: `# Multilingual (i18n)
+
 Translation dictionaries live in \`i18n/<locale>.json\` inside the theme.
 
 ## Output a translation
@@ -29,5 +30,6 @@ Translation dictionaries live in \`i18n/<locale>.json\` inside the theme.
 
 Keep the key set identical across every \`i18n/*.json\` file — missing keys in one
 locale fall back to the key string. \`automad_theme.validate\` flags empty i18n
-directories and duplicate locales.`,
+directories and duplicate locales.
+`,
 };

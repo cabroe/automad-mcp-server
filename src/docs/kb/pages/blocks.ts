@@ -5,7 +5,8 @@ export const page: DocPage = {
   title: "Blocks",
   tags: ["blocks", "editor", "pagelist", "section", "columns", "content"],
   reference: "https://automad.org/user-guide/using-blocks",
-  body: `
+  body: `# Blocks
+
 Content is authored in the block editor and rendered where a template places a
 \`@{ +field }\` region.
 
@@ -79,5 +80,6 @@ blocks/
 \`\`\`
 
 Add a new variant by creating \`blocks/<type>/<variant>.php\` in your theme; the
-dashboard lets the editor pick the variant per block instance.`,
+dashboard lets the editor pick the variant per block instance.
+`,
 };

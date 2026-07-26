@@ -5,7 +5,8 @@ export const page: DocPage = {
   title: "Template syntax",
   tags: ["template", "syntax", "statements", "variables", "blocks", "pipe"],
   reference: "https://automad.org/developer-guide/building-themes/template-language",
-  body: `
+  body: `# Template syntax
+
 Automad v2 templates mix three distinct constructs. Getting them right is the
 single most common source of theme bugs.
 
@@ -46,5 +47,6 @@ Wrong: \`<@ @{ +main } @>\`, \`@{ + main }\`, \`@{+main}\`.
 - Clear the cache after template changes (Dashboard → cache, or delete \`cache/\`).
 - \`<@\` not interpreted → enable \`short_open_tag = On\` in php.ini / .user.ini.
 - Template not found → the file exists, is referenced in theme.json, and the
-  page uses that template.`,
+  page uses that template.
+`,
 };

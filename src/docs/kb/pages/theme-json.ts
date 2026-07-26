@@ -5,7 +5,8 @@ export const page: DocPage = {
   title: "theme.json",
   tags: ["theme.json", "manifest", "masks", "fieldorder", "tooltips", "options"],
   reference: "https://automad.org/developer-guide/building-themes/theme-json",
-  body: `
+  body: `# theme.json
+
 The manifest that describes a theme to the dashboard.
 
 \`\`\`json
@@ -35,5 +36,6 @@ The manifest that describes a theme to the dashboard.
 
 Field names referenced in templates via \`@{ field }\` should be surfaced through
 \`masks\`/\`fieldOrder\` so editors can fill them. Run \`automad_theme.schema\` to get
-a normalized view of every field a theme uses.`,
+a normalized view of every field a theme uses.
+`,
 };

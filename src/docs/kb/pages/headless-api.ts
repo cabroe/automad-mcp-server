@@ -5,7 +5,8 @@ export const page: DocPage = {
   title: "Headless / REST API",
   tags: ["headless", "rest", "api", "json", "endpoints", "csrf", "session"],
   reference: "https://automad.org/headless-mode",
-  body: `
+  body: `# Headless / REST API
+
 Automad v2 exposes a JSON dispatch layer at \`/_api/{controller}/{method}\`. The
 same layer powers the dashboard and this MCP server.
 
@@ -33,5 +34,6 @@ publish, then read.
 
 ## Rendered pages as JSON
 Append the JSON view to a page URL (or use the block \`@{ ... }\` output) to consume
-content headlessly; for structured content prefer the \`/_api\` endpoints above.`,
+content headlessly; for structured content prefer the \`/_api\` endpoints above.
+`,
 };

@@ -5,7 +5,8 @@ export const page: DocPage = {
   title: "Runtime :lang vs per-page textLanguage",
   tags: ["lang", "i18n", "textLanguage", "AM_I18N_ENABLED"],
   reference: "https://automad.org/developer-guide/building-themes/template-language/multilingual-content",
-  body: `
+  body: `# Runtime \`:lang\` vs per-page \`textLanguage\`
+
 A common confusion: setting \`textLanguage\` on a page does NOT change
 \`@{ :lang }\` in the template.
 
@@ -52,5 +53,6 @@ Or via a custom function (see \`custom-functions\`):
 ## Analyzer warning
 
 \`automad_theme.analyze\` warns when a template uses \`@{ :lang }\` but the
-theme has no \`i18n/\` directory (likely forgotten step 3), or vice versa.`,
+theme has no \`i18n/\` directory (likely forgotten step 3), or vice versa.
+`,
 };

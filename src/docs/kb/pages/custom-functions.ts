@@ -5,7 +5,8 @@ export const page: DocPage = {
   title: "Custom functions (CustomFunction registry)",
   tags: ["function", "CustomFunction", "registry", "t", "i18n"],
   reference: "https://automad.org/developer-guide/developing-extensions",
-  body: `
+  body: `# Custom functions
+
 The Automad template engine looks up \`<@ myFn { ... } @>\` via a **registry**, not
 the global PHP function table. Plain PHP \`function myFn() {}\` in
 \`lib/functions.php\` is **invisible** to templates.
@@ -52,5 +53,6 @@ function in any namespace would become template-callable).
 
 Quick smoke test: \`automad_theme.analyze\` on your theme should NOT warn about
 unrecognized function names. If you see "function \`t\` not registered", the
-registration didn't run before the analyzer.`,
+registration didn't run before the analyzer.
+`,
 };

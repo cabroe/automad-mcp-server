@@ -5,7 +5,7 @@ import { page as navigation } from "./navigation.js";
 import { page as i18n } from "./i18n.js";
 import { page as blocks } from "./blocks.js";
 import { page as themeJson } from "./theme-json.js";
-import { page as headless } from "./headless.js";
+import { page as headless } from "./headless-api.js";
 import { page as gettingStarted } from "./getting-started.js";
 import { page as commonPitfalls } from "./common-pitfalls.js";
 import { page as includePathResolution } from "./include-path-resolution.js";

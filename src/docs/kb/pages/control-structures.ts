@@ -5,7 +5,8 @@ export const page: DocPage = {
   title: "Control structures (set, with, foreach, if)",
   tags: ["foreach", "if", "with", "set", "loop", "context"],
   reference: "https://automad.org/developer-guide/building-themes/template-language/control-structures",
-  body: `
+  body: `# Control structures (set, with, foreach, if)
+
 ## set — mutate the current context
 \`\`\`
 <@ set { :classArticle: 'card', :showFooter: true } @>
@@ -50,5 +51,6 @@ Inside \`foreach in\`, loop variables use the \`:\` prefix.
     <a href="@{ :url }">@{ :title }</a>
   </li>
 <@ end @>
-\`\`\``,
+\`\`\`
+`,
 };
