@@ -69,14 +69,18 @@ export async function runCommand(
       }, timeoutMs);
     }
 
-    child.on('error', (err) => {
+    child.on('error', (err: Error & { code?: string }) => {
       clearTimeout(timer);
+      const isEnoent = err.code === 'ENOENT';
+      const msg = isEnoent
+        ? `Executable '${cmd}' was not found in PATH. Ensure '${cmd}' is installed, or set AUTOMAD_PACKAGE_MANAGER to an available package manager.`
+        : err.message;
       resolve({
         ok: false,
         exitCode: -1,
         durationMs: Date.now() - start,
         stdout,
-        stderr: stderr + `\n[spawn error] ${err.message}`,
+        stderr: stderr ? `${stderr}\n[spawn error] ${msg}` : `[spawn error] ${msg}`,
         command: `${cmd} ${args.join(' ')}`,
       });
     });
@@ -95,17 +99,26 @@ export async function runCommand(
   });
 }
 
-/** Run `npm install` in `cwd`. */
+/** Run package install in `cwd` (`npm install` or configured package manager). */
 export async function npmInstall(cwd: string, timeoutMs?: number): Promise<BuildResult> {
-  return runCommand('npm', ['install', '--no-audit', '--no-fund', '--loglevel=warn'], {
+  const pm = process.env['AUTOMAD_PACKAGE_MANAGER'] ?? 'npm';
+  const args =
+    pm === 'bun'
+      ? ['install']
+      : pm === 'pnpm'
+        ? ['install', '--no-fund']
+        : ['install', '--no-audit', '--no-fund', '--loglevel=warn'];
+  return runCommand(pm, args, {
     cwd,
     ...(timeoutMs !== undefined ? { timeoutMs } : {}),
   });
 }
 
-/** Run `npm run build` in `cwd`. */
+/** Run package build in `cwd` (`npm run build` or configured package manager). */
 export async function npmBuild(cwd: string, timeoutMs?: number): Promise<BuildResult> {
-  return runCommand('npm', ['run', 'build', '--loglevel=warn'], {
+  const pm = process.env['AUTOMAD_PACKAGE_MANAGER'] ?? 'npm';
+  const args = pm === 'bun' ? ['run', 'build'] : ['run', 'build', '--loglevel=warn'];
+  return runCommand(pm, args, {
     cwd,
     ...(timeoutMs !== undefined ? { timeoutMs } : {}),
   });

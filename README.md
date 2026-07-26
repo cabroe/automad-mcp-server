@@ -616,6 +616,11 @@ scripts/            TypeScript build-time helpers (run via `npm run <name>`)
 ```
 </details>
 
+## Known limitations
+
+- **`pages.list` endpoint limitation** — Automad v2 currently lacks a native `/_api/page-collection/all` endpoint. `pages.list` uses `/_api/page-collection/get-recently-edited` as a workaround.
+- **Package manager support** — Theme dev and build commands default to `npm` but support `AUTOMAD_PACKAGE_MANAGER=bun|pnpm|npm`. If the package manager executable is missing from `PATH`, the MCP returns a clear `VALIDATION` error instead of spawning a failing child process.
+- **API-token auth** — Automad v2 only provides session cookie + CSRF authentication. The MCP handles cookie scraping and session renewal automatically.
 ## License
 
 [MIT](./LICENSE)

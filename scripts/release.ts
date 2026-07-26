@@ -103,6 +103,13 @@ export function extractChangelogSection(version: string): string {
   const block = end < 0 ? afterCurrent : afterCurrent.slice(0, end);
   return block.replace(/\n+$/, "") + "\n";
 }
+export function hasChangelogNotes(section: string): string | boolean {
+  const cleaned = section
+    .replace(/^###\s*(Added|Changed|Fixed|Deprecated|Removed|Security)\s*$/gm, "")
+    .trim();
+  return cleaned.length > 0;
+}
+
 
 function runGit(args: string[]): string {
   return execFileSync("git", args, { cwd: ROOT, encoding: "utf-8" }).trim();
@@ -166,9 +173,9 @@ function pushTagAndRelease(
   }
 
   const section = extractChangelogSection(version);
-  if (!section) {
+  if (!section || !hasChangelogNotes(section)) {
     // eslint-disable-next-line no-console
-    console.warn(`release:skip — no CHANGELOG section for ${version}; fill in the section and rerun`);
+    console.warn(`release:skip — CHANGELOG section for ${version} is missing or has no release notes; fill in CHANGELOG.md bullets and rerun`);
     return { pushed: true, released: false, notesFile: null };
   }
 

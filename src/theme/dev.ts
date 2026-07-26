@@ -1,7 +1,7 @@
 import { spawn as cpSpawn } from 'node:child_process';
 import * as path from 'node:path';
 import type { ThemeFs } from './fs.js';
-import { runCommand } from './build.js';
+import { runCommand, npmInstall } from './build.js';
 import { AutomadMcpError } from '../errors.js';
 
 export const REQUIRED_LAYOUT = [
@@ -226,15 +226,17 @@ export async function startDev(opts: StartDevOptions): Promise<StartDevResult> {
   }
 
   if (!(await opts.fs.exists(path.join(opts.cwd, 'node_modules')))) {
-    const res = await (opts.runInstall ?? runCommand)(
-      'npm',
-      ['install', '--no-audit', '--no-fund'],
-      { cwd: opts.cwd, timeoutMs: DEFAULT_NPM_INSTALL_TIMEOUT_MS },
-    );
+    const pm = process.env['AUTOMAD_PACKAGE_MANAGER'] ?? 'npm';
+    const res = opts.runInstall
+      ? await opts.runInstall(pm, ['install', '--no-audit', '--no-fund'], {
+          cwd: opts.cwd,
+          timeoutMs: DEFAULT_NPM_INSTALL_TIMEOUT_MS,
+        })
+      : await npmInstall(opts.cwd, DEFAULT_NPM_INSTALL_TIMEOUT_MS);
     if (!res.ok) {
       throw new AutomadMcpError(
         'BUILD',
-        `npm install failed (exit ${res.exitCode}): ${res.stderr.slice(-2048)}`,
+        `${pm} install failed (exit ${res.exitCode}): ${res.stderr.slice(-2048)}`,
       );
     }
   }
