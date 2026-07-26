@@ -31,6 +31,37 @@ export interface ScaffoldDeps {
   themesPath: string;
 }
 
+/**
+ * Canonical build tooling every scaffolded theme must carry, mirrored from the
+ * Automad theme starter kit's package.json. These are enforced on scaffold so a
+ * new theme can always `npm run dev` / `npm run build` regardless of what the
+ * starter-kit source happened to ship.
+ */
+const CANONICAL_SCRIPTS: Record<string, string> = {
+  build: 'node esbuild.js',
+  dev: 'bash bin/dev.sh',
+};
+
+const CANONICAL_DEV_DEPENDENCIES: Record<string, string> = {
+  '@fontsource-variable/jetbrains-mono': '^5.2.5',
+  'automad-theme-ui-kit': '^0.1.4',
+  autoprefixer: '^10.4.21',
+  'browser-sync': '^3.0.3',
+  'dist-font-inter': '^4.1.0',
+  esbuild: '^0.25.11',
+  'esbuild-plugin-less': '^1.3.28',
+  'esbuild-postcss': '^0.0.4',
+  less: '^4.4.2',
+  'modern-normalize': '^3.0.1',
+  postcss: '^8.5.6',
+  typescript: '^5.9.3',
+};
+/** Narrow an unknown value to a plain object record, or undefined. */
+function objectRecord(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : undefined;
+}
 /** Slugify a theme name into a directory name. */
 export function themeSlug(name: string): string {
   return (
@@ -88,15 +119,28 @@ export async function scaffold(opts: ScaffoldOptions, deps: ScaffoldDeps): Promi
   await fs.writeFile(path.join(target, 'theme.json'), JSON.stringify(manifest, null, 2) + '\n');
 
   const pkgPath = path.join(target, 'package.json');
-  if (await fs.exists(pkgPath)) {
-    const pkg = JSON.parse(await fs.readFile(pkgPath)) as Record<string, unknown>;
-    pkg['name'] = slug;
-    pkg['description'] = opts.description ?? pkg['description'] ?? '';
-    if (opts.author) pkg['author'] = opts.author;
-    if (opts.license) pkg['license'] = opts.license;
-    if (opts.version) pkg['version'] = opts.version;
-    await fs.writeFile(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
-  }
+  const existingPkg = (await fs.exists(pkgPath))
+    ? (JSON.parse(await fs.readFile(pkgPath)) as Record<string, unknown>)
+    : {};
+  const pkg: Record<string, unknown> = {
+    ...existingPkg,
+    name: slug,
+    version: opts.version ?? (typeof existingPkg['version'] === 'string' ? existingPkg['version'] : '0.1.0'),
+    description:
+      opts.description ??
+      (typeof existingPkg['description'] === 'string' ? existingPkg['description'] : ''),
+    // Enforce the canonical build tooling so every theme can `npm run dev`/`build`.
+    scripts: { ...CANONICAL_SCRIPTS, ...(objectRecord(existingPkg['scripts']) ?? {}) },
+    type: 'module',
+    prettier: objectRecord(existingPkg['prettier']) ?? { trailingComma: 'es5' },
+    devDependencies: {
+      ...CANONICAL_DEV_DEPENDENCIES,
+      ...(objectRecord(existingPkg['devDependencies']) ?? {}),
+    },
+  };
+  pkg['author'] = opts.author ?? (typeof existingPkg['author'] === 'string' ? existingPkg['author'] : 'Marc Anton Dahmen');
+  pkg['license'] = opts.license ?? (typeof existingPkg['license'] === 'string' ? existingPkg['license'] : 'MIT');
+  await fs.writeFile(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
 
   const files = await fs.list(target, { recursive: true });
   return { path: target, name: opts.name, files: files.length, manifest };

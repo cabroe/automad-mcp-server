@@ -81,6 +81,25 @@ describe('scaffold', () => {
     expect(pkg['name']).toBe('my-theme');
     expect(pkg['description']).toBe('my desc');
   });
+  it('enforces the canonical build tooling in package.json', async () => {
+    const fs = new LocalThemeFs();
+    const out = await scaffold(
+      { name: 'Kit Theme' },
+      { fs, themesPath: themes, starterKitPath: starter },
+    );
+    const pkg = JSON.parse(await fs.readFile(path.join(out.path, 'package.json'))) as Record<
+      string,
+      unknown
+    >;
+    expect(pkg['type']).toBe('module');
+    expect((pkg['scripts'] as Record<string, string>).build).toBe('node esbuild.js');
+    expect((pkg['scripts'] as Record<string, string>).dev).toBe('bash bin/dev.sh');
+    const devDeps = pkg['devDependencies'] as Record<string, string>;
+    expect(devDeps['esbuild']).toBeTruthy();
+    expect(devDeps['typescript']).toBeTruthy();
+    expect(devDeps['automad-theme-ui-kit']).toBeTruthy();
+    expect(pkg['prettier']).toEqual({ trailingComma: 'es5' });
+  });
 
   it('rejects when theme already exists', async () => {
     const fs = new LocalThemeFs();
