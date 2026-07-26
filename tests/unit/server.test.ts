@@ -152,7 +152,10 @@ describe('createAutomadServer (v2)', () => {
 
     const noArgs = await mcp.getPrompt({ name: 'check_headless_setup', arguments: {} });
     const noArgsContent = noArgs.messages[0]!.content;
-    if (noArgsContent.type === 'text') expect(noArgsContent.text).toContain('health');
+    if (noArgsContent.type === 'text') {
+      expect(noArgsContent.text).toContain('health');
+      expect(noArgsContent.text).toContain('headless-api');
+    }
     await mcp.close();
     await server.close();
   });

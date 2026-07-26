@@ -108,7 +108,7 @@ export function registerPrompts(server: McpServer): void {
           'Steps:',
           '1. `automad_site` action `health` — confirm reachable + authenticated, note version and latency.',
           '2. `automad_config` action `get` — review envKeys and relevant flags.',
-          '3. Read the `automad://docs/headless` resource (or `automad_docs` get `headless`) for the /_api endpoint contract and CSRF/session model.',
+          '3. Read the `automad://docs/headless-api` resource (or `automad_docs` get `headless-api`) for the /_api endpoint contract and CSRF/session model.',
           '',
           'Report: is the instance healthy, which endpoints are available, and any gap (e.g. the known `/_api/public/pagelist` 500) the client should route around.',
         ].join('\n'),
