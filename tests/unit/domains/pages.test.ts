@@ -324,6 +324,18 @@ describe('handlePages (v2 /_api)', () => {
     expect(paths).toContain('/_api/page/data');
     expect(paths).not.toContain('/_api/page/publish');
   });
+  it('update trims tags and normalises trailing slashes from URL', async () => {
+    const c = mockClient();
+    (c.post as ReturnType<typeof vi.fn>).mockResolvedValue({ slug: 'blog' });
+    await handlePages(
+      { action: 'update', url: '/blog/', tags: [' news ', ' ', 'tech '] },
+      c,
+      new WriteGuard(cfg()),
+    );
+    const [, payload] = (c.post as ReturnType<typeof vi.fn>).mock.calls[0] as [string, { url: string; data: { tags?: string } }];
+    expect(payload.url).toBe('/blog');
+    expect(payload.data.tags).toBe('news,tech');
+  });
 
   it('batch_update requires a non-empty items array', async () => {
     await expect(

@@ -36,6 +36,12 @@ const ACTION_MAP: Record<PagesAction, WriteAction> = {
 const READ_RETRY_TOTAL_MS = 3000;
 const READ_RETRY_INTERVAL_MS = 200;
 
+function normalizeUrl(url: string): string;
+function normalizeUrl(url: string | undefined): string | undefined;
+function normalizeUrl(url: string | undefined): string | undefined {
+  if (!url) return undefined;
+  return url === '/' ? '/' : url.replace(/\/+$/, '');
+}
 async function publishAndWait(
   client: HttpClient,
   inputUrl: string,
@@ -78,6 +84,9 @@ export async function handlePages(
   client: HttpClient,
   guard: WriteGuard,
 ): Promise<unknown> {
+  if (input.url) input.url = normalizeUrl(input.url);
+  if (input.target_url) input.target_url = normalizeUrl(input.target_url);
+
   if (input.action === 'batch_update') {
     // Per-item confirmation: the outer guard is bypassed because each item has
     // its own (action, target) check inside the loop below.
@@ -203,7 +212,8 @@ async function handleBatchUpdate(
   const results: BatchItemResult[] = [];
   let allOk = true;
   // Sequential on purpose: v2 races on concurrent title-renames of the same tree.
-  for (const item of input.items) {
+  for (const rawItem of input.items) {
+    const item = { ...rawItem, url: normalizeUrl(rawItem.url) };
     // A title change is effectively a rename (happens during publish). Treat
     // those items as `pages.update_rename` (destructive): in confirm-destructive
     // mode they return a pending token bound to (action, target). Non-rename
@@ -280,7 +290,8 @@ async function updateOnePage(
     data['title'] = item.title;
   }
   if (item.private !== undefined) data['private'] = item.private;
-  if (item.tags !== undefined) data['tags'] = item.tags.join(',');
+  if (item.tags !== undefined)
+    data['tags'] = item.tags.map((t) => t.trim()).filter(Boolean).join(',');
   if (item.fields) Object.assign(data, item.fields);
   const payload: Record<string, unknown> = { url: item.url, data };
   if (item.template) payload['theme_template'] = item.template;
