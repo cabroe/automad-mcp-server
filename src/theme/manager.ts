@@ -182,8 +182,8 @@ export class ThemeManager {
           exitCode: -1,
           durationMs: 0,
           stdout: '',
-          stderr: 'skipped: npm install failed',
-          command: 'npm run build',
+          stderr: `skipped: ${process.env['AUTOMAD_PACKAGE_MANAGER'] ?? 'npm'} install failed`,
+          command: `${process.env['AUTOMAD_PACKAGE_MANAGER'] ?? 'npm'} run build`,
         },
       };
     }
@@ -207,7 +207,7 @@ async function listDirs(dir: string): Promise<string[]> {
 }
 
 function slugify(input: string): string {
-  const tail = input.split('/').filter(Boolean).pop() ?? 'theme';
+  const tail = input.split(/[/\\]/).filter(Boolean).pop() ?? 'theme';
   return tail
     .replace(/\.git$/, '')
     .replace(/[^a-zA-Z0-9._-]/g, '-')
