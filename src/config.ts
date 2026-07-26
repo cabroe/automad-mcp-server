@@ -1,4 +1,5 @@
 import * as path from 'node:path';
+import { randomBytes } from 'node:crypto';
 import { AutomadMcpError } from './errors.js';
 import { BUNDLED_STARTER_KIT_PATH } from './theme/starter-kit.js';
 
@@ -13,6 +14,15 @@ export type WriteMode = 'read-only' | 'confirm-destructive' | 'unrestricted';
  *   `UNSUPPORTED` error.
  */
 export type ServerMode = 'full' | 'docs';
+
+export interface HttpConfig {
+  /** TCP port for the Streamable-HTTP endpoint. */
+  port: number;
+  /** Bind host; defaults to loopback. */
+  host: string;
+  /** Static Bearer token required on every HTTP request. */
+  token: string;
+}
 
 export interface Config {
   mode: ServerMode;
@@ -37,6 +47,11 @@ export interface Config {
    * var to scaffold from a custom local starter kit instead.
    */
   starterKitPath?: string | undefined;
+  /**
+   * Streamable-HTTP transport settings. Present only when `AUTOMAD_HTTP_PORT`
+   * is set; otherwise the server runs on stdio (the zero-config default).
+   */
+  http?: HttpConfig | undefined;
   /** Per-request HTTP timeout in ms. Defaults to 30s. 0 disables. */
   requestTimeoutMs: number;
 }
@@ -117,6 +132,23 @@ export function loadConfig(): Config {
     liveEnabled = false;
   }
 
+  const httpPortRaw = process.env['AUTOMAD_HTTP_PORT'];
+  let http: HttpConfig | undefined;
+  if (httpPortRaw !== undefined && httpPortRaw.trim() !== '') {
+    const port = Number.parseInt(httpPortRaw, 10);
+    if (!Number.isFinite(port) || port < 1 || port > 65535) {
+      throw new AutomadMcpError(
+        'VALIDATION',
+        `AUTOMAD_HTTP_PORT must be a TCP port 1-65535: ${httpPortRaw}`,
+      );
+    }
+    const hostRaw = process.env['AUTOMAD_HTTP_HOST']?.trim();
+    const host = hostRaw && hostRaw.length > 0 ? hostRaw : '127.0.0.1';
+    const tokenRaw = process.env['AUTOMAD_HTTP_TOKEN']?.trim();
+    const token = tokenRaw && tokenRaw.length > 0 ? tokenRaw : randomBytes(32).toString('hex');
+    http = { port, host, token };
+  }
+
   return {
     mode,
     url,
@@ -127,6 +159,7 @@ export function loadConfig(): Config {
     liveEnabled,
     themesPath,
     starterKitPath,
+    http,
     requestTimeoutMs: parsePositiveInt(process.env['AUTOMAD_REQUEST_TIMEOUT_MS'], 30_000),
   };
 }

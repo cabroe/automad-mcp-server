@@ -12,6 +12,9 @@ describe('loadConfig', () => {
       'AUTOMAD_THEMES_PATH',
       'AUTOMAD_STARTER_KIT_PATH',
       'AUTOMAD_MODE',
+      'AUTOMAD_HTTP_PORT',
+      'AUTOMAD_HTTP_HOST',
+      'AUTOMAD_HTTP_TOKEN',
     ]) {
       delete process.env[k];
     }
@@ -113,5 +116,41 @@ describe('loadConfig', () => {
     process.env['AUTOMAD_PASS'] = 'p';
     process.env['LOG_LEVEL'] = 'verbose';
     expect(() => loadConfig()).toThrow(/LOG_LEVEL/);
+  });
+
+  describe('http transport config', () => {
+    beforeEach(() => {
+      process.env['AUTOMAD_URL'] = 'https://x';
+      process.env['AUTOMAD_USER'] = 'u';
+      process.env['AUTOMAD_PASS'] = 'p';
+    });
+
+    it('leaves http undefined when AUTOMAD_HTTP_PORT is unset', () => {
+      expect(loadConfig().http).toBeUndefined();
+    });
+
+    it('parses a provided port, host, and token', () => {
+      process.env['AUTOMAD_HTTP_PORT'] = '7823';
+      process.env['AUTOMAD_HTTP_HOST'] = '0.0.0.0';
+      process.env['AUTOMAD_HTTP_TOKEN'] = 'secret-token';
+      expect(loadConfig().http).toEqual({ port: 7823, host: '0.0.0.0', token: 'secret-token' });
+    });
+
+    it('defaults host to 127.0.0.1 and auto-generates a 64-hex-char token', () => {
+      process.env['AUTOMAD_HTTP_PORT'] = '7823';
+      const http = loadConfig().http;
+      expect(http?.host).toBe('127.0.0.1');
+      expect(http?.token).toMatch(/^[0-9a-f]{64}$/);
+    });
+
+    it('rejects an invalid AUTOMAD_HTTP_PORT', () => {
+      process.env['AUTOMAD_HTTP_PORT'] = 'notaport';
+      expect(() => loadConfig()).toThrow(/AUTOMAD_HTTP_PORT/);
+    });
+
+    it('rejects an out-of-range AUTOMAD_HTTP_PORT', () => {
+      process.env['AUTOMAD_HTTP_PORT'] = '70000';
+      expect(() => loadConfig()).toThrow(/AUTOMAD_HTTP_PORT/);
+    });
   });
 });
