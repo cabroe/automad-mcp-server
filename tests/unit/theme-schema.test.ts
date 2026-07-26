@@ -16,6 +16,7 @@ function analysis(overrides: Partial<ThemeAnalysis> = {}): ThemeAnalysis {
     fieldSources: Object.fromEntries(fields.map((field) => [field, ["default.php"]])),
     blockFields: ["+main"],
     mainSnippet: { definedIn: [], invokedIn: [] },
+    runtimeLangFiles: [],
     masks: { page: ["textIntro", "selectLayout", "brand"], shared: ["+main", "colorAccent"] },
     starterKit: { detected: false, markers: [] },
     translations: {},

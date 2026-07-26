@@ -20,6 +20,8 @@ export interface ThemeAnalysis {
   blockFields: string[];
   /** Files that define and that invoke the canonical `main` snippet. */
   mainSnippet: { definedIn: string[]; invokedIn: string[] };
+  /** Files referencing the runtime variable `@{ :lang }`. */
+  runtimeLangFiles: string[];
   masks: { page: string[]; shared: string[] };
   starterKit: { detected: boolean; markers: string[] };
   issues: ThemeFinding[];
@@ -32,6 +34,7 @@ const IGNORED_FIELDS = new Set(["true", "false", "null", "if", "else", "foreach"
 const STARTER_MARKERS = ["theme.json", "package.json", "client/index.ts", "client/styles", "esbuild.js"];
 const MAIN_SNIPPET_DEFINE_RE = /<@~?\s*snippet\s+main\s*~?@>/;
 const MAIN_SNIPPET_INVOKE_RE = /<@~?\s*main\s*~?@>/;
+const RUNTIME_LANG_RE = /@\{\s*:lang\b/;
 const REQUIRED_BUILD_MARKERS = ["package.json", "client/index.ts", "client/styles", "esbuild.js"];
 
 export class ThemeAnalyzer {
@@ -61,6 +64,7 @@ export class ThemeAnalyzer {
     }
     const mainSnippetDefinedIn: string[] = [];
     const mainSnippetInvokedIn: string[] = [];
+    const runtimeLangFiles: string[] = [];
     const fields = new Set<string>();
     const sourceMap = new Map<string, Set<string>>();
     for (const relPath of [...files.templates, ...files.components, ...files.blocks]) {
@@ -79,6 +83,7 @@ export class ThemeAnalyzer {
       }
       if (MAIN_SNIPPET_DEFINE_RE.test(source)) mainSnippetDefinedIn.push(relPath);
       if (MAIN_SNIPPET_INVOKE_RE.test(source)) mainSnippetInvokedIn.push(relPath);
+      if (RUNTIME_LANG_RE.test(source)) runtimeLangFiles.push(relPath);
     }
     const fieldList = [...fields].sort();
     const fieldSources = Object.fromEntries(
@@ -93,7 +98,7 @@ export class ThemeAnalyzer {
     if (starterKit.detected) issues.push({ severity: "info", code: "STARTER_KIT_STRUCTURE_DETECTED", message: "recognized Automad Theme Starter Kit structure detected" });
     for (const field of blockFields) issues.push({ severity: "info", code: "BLOCK_FIELD_DETECTED", message: `block field '${field}' detected` });
     if (isBuildScriptDetected(manifests.package, files.build)) issues.push({ severity: "info", code: "BUILD_SCRIPT_DETECTED", message: "Starter Kit build script detected", path: "package.json" });
-    return { theme, path: themePath, manifests, files, fields: fieldList, fieldSources, blockFields, mainSnippet: { definedIn: mainSnippetDefinedIn, invokedIn: mainSnippetInvokedIn }, masks, starterKit, translations, issues };
+    return { theme, path: themePath, manifests, files, fields: fieldList, fieldSources, blockFields, mainSnippet: { definedIn: mainSnippetDefinedIn, invokedIn: mainSnippetInvokedIn }, runtimeLangFiles, masks, starterKit, translations, issues };
   }
 
   async validate(theme: string): Promise<ThemeValidation> {
@@ -113,6 +118,16 @@ export class ThemeAnalyzer {
         message:
           "template invokes <@ main @> but no <@~ snippet main ~@> is defined in this theme — the rendered <main> will be empty; see automad_docs.get('snippet-inheritance')",
         path: firstMainInvoker,
+      });
+    }
+    const [firstLangFile] = analysis.runtimeLangFiles;
+    if (firstLangFile && Object.keys(analysis.translations).length === 0) {
+      findings.push({
+        severity: "warning",
+        code: "LANG_WITHOUT_I18N",
+        message:
+          "template uses @{ :lang } but the theme ships no i18n/*.json translations — see automad_docs.get('runtime-lang')",
+        path: firstLangFile,
       });
     }
     if (analysis.starterKit.detected && REQUIRED_BUILD_MARKERS.some((marker) => !analysis.starterKit.markers.includes(marker))) {

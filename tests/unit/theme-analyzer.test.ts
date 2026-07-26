@@ -229,3 +229,27 @@ describe("main snippet detection", () => {
     expect(result.findings.some((f) => f.code === "MAIN_SNIPPET_UNDEFINED")).toBe(false);
   });
 });
+
+describe("runtime :lang detection", () => {
+  it("flags LANG_WITHOUT_I18N when :lang is used without translations", async () => {
+    await writeTheme("no-i18n", {
+      "theme.json": JSON.stringify({ name: "No I18n", masks: { page: [], shared: [] } }),
+      "default.php": '<html lang="@{ :lang }"></html>',
+    });
+    const result = await analyzer().validate("no-i18n");
+    const finding = result.findings.find((f) => f.code === "LANG_WITHOUT_I18N");
+    expect(finding).toBeDefined();
+    expect(finding?.severity).toBe("warning");
+    expect(finding?.path).toBe("default.php");
+  });
+
+  it("stays silent when :lang is backed by an i18n translation", async () => {
+    await writeTheme("with-i18n", {
+      "theme.json": JSON.stringify({ name: "With I18n", masks: { page: [], shared: [] } }),
+      "default.php": '<html lang="@{ :lang }"></html>',
+      "i18n/de.json": JSON.stringify({ "nav.home": "Start" }),
+    });
+    const result = await analyzer().validate("with-i18n");
+    expect(result.findings.some((f) => f.code === "LANG_WITHOUT_I18N")).toBe(false);
+  });
+});
