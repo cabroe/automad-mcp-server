@@ -156,10 +156,15 @@ All configuration is via environment variables.
 | `AUTOMAD_PASS` | full | — | Dashboard password |
 | `AUTOMAD_THEMES_PATH` | no | `<cwd>/automad-themes` | Absolute path to the local themes directory (Automad's `packages`). Defaults to `automad-themes/` in the working directory, so `theme.scaffold` works with zero config |
 | `AUTOMAD_STARTER_KIT_PATH` | no | bundled kit | Local [starter-kit](https://github.com/automadcms/automad-theme-starter-kit) checkout used by `theme.scaffold`. Defaults to the [starter kit](https://github.com/automadcms/automad-theme-starter-kit) bundled with this package |
+| `AUTOMAD_HTTP_PORT` | no | — | Serve over **Streamable-HTTP** on this port instead of stdio. Unset = stdio (default). |
+| `AUTOMAD_HTTP_HOST` | no | `127.0.0.1` | Bind host for the HTTP transport (loopback by default). |
+| `AUTOMAD_HTTP_TOKEN` | no | auto-generated | Static Bearer token required on every HTTP request (`Authorization: Bearer <token>`). Auto-generated + logged once at startup if unset. |
 | `AUTOMAD_WRITE_MODE` | no | `confirm-destructive` | `read-only` · `confirm-destructive` · `unrestricted` |
 | `LOG_LEVEL` | no | `info` | `trace` · `debug` · `info` · `warn` · `error` · `fatal` · `silent` |
 
 In **`docs` mode** the live-API tools (`pages`, `media`, `shared`, `config`, `site`) return `UNSUPPORTED`; `automad_docs`, `automad_discover`, and `automad_theme` always work. Invalid `AUTOMAD_URL` / `LOG_LEVEL` / `AUTOMAD_MODE` fail fast at startup.
+
+**HTTP transport (multiple local clients).** Set `AUTOMAD_HTTP_PORT` to serve Streamable-HTTP on `127.0.0.1` instead of stdio. Every request must carry `Authorization: Bearer <AUTOMAD_HTTP_TOKEN>`; if the token is unset the server generates one and logs it once at startup. Each client connection is an isolated session with its own confirm-token state. The endpoint path is `/mcp`.
 
 > [!IMPORTANT]
 > **v2 has no bearer-token auth.** All authenticated calls use a PHP session cookie + a CSRF token scraped from the dashboard HTML.

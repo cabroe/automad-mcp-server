@@ -14,7 +14,7 @@ also works on the local filesystem (where Automad's theme packages live).
 
 ```bash
 npm run build            # tsc → dist/  (ESM, strict; reads package.json#version at compile time)
-npm test                 # vitest run (<!-- AUTOGEN:TESTCOUNT -->391 tests, 34 files<!-- /AUTOGEN:TESTCOUNT -->; live E2E auto-skips)
+npm test                 # vitest run (<!-- AUTOGEN:TESTCOUNT -->401 tests, 35 files<!-- /AUTOGEN:TESTCOUNT -->; live E2E auto-skips)
 npm run test:coverage    # vitest + v8 coverage (gate: 80% stmts / 70% branches)
 npm run lint             # eslint src tests
 npm run dev              # tsx src/index.ts  (run the server locally)
@@ -69,7 +69,7 @@ src/
 scripts/                 # build-time helpers, run via `npm run <name>`
   sync.ts                # regenerates the AUTOGEN tool tables + fenced number markers in README/CLAUDE.md/docs/index.html (--tests refreshes TESTCOUNT via a live vitest run)
   release.ts             # version-bump + CHANGELOG skeleton + git tag (`--tag` / `--dry-run`); the skeleton is an *empty* section inserted above the newest one — when the changelog already carries a filled `## [Unreleased]`, rename that heading to the new version instead of running the script
-tests/unit/              <!-- AUTOGEN:TESTCOUNT -->391 tests, 34 files<!-- /AUTOGEN:TESTCOUNT --> (drift test pins the registry's runtime derivations: Zod action enums, guard sets, bindings, guard behavior; docs-drift test pins CLAUDE.md/README/CHANGELOG against code reality; server test pins mcp.getServerVersion() ↔ package.json)
+tests/unit/              <!-- AUTOGEN:TESTCOUNT -->401 tests, 35 files<!-- /AUTOGEN:TESTCOUNT --> (drift test pins the registry's runtime derivations: Zod action enums, guard sets, bindings, guard behavior; docs-drift test pins CLAUDE.md/README/CHANGELOG against code reality; server test pins mcp.getServerVersion() ↔ package.json)
 tests/e2e/               opt-in live E2E vs. real Automad (skipped unless AUTOMAD_E2E_* set; `npm run test:e2e`)
 docs/index.html          GitHub Pages landing page (https://cabroe.github.io/automad-mcp-server/), served from /docs on main.
                          Self-contained by contract — no <script>, no external stylesheet, no remote images (pinned in docs-drift.test.ts).
@@ -85,6 +85,9 @@ docs/index.html          GitHub Pages landing page (https://cabroe.github.io/aut
 | `AUTOMAD_PASS` | full mode | Dashboard password (no bearer-token support in v2) |
 | `AUTOMAD_THEMES_PATH` | no | Absolute path to the local themes directory; defaults to `<cwd>/automad-themes` so `automad_theme` always works |
 | `AUTOMAD_STARTER_KIT_PATH` | no | Starter-kit template path for `theme.scaffold`; defaults to the starter kit bundled in `templates/starter-kit` |
+| `AUTOMAD_HTTP_PORT` | no | Serve Streamable-HTTP on this port (`src/http.ts`) instead of stdio; unset = stdio default |
+| `AUTOMAD_HTTP_HOST` | no | HTTP bind host, default `127.0.0.1` |
+| `AUTOMAD_HTTP_TOKEN` | no | Bearer token for the HTTP transport; auto-generated + logged once if unset |
 | `AUTOMAD_WRITE_MODE` | no | `read-only` \| `confirm-destructive` (default) \| `unrestricted` |
 | `LOG_LEVEL` | no | Pino log level (default `info`); validated in `config.ts` against the static `VALID_LOG_LEVELS` set (`trace`/`debug`/`info`/`warn`/`error`/`fatal`/`silent`) |
 
@@ -94,6 +97,11 @@ and `automad_theme` always work. `AUTOMAD_THEMES_PATH` defaults to
 `<cwd>/automad-themes` (resolved in `config.ts`), so `themeDeps` is always wired
 and `theme.scaffold` needs no configuration — it copies the bundled starter kit
 (`templates/starter-kit`, via `BUNDLED_STARTER_KIT_PATH`).
+
+`index.ts` picks the transport: `AUTOMAD_HTTP_PORT` set → Streamable-HTTP via
+`src/http.ts` (stateful, one `WriteGuard` + `McpServer` per session, shared
+`HttpClient`); unset → stdio. A constant-time Bearer-token check gates every HTTP
+request; bind is loopback with DNS-rebinding protection.
 
 ## Authentication model (v2 only)
 
