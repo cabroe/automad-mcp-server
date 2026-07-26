@@ -1,6 +1,7 @@
 import * as path from "node:path";
 import { AutomadMcpError } from "../errors.js";
 import { type ThemeFs, assertWithinRoot } from "./fs.js";
+import { assertStarterKitLayout } from "./dev.js";
 import { assertSafeThemeSlug } from "./slug.js";
 import type { ThemeManifest } from "./manager.js";
 
@@ -71,6 +72,7 @@ export async function scaffold(
     throw new AutomadMcpError("CONFLICT", `theme '${slug}' already exists at ${target}`);
   }
   await fs.mkdirp(target);
+  await assertStarterKitLayout(starterKitPath, fs);
   await fs.copyDir(starterKitPath, target);
 
   const tmplManifest = JSON.parse(await fs.readFile(manifestPath)) as ThemeManifest;

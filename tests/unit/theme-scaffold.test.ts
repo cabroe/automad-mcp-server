@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { promises as nodeFs } from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
@@ -31,6 +31,11 @@ beforeEach(async () => {
   await nodeFs.writeFile(path.join(starter, "pagelist.php"), "<@ foreach @>");
   await nodeFs.mkdir(path.join(starter, "blocks"), { recursive: true });
   await nodeFs.writeFile(path.join(starter, "blocks", "grid.php"), "<?php");
+  await nodeFs.mkdir(path.join(starter, "components"), { recursive: true });
+  await nodeFs.writeFile(path.join(starter, "components", "card.php"), "<?php");
+  await nodeFs.mkdir(path.join(starter, "client"), { recursive: true });
+  await nodeFs.writeFile(path.join(starter, "client", "index.ts"), "export {};");
+  await nodeFs.writeFile(path.join(starter, "esbuild.js"), "// build");
 });
 afterEach(async () => {
   await nodeFs.rm(root, { recursive: true, force: true });
@@ -83,5 +88,24 @@ describe("scaffold", () => {
     await expect(
       scaffold({ name: "x" }, { fs, themesPath: themes, starterKitPath: emptyStarter }),
     ).rejects.toMatchObject({ code: "VALIDATION" });
+  });
+
+  it("rejects when starter kit is missing required layout entries (drift)", async () => {
+    const fs = new LocalThemeFs();
+    const driftStarter = path.join(root, "drift");
+    await nodeFs.mkdir(driftStarter);
+    // Provide theme.json + some files but omit components/ (a required entry).
+    await nodeFs.writeFile(path.join(driftStarter, "theme.json"), JSON.stringify({ name: "Drift" }));
+    await nodeFs.writeFile(path.join(driftStarter, "package.json"), JSON.stringify({ name: "drift" }));
+    await nodeFs.mkdir(path.join(driftStarter, "blocks"), { recursive: true });
+    await nodeFs.mkdir(path.join(driftStarter, "client"), { recursive: true });
+    await nodeFs.writeFile(path.join(driftStarter, "client", "index.ts"), "");
+    await nodeFs.writeFile(path.join(driftStarter, "esbuild.js"), "");
+
+    const copyDirSpy = vi.spyOn(fs, "copyDir");
+    await expect(
+      scaffold({ name: "Drift" }, { fs, themesPath: themes, starterKitPath: driftStarter }),
+    ).rejects.toMatchObject({ code: "VALIDATION" });
+    expect(copyDirSpy).not.toHaveBeenCalled();
   });
 });
