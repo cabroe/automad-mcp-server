@@ -158,11 +158,11 @@ describe('KB pages ↔ analyzer drift', () => {
 
   it('snippet-inheritance names a finding code the analyzer can emit', () => {
     expect(kbPage('snippet-inheritance')).toContain('MAIN_SNIPPET_UNDEFINED');
-    expect(ANALYZER).toContain('"MAIN_SNIPPET_UNDEFINED"');
+    expect(ANALYZER).toContain("'MAIN_SNIPPET_UNDEFINED'");
   });
 
   it('runtime-lang names a finding code the analyzer can emit', () => {
     expect(kbPage('runtime-lang')).toContain('LANG_WITHOUT_I18N');
-    expect(ANALYZER).toContain('"LANG_WITHOUT_I18N"');
+    expect(ANALYZER).toContain("'LANG_WITHOUT_I18N'");
   });
 });
