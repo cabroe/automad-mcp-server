@@ -204,3 +204,28 @@ describe("ThemeAnalyzer", () => {
     expect(codes).not.toContain("PAGE_DATA_TEMPLATE_REQUIRED");
   });
 });
+
+describe("main snippet detection", () => {
+  it("flags MAIN_SNIPPET_UNDEFINED when a template invokes main with no definition", async () => {
+    await writeTheme("no-main", {
+      "theme.json": JSON.stringify({ name: "No Main", masks: { page: [], shared: [] } }),
+      "default.php": "<@ components/page.php @>",
+      "components/page.php": "<main><@ main @></main>",
+    });
+    const result = await analyzer().validate("no-main");
+    const finding = result.findings.find((f) => f.code === "MAIN_SNIPPET_UNDEFINED");
+    expect(finding).toBeDefined();
+    expect(finding?.severity).toBe("warning");
+    expect(finding?.path).toBe("components/page.php");
+  });
+
+  it("stays silent when a different file defines the main snippet", async () => {
+    await writeTheme("has-main", {
+      "theme.json": JSON.stringify({ name: "Has Main", masks: { page: [], shared: [] } }),
+      "default.php": "<@ components/page.php @>\n<@~ snippet main ~@>\n<h1>Home</h1>\n<@~ end ~@>",
+      "components/page.php": "<main><@ main @></main>",
+    });
+    const result = await analyzer().validate("has-main");
+    expect(result.findings.some((f) => f.code === "MAIN_SNIPPET_UNDEFINED")).toBe(false);
+  });
+});

@@ -18,6 +18,8 @@ export interface ThemeAnalysis {
   fieldSources: Record<string, string[]>;
   translations: Record<string, ThemeTranslationSource>;
   blockFields: string[];
+  /** Files that define and that invoke the canonical `main` snippet. */
+  mainSnippet: { definedIn: string[]; invokedIn: string[] };
   masks: { page: string[]; shared: string[] };
   starterKit: { detected: boolean; markers: string[] };
   issues: ThemeFinding[];
@@ -28,6 +30,8 @@ const MAX_SOURCE_BYTES = 512 * 1024;
 const FIELD_RE = /@\{\s*([+A-Za-z][A-Za-z0-9_-]*)\b/g;
 const IGNORED_FIELDS = new Set(["true", "false", "null", "if", "else", "foreach", "with"]);
 const STARTER_MARKERS = ["theme.json", "package.json", "client/index.ts", "client/styles", "esbuild.js"];
+const MAIN_SNIPPET_DEFINE_RE = /<@~?\s*snippet\s+main\s*~?@>/;
+const MAIN_SNIPPET_INVOKE_RE = /<@~?\s*main\s*~?@>/;
 const REQUIRED_BUILD_MARKERS = ["package.json", "client/index.ts", "client/styles", "esbuild.js"];
 
 export class ThemeAnalyzer {
@@ -55,6 +59,8 @@ export class ThemeAnalyzer {
     if (await this.deps.fs.isDirectory(path.join(themePath, "i18n")) && files.i18n.length === 0) {
       issues.push({ severity: "warning", code: "I18N_DIRECTORY_EMPTY", message: "i18n directory contains no JSON translations", path: "i18n" });
     }
+    const mainSnippetDefinedIn: string[] = [];
+    const mainSnippetInvokedIn: string[] = [];
     const fields = new Set<string>();
     const sourceMap = new Map<string, Set<string>>();
     for (const relPath of [...files.templates, ...files.components, ...files.blocks]) {
@@ -71,6 +77,8 @@ export class ThemeAnalyzer {
         sources.add(relPath);
         sourceMap.set(field, sources);
       }
+      if (MAIN_SNIPPET_DEFINE_RE.test(source)) mainSnippetDefinedIn.push(relPath);
+      if (MAIN_SNIPPET_INVOKE_RE.test(source)) mainSnippetInvokedIn.push(relPath);
     }
     const fieldList = [...fields].sort();
     const fieldSources = Object.fromEntries(
@@ -85,7 +93,7 @@ export class ThemeAnalyzer {
     if (starterKit.detected) issues.push({ severity: "info", code: "STARTER_KIT_STRUCTURE_DETECTED", message: "recognized Automad Theme Starter Kit structure detected" });
     for (const field of blockFields) issues.push({ severity: "info", code: "BLOCK_FIELD_DETECTED", message: `block field '${field}' detected` });
     if (isBuildScriptDetected(manifests.package, files.build)) issues.push({ severity: "info", code: "BUILD_SCRIPT_DETECTED", message: "Starter Kit build script detected", path: "package.json" });
-    return { theme, path: themePath, manifests, files, fields: fieldList, fieldSources, blockFields, masks, starterKit, translations, issues };
+    return { theme, path: themePath, manifests, files, fields: fieldList, fieldSources, blockFields, mainSnippet: { definedIn: mainSnippetDefinedIn, invokedIn: mainSnippetInvokedIn }, masks, starterKit, translations, issues };
   }
 
   async validate(theme: string): Promise<ThemeValidation> {
@@ -97,6 +105,16 @@ export class ThemeAnalyzer {
     if (analysis.files.templates.length === 0) findings.push({ severity: "error", code: "THEME_TEMPLATE_MISSING", message: "theme has no root-level .php template", path: "." });
     this.addMetadataFindings(analysis, findings);
     this.addFieldFindings(analysis, findings);
+    const [firstMainInvoker] = analysis.mainSnippet.invokedIn;
+    if (firstMainInvoker && analysis.mainSnippet.definedIn.length === 0) {
+      findings.push({
+        severity: "warning",
+        code: "MAIN_SNIPPET_UNDEFINED",
+        message:
+          "template invokes <@ main @> but no <@~ snippet main ~@> is defined in this theme — the rendered <main> will be empty; see automad_docs.get('snippet-inheritance')",
+        path: firstMainInvoker,
+      });
+    }
     if (analysis.starterKit.detected && REQUIRED_BUILD_MARKERS.some((marker) => !analysis.starterKit.markers.includes(marker))) {
       findings.push({ severity: "warning", code: "STARTER_BUILD_INCOMPLETE", message: "Starter Kit structure is missing one or more build markers", path: "." });
     }
