@@ -4,6 +4,7 @@ export type AutomadErrorCode =
   | "NOT_FOUND"
   | "VALIDATION"
   | "CONFLICT"
+  | "BUILD"
   | "NETWORK"
   | "RATE_LIMITED"
   | "UNSUPPORTED"

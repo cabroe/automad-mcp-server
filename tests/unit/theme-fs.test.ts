@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { promises as nodeFs } from "node:fs";
+import { promises as nodeFs, statSync } from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { LocalThemeFs, assertWithinRoot } from "../../src/theme/fs.js";
@@ -60,6 +60,37 @@ describe("LocalThemeFs", () => {
     await nodeFs.writeFile(path.join(srcSub, "hello.txt"), "hi");
     await f.copyDir(srcSub, path.join(tmp, "copy"));
     expect(await f.readFile(path.join(tmp, "copy", "hello.txt"))).toBe("hi");
+  });
+
+  it("appendLog creates the parent dir and writes content", async () => {
+    const f = new LocalThemeFs();
+    await f.appendLog(path.join(tmp, "missing", "x", "dev.log"), "hello\n");
+    expect(await f.readLogTail(path.join(tmp, "missing", "x", "dev.log"), 1_048_576)).toContain("hello");
+  });
+
+  it("appendLog rotates when size exceeds the cap (1 MiB)", async () => {
+    const f = new LocalThemeFs();
+    const p = path.join(tmp, "rotate.log");
+    const big = "x".repeat(700_000);
+    await f.appendLog(p, big + "A");
+    await f.appendLog(p, big + "B");
+    const size = statSync(p).size;
+    expect(size).toBeLessThanOrEqual(1_048_576 + 1_000);
+    expect(await f.readLogTail(p, 1_048_576)).toContain("B");
+  });
+
+  it("readLogTail returns the last N bytes only", async () => {
+    const f = new LocalThemeFs();
+    const p = path.join(tmp, "tail.log");
+    await f.appendLog(p, "first");
+    await f.appendLog(p, "second");
+    expect(await f.readLogTail(p, 6)).toBe("second");
+    expect(await f.readLogTail(p, 100)).toBe("firstsecond");
+  });
+
+  it("readLogTail returns empty string for missing file", async () => {
+    const f = new LocalThemeFs();
+    expect(await f.readLogTail(path.join(tmp, "nope.log"), 100)).toBe("");
   });
 });
 
