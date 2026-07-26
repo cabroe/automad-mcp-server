@@ -2,6 +2,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import { randomUUID, timingSafeEqual } from 'node:crypto';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import { logger } from './logger.js';
 
 const MCP_PATH = '/mcp';
@@ -86,7 +87,7 @@ export async function startHttp(opts: HttpTransportOptions): Promise<HttpHandle>
         if (id !== undefined) transports.delete(id);
       };
       const server = makeServer();
-      await server.connect(transport);
+      await server.connect(transport as Transport);
       await transport.handleRequest(req, res, body);
       return;
     }
