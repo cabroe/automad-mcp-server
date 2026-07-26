@@ -168,8 +168,8 @@ Set via `AUTOMAD_WRITE_MODE`:
 
 | Mode | Behavior |
 |---|---|
-| `read-only` | Only the **<!-- AUTOGEN:READCOUNT -->21<!-- /AUTOGEN:READCOUNT --> read actions** succeed (all `docs.*`; all `discover.*`; `pages.list/get`; `media.list`; `shared.get`; `config.get`; `site.info/search/health`; `theme.list/read/files/analyze/validate/schema/diff/generate`). Everything else → `FORBIDDEN`. |
-| `confirm-destructive` *(default)* | Ordinary writes run directly (`pages.create/update/duplicate/publish/batch_update`, `media.upload/delete`, `shared.set`, `config.set`). The **<!-- AUTOGEN:DESTRUCTIVECOUNT -->11<!-- /AUTOGEN:DESTRUCTIVECOUNT --> destructive actions** return a `confirmToken` (5-min TTL, bound to `(action, target)`) — replay with `confirm_token` to execute. |
+| `read-only` | Only the **<!-- AUTOGEN:READCOUNT -->22<!-- /AUTOGEN:READCOUNT --> read actions** succeed (all `docs.*`; all `discover.*`; `pages.list/get`; `media.list`; `shared.get`; `config.get`; `site.info/search/health`; `theme.list/read/files/analyze/validate/schema/diff/generate`). Everything else → `FORBIDDEN`. |
+| `confirm-destructive` *(default)* | Ordinary writes run directly (`pages.create/update/duplicate/publish/batch_update`, `media.upload/delete`, `shared.set`, `config.set`). The **<!-- AUTOGEN:DESTRUCTIVECOUNT -->13<!-- /AUTOGEN:DESTRUCTIVECOUNT --> destructive actions** return a `confirmToken` (5-min TTL, bound to `(action, target)`) — replay with `confirm_token` to execute. |
 | `unrestricted` | Everything runs immediately. |
 
 Destructive actions: `pages.delete` · `pages.move` · `pages.update_rename` *(title-rename inside `pages.update`/`pages.batch_update`)* · `media.delete` · `site.search_replace` *(global replace inside `site.search`)* · `theme.install` · `theme.activate` · `theme.uninstall` · `theme.scaffold` · `theme.build` · `theme.write`.
@@ -189,7 +189,7 @@ Destructive actions: `pages.delete` · `pages.move` · `pages.update_rename` *(t
 | `automad_config` | `get` `set` | Manage Automad configuration |
 | `automad_site` | `info` `search` `health` | Inspect and search the site |
 | `automad_docs` | `list` `search` `get` | Offline Automad v2 knowledge base |
-| `automad_theme` | `list` `install` `activate` `uninstall` `scaffold` `build` `read` `write` `files` `analyze` `validate` `schema` `diff` `generate` | Manage and inspect local themes |
+| `automad_theme` | `list` `install` `activate` `uninstall` `scaffold` `build` `dev` `dev_stop` `dev_status` `read` `write` `files` `analyze` `validate` `schema` `diff` `generate` | Manage and inspect local themes |
 | `automad_discover` | `list` `describe` | Introspect available tools and actions |
 <!-- AUTOGEN:TOOLS:END -->
 

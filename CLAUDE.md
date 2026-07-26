@@ -149,13 +149,13 @@ exactly `__csrf__` and `__json__` fields — the canonical v2 wire format
 
 Three modes via `AUTOMAD_WRITE_MODE`:
 
-- **`read-only`** — only non-mutating actions succeed. Read-only set (<!-- AUTOGEN:READCOUNT -->21<!-- /AUTOGEN:READCOUNT -->):
+- **`read-only`** — only non-mutating actions succeed. Read-only set (<!-- AUTOGEN:READCOUNT -->22<!-- /AUTOGEN:READCOUNT -->):
   `docs.list/search/get`, `discover.list/describe`, `pages.list/get`,
   `media.list`, `shared.get`, `config.get`, `site.info/search/health`,
   `theme.list/read/files/analyze/validate/schema/diff/generate`.
 - **`confirm-destructive`** *(default)* — ordinary writes run directly
   (`pages.create/update/duplicate/publish/batch_update`, `media.upload/delete`,
-  `shared.set`, `config.set`). The <!-- AUTOGEN:DESTRUCTIVECOUNT_WORD -->eleven<!-- /AUTOGEN:DESTRUCTIVECOUNT_WORD --> destructive actions (`pages.delete`,
+  `shared.set`, `config.set`). The <!-- AUTOGEN:DESTRUCTIVECOUNT_WORD -->13<!-- /AUTOGEN:DESTRUCTIVECOUNT_WORD --> destructive actions (`pages.delete`,
   `pages.move`, `pages.update_rename` *(internal: title change inside
   `pages.update` / `pages.batch_update`)*, `media.delete`, `site.search_replace`
   *(internal: `site.search` with a `replace` value)*, `theme.install`,

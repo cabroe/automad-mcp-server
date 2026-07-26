@@ -163,7 +163,7 @@
 <tr><td><code>automad_config</code></td><td class="actions"><code>get</code> <code>set</code></td><td>Manage Automad configuration</td></tr>
 <tr><td><code>automad_site</code></td><td class="actions"><code>info</code> <code>search</code> <code>health</code></td><td>Inspect and search the site</td></tr>
 <tr><td><code>automad_docs</code></td><td class="actions"><code>list</code> <code>search</code> <code>get</code></td><td>Offline Automad v2 knowledge base</td></tr>
-<tr><td><code>automad_theme</code></td><td class="actions"><code>list</code> <code>install</code> <code>activate</code> <code>uninstall</code> <code>scaffold</code> <code>build</code> <code>read</code> <code>write</code> <code>files</code> <code>analyze</code> <code>validate</code> <code>schema</code> <code>diff</code> <code>generate</code></td><td>Manage and inspect local themes</td></tr>
+<tr><td><code>automad_theme</code></td><td class="actions"><code>list</code> <code>install</code> <code>activate</code> <code>uninstall</code> <code>scaffold</code> <code>build</code> <code>dev</code> <code>dev_stop</code> <code>dev_status</code> <code>read</code> <code>write</code> <code>files</code> <code>analyze</code> <code>validate</code> <code>schema</code> <code>diff</code> <code>generate</code></td><td>Manage and inspect local themes</td></tr>
 <tr><td><code>automad_discover</code></td><td class="actions"><code>list</code> <code>describe</code></td><td>Introspect available tools and actions</td></tr>
 <!-- AUTOGEN:TOOLS_HTML:END -->
         </tbody>
@@ -221,11 +221,11 @@ npm install &amp;&amp; npm run build</code></pre>
     <div class="grid">
       <div class="card">
         <h3><code>read-only</code></h3>
-        <p>Only the <!-- AUTOGEN:READCOUNT -->21<!-- /AUTOGEN:READCOUNT --> read actions succeed. Everything else returns <code>FORBIDDEN</code>.</p>
+        <p>Only the <!-- AUTOGEN:READCOUNT -->22<!-- /AUTOGEN:READCOUNT --> read actions succeed. Everything else returns <code>FORBIDDEN</code>.</p>
       </div>
       <div class="card">
         <h3><code>confirm-destructive</code> <span style="color:var(--ink-soft);font-weight:400">· default</span></h3>
-        <p>Ordinary writes run directly. The <!-- AUTOGEN:DESTRUCTIVECOUNT -->11<!-- /AUTOGEN:DESTRUCTIVECOUNT --> destructive actions return a confirm token (5-minute TTL, bound to <code>(action, target)</code>) that has to be replayed.</p>
+        <p>Ordinary writes run directly. The <!-- AUTOGEN:DESTRUCTIVECOUNT -->13<!-- /AUTOGEN:DESTRUCTIVECOUNT --> destructive actions return a confirm token (5-minute TTL, bound to <code>(action, target)</code>) that has to be replayed.</p>
       </div>
       <div class="card">
         <h3><code>unrestricted</code></h3>
