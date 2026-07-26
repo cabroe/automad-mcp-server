@@ -438,11 +438,15 @@ describe('stopDev', () => {
       }),
     );
     const kills: { pid: number; signal: NodeJS.Signals }[] = [];
+    let aliveCount = 0;
     const res = await stopDev(themePath, fs, {
       kill: (pid, sig) => {
         kills.push({ pid, signal: sig });
       },
-      alive: () => false,
+      alive: () => {
+        aliveCount++;
+        return aliveCount <= 1; // alive initially, dead after SIGTERM
+      },
       sleep: async () => {},
     });
     expect(res.stopped).toBe(true);
@@ -451,6 +455,33 @@ describe('stopDev', () => {
     expect(fs.files.has(path.join(themePath, DEV_DIR, DEV_RECORD))).toBe(false);
   });
 
+  it('cleans up dev.json when process is already dead without throwing ESRCH', async () => {
+    const fs = new FakeThemeFs();
+    fs.mkdirp(path.join(themePath, DEV_DIR));
+    fs.files.set(
+      path.join(themePath, DEV_DIR, DEV_RECORD),
+      JSON.stringify({
+        pid: 7777,
+        port: 4321,
+        startedAt: new Date().toISOString(),
+        logPath: 'x',
+        url: 'http://localhost:4321',
+        running: false,
+      }),
+    );
+    const res = await stopDev(themePath, fs, {
+      kill: () => {
+        const err = new Error('kill ESRCH') as Error & { code: string };
+        err.code = 'ESRCH';
+        throw err;
+      },
+      alive: () => false,
+      sleep: async () => {},
+    });
+    expect(res.stopped).toBe(false);
+    expect(res.wasLive).toBe(false);
+    expect(fs.files.has(path.join(themePath, DEV_DIR, DEV_RECORD))).toBe(false);
+  });
   it('escalates to SIGKILL when SIGTERM is ignored', async () => {
     const fs = new FakeThemeFs();
     fs.mkdirp(path.join(themePath, DEV_DIR));

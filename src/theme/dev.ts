@@ -180,6 +180,20 @@ export async function stopDev(
   const alive = deps.alive ?? defaultAlive;
   const sleep = deps.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
 
+  if (!alive(rec.pid)) {
+    await fs.remove(recordPath(cwd));
+    return { stopped: false, signalUsed: null, wasLive: false };
+  }
+
+  const safeKill = (pid: number, sig: NodeJS.Signals): void => {
+    try {
+      kill(pid, sig);
+    } catch (e: unknown) {
+      const code = (e as { code?: string })?.code;
+      if (code !== 'ESRCH') throw e;
+    }
+  };
+
   const waitForExited = async (ms: number): Promise<boolean> => {
     const stepMs = 100;
     for (let i = 0; i < Math.ceil(ms / stepMs); i++) {
@@ -189,17 +203,16 @@ export async function stopDev(
     return !alive(rec.pid);
   };
 
-  kill(rec.pid, 'SIGTERM');
+  safeKill(rec.pid, 'SIGTERM');
   let signalUsed: 'SIGTERM' | 'SIGKILL' = 'SIGTERM';
   if (!(await waitForExited(SIGTERM_DEADLINE_MS))) {
-    kill(rec.pid, 'SIGKILL');
+    safeKill(rec.pid, 'SIGKILL');
     signalUsed = 'SIGKILL';
     await waitForExited(SIGKILL_DEADLINE_MS);
   }
   await fs.remove(recordPath(cwd));
   return { stopped: true, signalUsed, wasLive: true };
 }
-
 export async function startDev(opts: StartDevOptions): Promise<StartDevResult> {
   const alive = opts.kill0 ?? defaultAlive;
   const existing = await readRecord(opts.fs, opts.cwd);

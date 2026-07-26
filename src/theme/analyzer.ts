@@ -281,7 +281,7 @@ export class ThemeAnalyzer {
 
   private async discoverFiles(themePath: string): Promise<ThemeAnalysis['files']> {
     const all = (await this.deps.fs.list(themePath, { recursive: true }))
-      .map((file) => path.relative(themePath, file).split(path.sep).join('/'))
+      .map((file) => path.relative(themePath, file).split(/[/\\]/).join('/'))
       .sort();
     const files: ThemeAnalysis['files'] = {
       templates: [],
