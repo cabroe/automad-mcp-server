@@ -443,4 +443,39 @@ describe('handleTheme', () => {
       });
     }
   });
+
+  describe('v2 PackageManager', () => {
+    let themesPath: string;
+    let starterPath: string;
+    beforeEach(() => {
+      themesPath = path.join(os.tmpdir(), `mcp-theme-${Date.now()}-${Math.random()}`);
+      starterPath = path.join(os.tmpdir(), `mcp-starter-${Date.now()}-${Math.random()}`);
+    });
+    afterEach(async () => {
+      await nodeFs.rm(themesPath, { recursive: true, force: true });
+      await nodeFs.rm(starterPath, { recursive: true, force: true });
+    });
+
+    it('list_installed POSTs /_api/package-manager/get-package-collection', async () => {
+      const c = mockClient();
+      (c.post as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ packages: [{ name: 'vendor/foo' }] });
+      const out = await handleTheme(
+        { action: 'list_installed' },
+        { client: c, guard: new WriteGuard(cfg()), themesPath, starterKitPath: starterPath },
+      );
+      expect(out).toEqual({ packages: [{ name: 'vendor/foo' }] });
+      expect(c.post).toHaveBeenCalledWith('/_api/package-manager/get-package-collection', {});
+    });
+
+    it('outdated POSTs /_api/package-manager/get-outdated', async () => {
+      const c = mockClient();
+      (c.post as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ outdated: [] });
+      const out = await handleTheme(
+        { action: 'outdated' },
+        { client: c, guard: new WriteGuard(cfg()), themesPath, starterKitPath: starterPath },
+      );
+      expect(out).toEqual({ outdated: [] });
+      expect(c.post).toHaveBeenCalledWith('/_api/package-manager/get-outdated', {});
+    });
+  });
 });

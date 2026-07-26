@@ -193,6 +193,8 @@ export const themeInput = z.object({
   port: z.number().int().min(1).max(65535).optional(),
   /** Generate: template kind (nav, pagelist, breadcrumbs, component, block, i18n, snippet). */
   kind: z.string().max(64).optional(),
+  /** Package name (`vendor/name`) for `update`/`uninstall` via v2 PackageManager. */
+  package: z.string().max(MAX_SHORT).optional(),
   confirm_token: z.string().max(MAX_SHORT).optional(),
 });
 

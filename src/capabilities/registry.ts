@@ -157,6 +157,8 @@ const CAPABILITY_SPECS = {
       install: destructive('Install a theme.'),
       activate: destructive('Activate a theme.'),
       uninstall: destructive('Uninstall a theme.'),
+      list_installed: read('List installed packages via v2 PackageManager (get-package-collection).'),
+      outdated: read('List packages that have updates available (v2 get-outdated).'),
       scaffold: destructive('Create a theme from the starter kit.'),
       build: destructive('Build a theme.'),
       dev: destructive('Install dependencies and start the theme dev server in the background.'),

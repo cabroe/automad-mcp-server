@@ -1,5 +1,6 @@
 import * as path from 'node:path';
 import { AutomadMcpError } from '../errors.js';
+import { API_BASE } from '../config.js';
 import type { HttpClient } from '../client.js';
 import type { WriteGuard, WriteAction } from '../write-guard.js';
 import type { ThemeInput } from '../schemas.js';
@@ -35,6 +36,10 @@ const ACTION_MAP: Record<ThemeAction, WriteAction> = {
   dev: 'theme.dev',
   dev_stop: 'theme.dev_stop',
   dev_status: 'theme.dev_status',
+  list_installed: 'theme.list_installed',
+  outdated: 'theme.outdated',
+  update: 'theme.update',
+  update_all: 'theme.update_all',
 };
 
 export interface ThemeHandlerDeps {
@@ -107,10 +112,10 @@ export async function handleTheme(input: ThemeInput, deps: ThemeHandlerDeps): Pr
       if (!input.source) throw new AutomadMcpError('VALIDATION', 'source is required for install');
       return manager.install(input.source, input.theme);
     }
-    case 'activate': {
-      if (!input.theme) throw new AutomadMcpError('VALIDATION', 'theme is required for activate');
-      return manager.activate(input.theme);
-    }
+    case 'list_installed':
+      return deps.client.post(`${API_BASE}/package-manager/get-package-collection`, {});
+    case 'outdated':
+      return deps.client.post(`${API_BASE}/package-manager/get-outdated`, {});
     case 'uninstall': {
       if (!input.theme) throw new AutomadMcpError('VALIDATION', 'theme is required for uninstall');
       return manager.uninstall(input.theme);
