@@ -71,8 +71,11 @@ or shared component invokes \`<@ main @>\`, that section is empty. Either:
 
 ## Lint check
 
-\`automad_theme.analyze\` walks the call graph from \`default.php\` (and any
-other root templates) and reports any \`<@ main @>\` invocation that has no
-reachable \`<@~ snippet main ~@>\` definition.
+\`automad_theme.validate\` reports \`MAIN_SNIPPET_UNDEFINED\` when a template
+invokes \`<@ main @>\` but no file in the theme defines
+\`<@~ snippet main ~@>\`. Scanned for definitions: root templates,
+\`components/\`, \`blocks/\`, \`lib/\` and \`snippets/\`. The check does not follow
+the include graph, so a definition that exists but is unreachable from a
+given root template is not reported.
 `,
 };

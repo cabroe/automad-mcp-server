@@ -52,7 +52,9 @@ Or via a custom function (see \`custom-functions\`):
 
 ## Analyzer warning
 
-\`automad_theme.analyze\` warns when a template uses \`@{ :lang }\` but the
-theme has no \`i18n/\` directory (likely forgotten step 3), or vice versa.
+\`automad_theme.validate\` reports \`LANG_WITHOUT_I18N\` when a template uses
+\`@{ :lang }\` and the theme ships no parsable \`i18n/*.json\` translations.
+A reference carrying an explicit fallback — \`@{ :lang | def('en') }\` — is
+treated as a deliberate single-language choice and does not warn.
 `,
 };

@@ -151,10 +151,14 @@ resolving `<@ include @>` paths, including the rule that includes inside a
 snippet body resolve against the *defining* file's directory. That resolver
 does not exist yet and is a separate work item. A half-correct resolver would
 emit false positives at precisely the users who trust the tool. The
-theme-wide rule has no false-positive risk — if nothing in the theme defines
-`main` and something invokes it, the render is broken — and it catches the
-reported failure verbatim (a custom theme inlined its HTML in `page.php` and
-never defined `main`).
+theme-wide rule does carry false-positive risk: the original plan scoped
+the definition scan to `templates`, `components` and `blocks`, which
+false-positived on snippets written by this repo's own `theme.generate`
+into `snippets/${name}.php`. A user ruling on 2026-07-26 widened the
+definition scan to `lib/` and `snippets/`, and the shipped check now
+walks those directories too. The original report's case (a custom theme
+that inlined its HTML in `page.php` and never defined `main`) is still
+caught verbatim.
 
 The code is named `MAIN_SNIPPET_UNDEFINED`, not `MAIN_SNIPPET_UNREACHABLE`:
 "unreachable" would assert graph analysis this check does not perform, which
@@ -175,6 +179,13 @@ Raised in `validate()` when
 theme may legitimately ship `i18n/*.json` and route every string through
 `<@ t { key: '...' } @>` without ever writing `@{ :lang }`. Warning on that
 would be a false positive.
+
+**Explicit `def(...)` fallback — no warning.** A reference of the form
+`@{ :lang | def('en') }` deliberately does not trigger `LANG_WITHOUT_I18N`.
+`src/theme/generate.ts:119` emits exactly that form for the generated
+`<html lang="...">` attribute, and the KB page documents it as the canonical
+single-language choice. Warning on it would fire on the documented happy
+path, which is the same false-positive class the check is designed to avoid.
 
 `translations` is used as the i18n signal rather than `files.i18n` because
 `translations` only contains locales that parsed successfully — a theme whose
@@ -288,3 +299,15 @@ produced this task.
 Include-path resolution lint; `live_render`; the "start here" KB page; a
 `validate_page` tool; a theme-guardrails prompt; all `automad_docs` server
 issues including the `def()` nested-quote false positive.
+
+## Amendments
+
+**2026-07-26.** The user ruling on this date deliberately overrode the
+plan's "no new file I/O" constraint. Check 1's definition scan was widened
+to include `lib/` and `snippets/` after the original templates/components/blocks
+scope false-positived on snippets written by this repo's own
+`theme.generate` (`snippets/${name}.php`). That change added directory reads
+to the analyzer pass, which the original plan had ruled out. The KB page
+for `snippet-inheritance` was rewritten to match. The drift test
+(`tests/unit/docs-drift.test.ts`) now pins both finding codes against the
+analyzer source.

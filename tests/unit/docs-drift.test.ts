@@ -115,3 +115,22 @@ describe("CHANGELOG ↔ code drift", () => {
     expect(countMatches(/^## \[/m, CHANGELOG)).toBeGreaterThanOrEqual(3);
   });
 });
+
+
+describe("KB pages ↔ analyzer drift", () => {
+  const ANALYZER = readFileSync(resolve(ROOT, "src", "theme", "analyzer.ts"), "utf-8");
+
+  function kbPage(slug: string): string {
+    return readFileSync(resolve(ROOT, "src", "docs", "kb", "pages", `${slug}.ts`), "utf-8");
+  }
+
+  it("snippet-inheritance names a finding code the analyzer can emit", () => {
+    expect(kbPage("snippet-inheritance")).toContain("MAIN_SNIPPET_UNDEFINED");
+    expect(ANALYZER).toContain('"MAIN_SNIPPET_UNDEFINED"');
+  });
+
+  it("runtime-lang names a finding code the analyzer can emit", () => {
+    expect(kbPage("runtime-lang")).toContain("LANG_WITHOUT_I18N");
+    expect(ANALYZER).toContain('"LANG_WITHOUT_I18N"');
+  });
+});
