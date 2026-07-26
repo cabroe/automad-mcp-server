@@ -284,7 +284,7 @@ describe('startDev', () => {
       portTimeoutMs: 500,
     });
     expect(runner.installCalls).toHaveLength(1);
-    expect(runner.installCalls[0]?.args).toEqual(['install', '--no-audit', '--no-fund']);
+    expect(runner.installCalls[0]?.args).toEqual(['install', '--no-audit', '--no-fund', '--loglevel=warn']);
 
     // Second startDev: theme now has node_modules AND no live record.
     // Use a fresh fs so the previous dev.json doesn't block the second call.

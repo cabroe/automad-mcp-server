@@ -1,7 +1,7 @@
 import { spawn as cpSpawn } from 'node:child_process';
 import * as path from 'node:path';
 import type { ThemeFs } from './fs.js';
-import { runCommand, npmInstall } from './build.js';
+import { runCommand, npmInstall, getPackageInstallArgs } from './build.js';
 import { AutomadMcpError } from '../errors.js';
 
 export const REQUIRED_LAYOUT = [
@@ -240,8 +240,9 @@ export async function startDev(opts: StartDevOptions): Promise<StartDevResult> {
 
   if (!(await opts.fs.exists(path.join(opts.cwd, 'node_modules')))) {
     const pm = process.env['AUTOMAD_PACKAGE_MANAGER'] ?? 'npm';
+    const args = getPackageInstallArgs(pm);
     const res = opts.runInstall
-      ? await opts.runInstall(pm, ['install', '--no-audit', '--no-fund'], {
+      ? await opts.runInstall(pm, args, {
           cwd: opts.cwd,
           timeoutMs: DEFAULT_NPM_INSTALL_TIMEOUT_MS,
         })

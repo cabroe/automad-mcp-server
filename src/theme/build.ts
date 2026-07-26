@@ -99,15 +99,17 @@ export async function runCommand(
   });
 }
 
+/** Get package install CLI args for the given package manager. */
+export function getPackageInstallArgs(pm: string): string[] {
+  if (pm === 'bun') return ['install'];
+  if (pm === 'pnpm') return ['install', '--no-fund'];
+  return ['install', '--no-audit', '--no-fund', '--loglevel=warn'];
+}
+
 /** Run package install in `cwd` (`npm install` or configured package manager). */
 export async function npmInstall(cwd: string, timeoutMs?: number): Promise<BuildResult> {
   const pm = process.env['AUTOMAD_PACKAGE_MANAGER'] ?? 'npm';
-  const args =
-    pm === 'bun'
-      ? ['install']
-      : pm === 'pnpm'
-        ? ['install', '--no-fund']
-        : ['install', '--no-audit', '--no-fund', '--loglevel=warn'];
+  const args = getPackageInstallArgs(pm);
   return runCommand(pm, args, {
     cwd,
     ...(timeoutMs !== undefined ? { timeoutMs } : {}),
