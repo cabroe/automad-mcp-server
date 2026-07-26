@@ -152,6 +152,32 @@ export class ThemeManager {
     return { removed: target };
   }
 
+  /**
+   * Uninstall via v2 PackageManager.remove, then remove the local on-disk
+   * dir. If v2 returns NOT_FOUND (already gone from the live registry), fall
+   * through to fs.remove and report `{ removedFromDisk, v2: 'not_found' }`.
+   */
+  async removeViaV2(theme: string): Promise<unknown> {
+    const { fs, themesPath, client } = this.deps;
+    assertSafeThemeSlug(theme);
+    const target = assertWithinRoot(themesPath, path.join(themesPath, theme));
+    let v2Response: unknown;
+    let v2NotFound = false;
+    try {
+      v2Response = await client.post(`${API_BASE}/package-manager/remove`, { package: theme });
+    } catch (err) {
+      if (err instanceof AutomadMcpError && err.code === 'NOT_FOUND') {
+        v2NotFound = true;
+      } else {
+        throw err;
+      }
+    }
+    if (await fs.exists(target)) {
+      await fs.remove(target, { recursive: true });
+    }
+    return v2NotFound ? { removedFromDisk: true, v2: 'not_found' } : v2Response;
+  }
+
   /** Run composer install (if composer.json exists) + npm install + npm run build. */
   async build(
     theme: string,

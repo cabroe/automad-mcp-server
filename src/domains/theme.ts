@@ -124,8 +124,10 @@ export async function handleTheme(input: ThemeInput, deps: ThemeHandlerDeps): Pr
     case 'update_all':
       return deps.client.post(`${API_BASE}/package-manager/update-all`, {});
     case 'uninstall': {
-      if (!input.theme) throw new AutomadMcpError('VALIDATION', 'theme is required for uninstall');
-      return manager.uninstall(input.theme);
+      if (!input.theme) {
+        throw new AutomadMcpError('VALIDATION', 'theme is required for uninstall');
+      }
+      return manager.removeViaV2(input.theme);
     }
     case 'scaffold': {
       // Name validation is enforced before the guard check above (so empty

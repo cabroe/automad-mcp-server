@@ -156,7 +156,7 @@ const CAPABILITY_SPECS = {
       list: read('List themes.'),
       install: destructive('Install a theme.'),
       activate: destructive('Activate a theme.'),
-      uninstall: destructive('Uninstall a theme.'),
+      uninstall: destructive('Uninstall via v2 PackageManager.remove, then remove the on-disk dir (fs fallback if v2 returns NOT_FOUND).'),
       list_installed: read('List installed packages via v2 PackageManager (get-package-collection).'),
       outdated: read('List packages that have updates available (v2 get-outdated).'),
       update: destructive('Update a single installed package (v2 update).'),

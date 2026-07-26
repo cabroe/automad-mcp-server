@@ -281,19 +281,17 @@ describe('handleTheme', () => {
     expect(rels).toContain('package.json');
   });
 
-  it('uninstall removes a theme dir', async () => {
+  it('uninstall removes a theme dir (v2 + fs)', async () => {
     await nodeFs.mkdir(path.join(themes, 'goner'));
     await nodeFs.writeFile(path.join(themes, 'goner', 'theme.json'), '{}');
+    const c = mockClient();
+    (c.post as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ success: 'ok' });
     const out = await handleTheme(
       { action: 'uninstall', theme: 'goner' },
-      {
-        client: mockClient(),
-        guard: new WriteGuard(cfg()),
-        themesPath: themes,
-        starterKitPath: starter,
-      },
+      { client: c, guard: new WriteGuard(cfg()), themesPath: themes, starterKitPath: starter },
     );
-    expect(out).toMatchObject({ removed: path.join(themes, 'goner') });
+    expect(c.post).toHaveBeenCalledWith('/_api/package-manager/remove', { package: 'goner' });
+    expect(out).toEqual({ success: 'ok' });
     expect(
       await nodeFs
         .access(path.join(themes, 'goner'))
@@ -525,7 +523,45 @@ describe('handleTheme', () => {
         { client: c, guard, themesPath, starterKitPath: starterPath },
       );
       expect(out).toMatchObject({ allowed: 'pending' });
-      expect(c.post).not.toHaveBeenCalled();
+    });
+
+    it('uninstall requires theme', async () => {
+      const c = mockClient();
+      await expect(
+        handleTheme({ action: 'uninstall' }, { client: c, guard: new WriteGuard(cfg()), themesPath, starterKitPath: starterPath }),
+      ).rejects.toMatchObject({ code: 'VALIDATION' });
+    });
+
+    it('uninstall calls v2 remove then fs.remove on success', async () => {
+      const c = mockClient();
+      (c.post as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ success: 'ok' });
+      const fsMod = await import('../../../src/theme/fs.js');
+      const fs = new fsMod.LocalThemeFs();
+      await fs.mkdirp(path.join(themesPath, 'foo'), { recursive: true });
+      await fs.writeFile(path.join(themesPath, 'foo', 'theme.json'), '{}');
+      await handleTheme(
+        { action: 'uninstall', theme: 'foo' },
+        { client: c, guard: new WriteGuard(cfg()), themesPath, starterKitPath: starterPath, fs },
+      );
+      expect(c.post).toHaveBeenCalledWith('/_api/package-manager/remove', { package: 'foo' });
+      expect(await fs.exists(path.join(themesPath, 'foo'))).toBe(false);
+    });
+
+    it('uninstall falls back to fs.remove when v2 returns NOT_FOUND', async () => {
+      const c = mockClient();
+      const errs = await import('../../../src/errors.js');
+      (c.post as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+        new errs.AutomadMcpError('NOT_FOUND', 'Package not found in the package collection'),
+      );
+      const fsMod = await import('../../../src/theme/fs.js');
+      const fs = new fsMod.LocalThemeFs();
+      await fs.mkdirp(path.join(themesPath, 'ghost'), { recursive: true });
+      const out = await handleTheme(
+        { action: 'uninstall', theme: 'ghost' },
+        { client: c, guard: new WriteGuard(cfg()), themesPath, starterKitPath: starterPath, fs },
+      );
+      expect(out).toMatchObject({ removedFromDisk: true, v2: 'not_found' });
+      expect(await fs.exists(path.join(themesPath, 'ghost'))).toBe(false);
     });
 
   });
