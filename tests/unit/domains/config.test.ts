@@ -69,4 +69,28 @@ describe('handleConfig (v2 /_api)', () => {
       handleConfig({ action: 'set', type: 'cache' }, mockClient(), new WriteGuard(cfg())),
     ).rejects.toMatchObject({ code: 'VALIDATION' });
   });
+
+  it('cache_clear POSTs /_api/cache/clear', async () => {
+    const c = mockClient();
+    (c.post as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ ok: true });
+    const out = await handleConfig({ action: 'cache_clear' }, c, new WriteGuard(cfg()));
+    expect(out).toEqual({ ok: true });
+    expect(c.post).toHaveBeenCalledWith('/_api/cache/clear', {});
+  });
+
+  it('cache_clear returns pending confirm token in confirm-destructive mode', async () => {
+    const c = mockClient();
+    const guard = new WriteGuard({ ...cfg(), writeMode: 'confirm-destructive' });
+    const out = await handleConfig({ action: 'cache_clear' }, c, guard);
+    expect(out).toMatchObject({ allowed: 'pending' });
+    expect(c.post).not.toHaveBeenCalled();
+  });
+
+  it('cache_purge POSTs /_api/cache/purge', async () => {
+    const c = mockClient();
+    (c.post as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ ok: true });
+    const out = await handleConfig({ action: 'cache_purge' }, c, new WriteGuard(cfg()));
+    expect(out).toEqual({ ok: true });
+    expect(c.post).toHaveBeenCalledWith('/_api/cache/purge', {});
+  });
 });

@@ -31,6 +31,12 @@ const ACTION_MAP: Record<PagesAction, WriteAction> = {
   duplicate: 'pages.duplicate',
   publish: 'pages.publish',
   batch_update: 'pages.batch_update',
+  trash_list: 'pages.trash_list',
+  trash_restore: 'pages.trash_restore',
+  trash_permanently_delete: 'pages.trash_permanently_delete',
+  trash_clear: 'pages.trash_clear',
+  history: 'pages.history',
+  history_restore: 'pages.history_restore',
 };
 
 const READ_RETRY_TOTAL_MS = 3000;
@@ -196,6 +202,38 @@ export async function handlePages(
       if (!input.url) throw new AutomadMcpError('VALIDATION', 'url is required for publish');
       await client.post(`${API_BASE}/page/publish`, { url: input.url });
       return { ok: true, url: input.url, published: true };
+    }
+    case 'trash_list':
+      return client.post(`${API_BASE}/page-trash/list`, {});
+    case 'trash_restore': {
+      if (!input.url) {
+        throw new AutomadMcpError('VALIDATION', 'url is required for trash_restore');
+      }
+      return client.post(`${API_BASE}/page-trash/restore`, { url: input.url });
+    }
+    case 'trash_permanently_delete': {
+      if (!input.url) {
+        throw new AutomadMcpError('VALIDATION', 'url is required for trash_permanently_delete');
+      }
+      return client.post(`${API_BASE}/page-trash/permanently-delete`, { url: input.url });
+    }
+    case 'trash_clear':
+      return client.post(`${API_BASE}/page-trash/clear`, {});
+    case 'history': {
+      if (!input.url) throw new AutomadMcpError('VALIDATION', 'url is required for history');
+      return client.post(`${API_BASE}/history/log`, { url: input.url });
+    }
+    case 'history_restore': {
+      if (!input.url) {
+        throw new AutomadMcpError('VALIDATION', 'url is required for history_restore');
+      }
+      if (!input.history_id) {
+        throw new AutomadMcpError('VALIDATION', 'history_id is required for history_restore');
+      }
+      return client.post(`${API_BASE}/history/restore`, {
+        url: input.url,
+        logId: input.history_id,
+      });
     }
   }
 }

@@ -3,10 +3,12 @@ import { API_BASE } from '../config.js';
 import type { HttpClient } from '../client.js';
 import type { WriteGuard, WriteAction } from '../write-guard.js';
 import type { ConfigInput } from '../schemas.js';
-type ConfigAction = 'get' | 'set';
+type ConfigAction = 'get' | 'set' | 'cache_clear' | 'cache_purge';
 const ACTION_MAP: Record<ConfigAction, WriteAction> = {
   get: 'config.get',
   set: 'config.set',
+  cache_clear: 'config.cache_clear',
+  cache_purge: 'config.cache_purge',
 };
 interface BootstrapData {
   version?: string;
@@ -52,5 +54,9 @@ export async function handleConfig(
       }
       return client.post(`${API_BASE}/config/update`, { type: input.type, ...input.payload });
     }
+    case 'cache_clear':
+      return client.post(`${API_BASE}/cache/clear`, {});
+    case 'cache_purge':
+      return client.post(`${API_BASE}/cache/purge`, {});
   }
 }

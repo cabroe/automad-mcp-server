@@ -39,14 +39,20 @@ describe('capability registry', () => {
       'delete',
       'duplicate',
       'get',
+      'history',
+      'history_restore',
       'list',
       'move',
       'publish',
+      'trash_clear',
+      'trash_list',
+      'trash_permanently_delete',
+      'trash_restore',
       'update',
     ]);
     expect([...advertisedActions('automad_media')].sort()).toEqual(['delete', 'list', 'upload']);
     expect([...advertisedActions('automad_shared')].sort()).toEqual(['get', 'set']);
-    expect([...advertisedActions('automad_config')].sort()).toEqual(['get', 'set']);
+    expect([...advertisedActions('automad_config')].sort()).toEqual(['cache_clear', 'cache_purge', 'get', 'set']);
     expect([...advertisedActions('automad_site')].sort()).toEqual(['health', 'info', 'search']);
     expect([...advertisedActions('automad_docs')].sort()).toEqual(['get', 'list', 'search']);
     expect([...advertisedActions('automad_theme')].sort()).toEqual([

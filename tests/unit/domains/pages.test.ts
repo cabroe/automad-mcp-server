@@ -478,4 +478,57 @@ describe('handlePages (v2 /_api)', () => {
       results: [{ url: '/renamed', ok: false, code: 'FORBIDDEN', message: expect.any(String) }],
     });
   });
+
+  it('trash_list POSTs /_api/page-trash/list', async () => {
+    const c = mockClient();
+    (c.post as ReturnType<typeof vi.fn>).mockResolvedValueOnce([{ url: '/x' }]);
+    const out = await handlePages({ action: 'trash_list' }, c, new WriteGuard(cfg()));
+    expect(out).toEqual([{ url: '/x' }]);
+    expect(c.post).toHaveBeenCalledWith('/_api/page-trash/list', {});
+  });
+
+  it('trash_restore requires url', async () => {
+    const c = mockClient();
+    await expect(
+      handlePages({ action: 'trash_restore' }, c, new WriteGuard(cfg())),
+    ).rejects.toMatchObject({ code: 'VALIDATION' });
+  });
+
+  it('trash_restore POSTs /_api/page-trash/restore with url', async () => {
+    const c = mockClient();
+    (c.post as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ ok: true });
+    const out = await handlePages(
+      { action: 'trash_restore', url: '/x' },
+      c,
+      new WriteGuard(cfg()),
+    );
+    expect(out).toEqual({ ok: true });
+    expect(c.post).toHaveBeenCalledWith('/_api/page-trash/restore', { url: '/x' });
+  });
+
+  it('trash_restore returns pending confirm token in confirm-destructive mode', async () => {
+    const c = mockClient();
+    const guard = new WriteGuard({ ...cfg(), writeMode: 'confirm-destructive' });
+    const out = await handlePages({ action: 'trash_restore', url: '/x' }, c, guard);
+    expect(out).toMatchObject({ allowed: 'pending' });
+    expect(c.post).not.toHaveBeenCalled();
+  });
+
+  it('trash_permanently_delete POSTs /_api/page-trash/permanently-delete with url', async () => {
+    const c = mockClient();
+    (c.post as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ ok: true });
+    await handlePages(
+      { action: 'trash_permanently_delete', url: '/x' },
+      c,
+      new WriteGuard(cfg()),
+    );
+    expect(c.post).toHaveBeenCalledWith('/_api/page-trash/permanently-delete', { url: '/x' });
+  });
+
+  it('trash_clear POSTs /_api/page-trash/clear with no body', async () => {
+    const c = mockClient();
+    (c.post as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ ok: true });
+    await handlePages({ action: 'trash_clear' }, c, new WriteGuard(cfg()));
+    expect(c.post).toHaveBeenCalledWith('/_api/page-trash/clear', {});
+  });
 });

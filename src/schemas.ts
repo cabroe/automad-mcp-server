@@ -93,6 +93,8 @@ export const pagesInput = z.object({
     .max(MAX_BATCH_ITEMS, `batch_update supports at most ${MAX_BATCH_ITEMS} items per call`)
     .optional(),
   confirm_token: z.string().max(MAX_SHORT).optional(),
+  /** For `history_restore`: the history log entry id. */
+  history_id: z.string().max(MAX_SHORT).optional(),
 });
 
 /** Media: list, upload, delete. (rename: not supported by v2 — `move` only moves between directories; get: no v2 endpoint.) */

@@ -68,6 +68,12 @@ const CAPABILITY_SPECS = {
       duplicate: write('Duplicate a page (creates a copy; non-destructive).'),
       publish: write('Publish a page (draft to live).'),
       batch_update: write('Update multiple pages sequentially.'),
+      trash_list: read('List pages currently in trash.'),
+      trash_restore: destructive('Restore a trashed page by URL.'),
+      trash_permanently_delete: destructive('Permanently delete a single trashed page.'),
+      trash_clear: destructive('Empty the trash (deletes all trashed pages permanently).'),
+      history: read('List the change history for a page (v2 history log).'),
+      history_restore: destructive('Restore a page to a prior history entry (by logId).'),
       update_rename: internal(
         'Rename a page — raised by update/batch_update when the title changes.',
       ),
@@ -105,6 +111,8 @@ const CAPABILITY_SPECS = {
     actions: {
       get: read('Read configuration data.'),
       set: write('Update configuration data.'),
+      cache_clear: destructive('Clear the v2 cache (PageCache + ResponseCache).'),
+      cache_purge: destructive('Purge the v2 cache (more aggressive than clear).'),
     },
   },
   automad_site: {
