@@ -99,7 +99,7 @@
       with an offline documentation knowledge base that works without a backend at all.
     </p>
     <div class="chips">
-      <span class="chip"><strong><!-- AUTOGEN:TOOLCOUNT -->8<!-- /AUTOGEN:TOOLCOUNT --></strong> tools</span>
+      <span class="chip"><strong><!-- AUTOGEN:TOOLCOUNT -->13<!-- /AUTOGEN:TOOLCOUNT --></strong> tools</span>
       <span class="chip"><strong>4</strong> resources</span>
       <span class="chip"><strong>5</strong> prompts</span>
       <span class="chip"><strong><!-- AUTOGEN:TESTCOUNT -->420 tests, 35 files<!-- /AUTOGEN:TESTCOUNT --></strong></span>
@@ -164,6 +164,11 @@
 <tr><td><code>automad_site</code></td><td class="actions"><code>info</code> <code>search</code> <code>health</code></td><td>Inspect and search the site</td></tr>
 <tr><td><code>automad_docs</code></td><td class="actions"><code>list</code> <code>search</code> <code>get</code></td><td>Offline Automad v2 knowledge base</td></tr>
 <tr><td><code>automad_theme</code></td><td class="actions"><code>list</code> <code>install</code> <code>activate</code> <code>uninstall</code> <code>list_installed</code> <code>outdated</code> <code>update</code> <code>update_all</code> <code>scaffold</code> <code>build</code> <code>dev</code> <code>dev_stop</code> <code>dev_status</code> <code>read</code> <code>write</code> <code>files</code> <code>analyze</code> <code>validate</code> <code>schema</code> <code>diff</code> <code>generate</code></td><td>Manage and inspect local themes</td></tr>
+<tr><td><code>automad_image</code></td><td class="actions"><code>list</code> <code>save</code></td><td>Manage image variants via v2 image controllers</td></tr>
+<tr><td><code>automad_components</code></td><td class="actions"><code>data</code> <code>publication_state</code> <code>discard_draft</code> <code>publish</code></td><td>Manage per-page component fields (v2 ComponentController)</td></tr>
+<tr><td><code>automad_mail</code></td><td class="actions"><code>save</code> <code>test</code> <code>reset</code></td><td>Manage Automad mail configuration (v2 MailConfigController)</td></tr>
+<tr><td><code>automad_system</code></td><td class="actions"><code>check_for_update</code> <code>update</code></td><td>Check for and run Automad core updates (v2 SystemController)</td></tr>
+<tr><td><code>automad_file_meta</code></td><td class="actions"><code>edit_info</code></td><td>Edit file metadata (alt text, etc.) via v2 FileController</td></tr>
 <tr><td><code>automad_discover</code></td><td class="actions"><code>list</code> <code>describe</code></td><td>Introspect available tools and actions</td></tr>
 <!-- AUTOGEN:TOOLS_HTML:END -->
         </tbody>
@@ -221,11 +226,11 @@ npm install &amp;&amp; npm run build</code></pre>
     <div class="grid">
       <div class="card">
         <h3><code>read-only</code></h3>
-        <p>Only the <!-- AUTOGEN:READCOUNT -->29<!-- /AUTOGEN:READCOUNT --> read actions succeed. Everything else returns <code>FORBIDDEN</code>.</p>
+        <p>Only the <!-- AUTOGEN:READCOUNT -->33<!-- /AUTOGEN:READCOUNT --> read actions succeed. Everything else returns <code>FORBIDDEN</code>.</p>
       </div>
       <div class="card">
         <h3><code>confirm-destructive</code> <span style="color:var(--ink-soft);font-weight:400">· default</span></h3>
-        <p>Ordinary writes run directly. The <!-- AUTOGEN:DESTRUCTIVECOUNT -->22<!-- /AUTOGEN:DESTRUCTIVECOUNT --> destructive actions return a confirm token (5-minute TTL, bound to <code>(action, target)</code>) that has to be replayed.</p>
+        <p>Ordinary writes run directly. The <!-- AUTOGEN:DESTRUCTIVECOUNT -->30<!-- /AUTOGEN:DESTRUCTIVECOUNT --> destructive actions return a confirm token (5-minute TTL, bound to <code>(action, target)</code>) that has to be replayed.</p>
       </div>
       <div class="card">
         <h3><code>unrestricted</code></h3>

@@ -180,6 +180,63 @@ const CAPABILITY_SPECS = {
       generate: read('Generate a snippet, block, or component.'),
     },
   },
+  automad_image: {
+    title: 'Image',
+    summary: 'Manage image variants via v2 image controllers.',
+    description:
+      'Image variants: `list` returns rendered variants; `save` uploads a base64-encoded image (resize/crop). Uses /_api/image-collection/list and /_api/image/save.',
+    requires: 'live',
+    actions: {
+      list: read('List rendered image variants.'),
+      save: destructive('Save a base64-encoded image (resize/crop via v2).'),
+    },
+  },
+  automad_components: {
+    title: 'Components',
+    summary: 'Manage per-page component fields (v2 ComponentController).',
+    description:
+      'Component-level fields: `data` returns the field map for the given component keys; `publication_state` returns the draft/published state; `discard_draft` reverts a component draft; `publish` publishes component changes. Uses /_api/component/*.',
+    requires: 'live',
+    actions: {
+      data: read('Read component field data for a set of component keys.'),
+      publication_state: read('Get the publication state of component fields for a page.'),
+      discard_draft: destructive('Discard component draft and revert to published state.'),
+      publish: destructive('Publish component changes for a page.'),
+    },
+  },
+  automad_mail: {
+    title: 'Mail',
+    summary: 'Manage Automad mail configuration (v2 MailConfigController).',
+    description:
+      'SMTP config and test mail: `save` writes transport/from/server/credentials; `test` sends a test email to `to`; `reset` clears the config. Uses /_api/mail-config/*.',
+    requires: 'live',
+    actions: {
+      save: destructive('Save mail configuration (transport, from, SMTP server/credentials).'),
+      test: destructive('Send a test email to a recipient address.'),
+      reset: destructive('Reset mail configuration to defaults.'),
+    },
+  },
+  automad_system: {
+    title: 'System',
+    summary: 'Check for and run Automad core updates (v2 SystemController).',
+    description:
+      'Core v2 update: `check_for_update` queries the update server; `update` runs the update. Uses /_api/system/*.',
+    requires: 'live',
+    actions: {
+      check_for_update: read('Check the Automad update server for a new version.'),
+      update: destructive('Run the Automad core update.'),
+    },
+  },
+  automad_file_meta: {
+    title: 'File meta',
+    summary: 'Edit file metadata (alt text, etc.) via v2 FileController.',
+    description:
+      'Edit file metadata without re-uploading: `edit_info` updates alt/caption fields. Uses /_api/file/edit-info.',
+    requires: 'live',
+    actions: {
+      edit_info: destructive('Edit file metadata (alt text, etc.) for an existing file.'),
+    },
+  },
   automad_discover: {
     title: 'Discover',
     summary: 'Introspect available tools and actions.',

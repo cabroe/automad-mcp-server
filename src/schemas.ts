@@ -115,6 +115,64 @@ export const mediaInput = z.object({
   confirm_token: z.string().max(MAX_SHORT).optional(),
 });
 
+/** Image: list rendered variants, save (resize). */
+export const imageInput = z.object({
+  action: actionEnum('automad_image'),
+  /** For `save`: base name (no extension). */
+  name: z.string().max(MAX_SHORT).optional(),
+  /** For `save`: target extension (e.g. `jpg`, `webp`). */
+  extension: z.string().max(16).optional(),
+  /** For `save`: base64-encoded image data. */
+  imageBase64: z.string().max(MAX_BASE64_INPUT).optional(),
+  confirm_token: z.string().max(MAX_SHORT).optional(),
+});
+export type ImageInput = z.infer<typeof imageInput>;
+
+/** Components: data, discard_draft, publication_state, publish (v2 ComponentController). */
+export const componentsInput = z.object({
+  action: actionEnum('automad_components'),
+  /** For `data`: component key list (e.g. `['main', 'hero']`). */
+  components: z.array(z.string().max(MAX_SHORT)).max(50).optional(),
+  /** For `discard_draft` / `publication_state` / `publish`: page URL. */
+  url: urlSchema.optional(),
+  confirm_token: z.string().max(MAX_SHORT).optional(),
+});
+export type ComponentsInput = z.infer<typeof componentsInput>;
+
+/** Mail: save (SMTP config), test (send test mail), reset. */
+export const mailInput = z.object({
+  action: actionEnum('automad_mail'),
+  transport: z.string().max(32).optional(),
+  from: z.string().max(MAX_SHORT).optional(),
+  smtpServer: z.string().max(MAX_SHORT).optional(),
+  smtpUsername: z.string().max(MAX_SHORT).optional(),
+  smtpPassword: z.string().max(MAX_SHORT).optional(),
+  smtpPort: z.number().int().min(1).max(65535).optional(),
+  to: z.string().max(MAX_SHORT).optional(),
+  confirm_token: z.string().max(MAX_SHORT).optional(),
+});
+export type MailInput = z.infer<typeof mailInput>;
+
+/** System: check_for_update, update (v2 SystemController). */
+export const systemInput = z.object({
+  action: actionEnum('automad_system'),
+  confirm_token: z.string().max(MAX_SHORT).optional(),
+});
+export type SystemInput = z.infer<typeof systemInput>;
+
+/** File meta: edit_info (rename + alt-text). */
+export const fileMetaInput = z.object({
+  action: actionEnum('automad_file_meta'),
+  /** For `edit_info`: new file name (no extension). */
+  new_name: z.string().max(MAX_SHORT).optional(),
+  /** For `edit_info`: current file name. */
+  old_name: z.string().max(MAX_SHORT).optional(),
+  /** For `edit_info`: file caption. */
+  caption: z.string().max(MAX_MEDIUM).optional(),
+  confirm_token: z.string().max(MAX_SHORT).optional(),
+});
+export type FileMetaInput = z.infer<typeof fileMetaInput>;
+
 /** Shared: site-wide data (sitename, consent, etc.). Snippets are part of components in v2. */
 export const sharedInput = z.object({
   action: actionEnum('automad_shared'),
@@ -242,6 +300,11 @@ const toolInputSchemas = {
   automad_site: siteInput,
   automad_theme: themeInput,
   automad_docs: docsInput,
+  automad_image: imageInput,
+  automad_components: componentsInput,
+  automad_mail: mailInput,
+  automad_system: systemInput,
+  automad_file_meta: fileMetaInput,
   automad_discover: discoverInput,
 } satisfies Record<ToolName, z.ZodTypeAny>;
 

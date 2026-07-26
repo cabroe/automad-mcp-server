@@ -1,10 +1,11 @@
 ## [Unreleased]
 
- ### Added
- - New `automad_pages` actions: `breadcrumbs`, `publication_state`, `recent` (alias of `list`), `discard_draft` (v2 `PageController`).
+### Added
+- New `automad_pages` actions: `breadcrumbs`, `publication_state`, `recent` (alias of `list`), `discard_draft` (v2 `PageController`).
+- Five new tools: `automad_image` (list/save), `automad_components` (data/discard_draft/publication_state/publish), `automad_mail` (save/test/reset), `automad_system` (check_for_update/update), `automad_file_meta` (edit_info). AI tooling deferred to a future spec.
  - New `automad_pages` actions: `trash_list`, `trash_restore`, `trash_permanently_delete`, `trash_clear`, `history`, `history_restore` (v2 `PageTrashController` + `HistoryController`).
+ - New `automad_config` actions: `cache_clear`, `cache_purge` (v2 `CacheController`).
  - New `automad_theme` actions: `list_installed`, `outdated`, `update`, `update_all`, `uninstall` (rewritten: v2 PackageManager.remove first, fs fallback).
-- New `automad_config` actions: `cache_clear`, `cache_purge` (v2 `CacheController`).
 
 ## [0.6.0] - 2026-07-25
 

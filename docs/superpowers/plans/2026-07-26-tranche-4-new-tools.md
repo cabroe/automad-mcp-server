@@ -562,7 +562,7 @@ In `src/capabilities/registry.ts`:
 ```
 
 In `src/capabilities/tools.ts`:
-
+- `edit_info({new_name, old_name, caption})` → `client.post('/_api/file/edit-info', body)` (destructive; `new_name` and `old_name` required, `caption` optional).
 ```ts
   automad_mail: bind('automad_mail', mailInput, (input, ctx) => handleMail(input, ctx.client, ctx.guard)),
 ```

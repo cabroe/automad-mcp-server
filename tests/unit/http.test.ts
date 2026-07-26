@@ -76,13 +76,18 @@ describe('startHttp (Streamable-HTTP + Bearer auth)', () => {
     const list = await client.listTools();
     expect(list.tools.map((t) => t.name).sort()).toEqual(
       [
+        'automad_components',
         'automad_config',
         'automad_discover',
         'automad_docs',
+        'automad_file_meta',
+        'automad_image',
+        'automad_mail',
         'automad_media',
         'automad_pages',
         'automad_shared',
         'automad_site',
+        'automad_system',
         'automad_theme',
       ].sort(),
     );
@@ -131,7 +136,7 @@ describe('startHttp (Streamable-HTTP + Bearer auth)', () => {
     await expect(client.close()).resolves.toBeUndefined();
     const client2 = await connect(port, TOKEN);
     const list = await client2.listTools();
-    expect(list.tools.length).toBe(8);
+    expect(list.tools.length).toBe(13);
     await client2.close();
   });
 });

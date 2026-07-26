@@ -158,13 +158,13 @@ exactly `__csrf__` and `__json__` fields — the canonical v2 wire format
 
 Three modes via `AUTOMAD_WRITE_MODE`:
 
-- **`read-only`** — only non-mutating actions succeed. Read-only set (<!-- AUTOGEN:READCOUNT -->29<!-- /AUTOGEN:READCOUNT -->):
+- **`read-only`** — only non-mutating actions succeed. Read-only set (<!-- AUTOGEN:READCOUNT -->33<!-- /AUTOGEN:READCOUNT -->):
   `docs.list/search/get`, `discover.list/describe`, `pages.list/get`,
   `media.list`, `shared.get`, `config.get`, `site.info/search/health`,
   `theme.list/read/files/analyze/validate/schema/diff/generate`.
 - **`confirm-destructive`** *(default)* — ordinary writes run directly
   (`pages.create/update/duplicate/publish/batch_update`, `media.upload/delete`,
-  `shared.set`, `config.set`). The <!-- AUTOGEN:DESTRUCTIVECOUNT_WORD -->22<!-- /AUTOGEN:DESTRUCTIVECOUNT_WORD --> destructive actions (`pages.delete`,
+  `shared.set`, `config.set`). The <!-- AUTOGEN:DESTRUCTIVECOUNT_WORD -->30<!-- /AUTOGEN:DESTRUCTIVECOUNT_WORD --> destructive actions (`pages.delete`,
   `pages.move`, `pages.update_rename` *(internal: title change inside
   `pages.update` / `pages.batch_update`)*, `media.delete`, `site.search_replace`
   *(internal: `site.search` with a `replace` value)*, `theme.install`,
@@ -254,7 +254,7 @@ implementation; treat them as load-bearing constraints:
   error codes come back as `AutomadMcpError` with the expected `code`.
 - **`server.ts`**: use `InMemoryTransport.createLinkedPair()` + the MCP `Client`
   to exercise the full `registerTool → handler → result` path without a real
-  Automad backend. Assert `tools/list` enumerates all <!-- AUTOGEN:TOOLCOUNT -->8<!-- /AUTOGEN:TOOLCOUNT --> tools and that every
+  Automad backend. Assert `tools/list` enumerates all <!-- AUTOGEN:TOOLCOUNT -->13<!-- /AUTOGEN:TOOLCOUNT --> tools and that every
   tool's `inputSchema` exposes an `action.enum`. A separate assertion pins
   `mcp.getServerVersion()` to `package.json#version` to catch version drift.
 - **`client.ts`**: `vi.stubGlobal("fetch", ...)`; assert status→error-code

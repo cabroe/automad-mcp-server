@@ -1,4 +1,9 @@
 import type { z } from 'zod';
+import { handleImage } from '../domains/image.js';
+import { handleComponents } from '../domains/components.js';
+import { handleMail } from '../domains/mail.js';
+import { handleSystem } from '../domains/system.js';
+import { handleFileMeta } from '../domains/file-meta.js';
 import { AutomadMcpError } from '../errors.js';
 import type { HttpClient } from '../client.js';
 import type { Config } from '../config.js';
@@ -14,6 +19,11 @@ import {
   themeInput,
   docsInput,
   discoverInput,
+  imageInput,
+  componentsInput,
+  mailInput,
+  systemInput,
+  fileMetaInput,
 } from '../schemas.js';
 import { handlePages } from '../domains/pages.js';
 import { handleMedia } from '../domains/media.js';
@@ -119,6 +129,19 @@ export const TOOL_BINDINGS: Readonly<Record<ToolName, ToolBinding>> = {
   ),
   automad_discover: bind('automad_discover', discoverInput, (input, ctx) =>
     handleDiscover(input, ctx.guard),
+  ),
+  automad_image: bind('automad_image', imageInput, (input, ctx) =>
+    handleImage(input, ctx.client, ctx.guard),
+  ),
+  automad_components: bind('automad_components', componentsInput, (input, ctx) =>
+    handleComponents(input, ctx.client, ctx.guard),
+  ),
+  automad_mail: bind('automad_mail', mailInput, (input, ctx) => handleMail(input, ctx.client, ctx.guard)),
+  automad_system: bind('automad_system', systemInput, (input, ctx) =>
+    handleSystem(input, ctx.client, ctx.guard),
+  ),
+  automad_file_meta: bind('automad_file_meta', fileMetaInput, (input, ctx) =>
+    handleFileMeta(input, ctx.client, ctx.guard),
   ),
 };
 

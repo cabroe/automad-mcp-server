@@ -12,13 +12,18 @@ import {
 } from '../../src/capabilities/registry.js';
 
 const TOOL_NAMES = [
+  'automad_components',
   'automad_config',
   'automad_discover',
   'automad_docs',
+  'automad_file_meta',
+  'automad_image',
+  'automad_mail',
   'automad_media',
   'automad_pages',
   'automad_shared',
   'automad_site',
+  'automad_system',
   'automad_theme',
 ] as const;
 

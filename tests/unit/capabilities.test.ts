@@ -19,6 +19,11 @@ const expectedNames = [
   'automad_site',
   'automad_docs',
   'automad_theme',
+  'automad_image',
+  'automad_components',
+  'automad_mail',
+  'automad_system',
+  'automad_file_meta',
   'automad_discover',
 ];
 
