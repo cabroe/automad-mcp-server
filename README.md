@@ -558,8 +558,12 @@ npm run docs:sync:tests
 npm run release:patch  # 0.6.x → 0.6.(x+1)
 npm run release:minor  # 0.6.x → 0.7.0
 npm run release:major  # 0.6.x → 1.0.0
+# Same with a GitHub release on top: tag, push, and `gh release create`
+# in one go. Requires `gh auth status` to be logged in.
+npm run release:full:patch
+npm run release:full:minor
+npm run release:full:major
 # Add `--dry-run` to any of the above to preview without writing files.
-
 # Opt-in live E2E against a real Automad v2 instance:
 AUTOMAD_E2E_URL=http://localhost:8899 AUTOMAD_E2E_USER=admin \
   AUTOMAD_E2E_PASS=secret npm run test:e2e

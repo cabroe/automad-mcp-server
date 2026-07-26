@@ -58,6 +58,9 @@
     "release:patch": "node --import tsx scripts/release.ts patch --tag",
     "release:minor": "node --import tsx scripts/release.ts minor --tag",
     "release:major": "node --import tsx scripts/release.ts major --tag",
+    "release:full:patch": "node --import tsx scripts/release.ts patch --release",
+    "release:full:minor": "node --import tsx scripts/release.ts minor --release",
+    "release:full:major": "node --import tsx scripts/release.ts major --release",
     "prepublishOnly": "npm run build && npm test"
   },
   "dependencies": {
