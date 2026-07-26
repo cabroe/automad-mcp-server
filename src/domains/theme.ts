@@ -110,12 +110,19 @@ export async function handleTheme(input: ThemeInput, deps: ThemeHandlerDeps): Pr
       return manager.list();
     case 'install': {
       if (!input.source) throw new AutomadMcpError('VALIDATION', 'source is required for install');
-      return manager.install(input.source, input.theme);
     }
     case 'list_installed':
       return deps.client.post(`${API_BASE}/package-manager/get-package-collection`, {});
     case 'outdated':
       return deps.client.post(`${API_BASE}/package-manager/get-outdated`, {});
+    case 'update': {
+      if (!input.package) {
+        throw new AutomadMcpError('VALIDATION', 'package is required for update');
+      }
+      return deps.client.post(`${API_BASE}/package-manager/update`, { package: input.package });
+    }
+    case 'update_all':
+      return deps.client.post(`${API_BASE}/package-manager/update-all`, {});
     case 'uninstall': {
       if (!input.theme) throw new AutomadMcpError('VALIDATION', 'theme is required for uninstall');
       return manager.uninstall(input.theme);

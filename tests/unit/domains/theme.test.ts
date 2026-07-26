@@ -477,5 +477,56 @@ describe('handleTheme', () => {
       expect(out).toEqual({ outdated: [] });
       expect(c.post).toHaveBeenCalledWith('/_api/package-manager/get-outdated', {});
     });
+    it('update requires package', async () => {
+      const c = mockClient();
+      await expect(
+        handleTheme({ action: 'update' }, { client: c, guard: new WriteGuard(cfg()), themesPath, starterKitPath: starterPath }),
+      ).rejects.toMatchObject({ code: 'VALIDATION' });
+    });
+
+    it('update POSTs /_api/package-manager/update with package', async () => {
+      const c = mockClient();
+      (c.post as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ success: 'ok' });
+      const out = await handleTheme(
+        { action: 'update', package: 'vendor/foo' },
+        { client: c, guard: new WriteGuard(cfg()), themesPath, starterKitPath: starterPath },
+      );
+      expect(out).toEqual({ success: 'ok' });
+      expect(c.post).toHaveBeenCalledWith('/_api/package-manager/update', { package: 'vendor/foo' });
+    });
+
+    it('update returns pending confirm token in confirm-destructive mode', async () => {
+      const c = mockClient();
+      const guard = new WriteGuard({ ...cfg(), writeMode: 'confirm-destructive' });
+      const out = await handleTheme(
+        { action: 'update', package: 'vendor/foo' },
+        { client: c, guard, themesPath, starterKitPath: starterPath },
+      );
+      expect(out).toMatchObject({ allowed: 'pending' });
+      expect(c.post).not.toHaveBeenCalled();
+    });
+
+    it('update_all POSTs /_api/package-manager/update-all', async () => {
+      const c = mockClient();
+      (c.post as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ success: 'ok' });
+      const out = await handleTheme(
+        { action: 'update_all' },
+        { client: c, guard: new WriteGuard(cfg()), themesPath, starterKitPath: starterPath },
+      );
+      expect(out).toEqual({ success: 'ok' });
+      expect(c.post).toHaveBeenCalledWith('/_api/package-manager/update-all', {});
+    });
+
+    it('update_all returns pending confirm token in confirm-destructive mode', async () => {
+      const c = mockClient();
+      const guard = new WriteGuard({ ...cfg(), writeMode: 'confirm-destructive' });
+      const out = await handleTheme(
+        { action: 'update_all' },
+        { client: c, guard, themesPath, starterKitPath: starterPath },
+      );
+      expect(out).toMatchObject({ allowed: 'pending' });
+      expect(c.post).not.toHaveBeenCalled();
+    });
+
   });
 });
