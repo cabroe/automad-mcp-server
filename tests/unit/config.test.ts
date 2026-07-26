@@ -28,7 +28,7 @@ describe('loadConfig', () => {
     expect(cfg.password).toBe('secret');
     expect(cfg.writeMode).toBe('confirm-destructive');
     expect(cfg.themesPath).toBe('/app/packages');
-    expect(cfg.starterKitPath).toBe('/app/packages'); // default = themesPath
+    expect(cfg.starterKitPath).toMatch(/templates[/\\]starter-kit$/); // default = bundled starter kit
   });
 
   it('does NOT require AUTOMAD_THEMES_PATH (theme tool is optional)', () => {
@@ -38,7 +38,7 @@ describe('loadConfig', () => {
     expect(() => loadConfig()).not.toThrow();
     const cfg = loadConfig();
     expect(cfg.themesPath).toBeUndefined();
-    expect(cfg.starterKitPath).toBeUndefined();
+    expect(cfg.starterKitPath).toMatch(/templates[/\\]starter-kit$/); // bundled default even without themes
   });
 
   it('respects AUTOMAD_STARTER_KIT_PATH override', () => {

@@ -1,4 +1,5 @@
 import { AutomadMcpError } from './errors.js';
+import { BUNDLED_STARTER_KIT_PATH } from './theme/starter-kit.js';
 
 export type WriteMode = 'read-only' | 'confirm-destructive' | 'unrestricted';
 
@@ -28,7 +29,12 @@ export interface Config {
    * for every action and the rest of the server works fine.
    */
   themesPath?: string | undefined;
-  /** Path to the starter-kit template used by `theme.scaffold`. */
+  /**
+   * Path to the starter-kit template used by `theme.scaffold`. Defaults to the
+   * starter kit bundled with this package (`templates/starter-kit`), so
+   * scaffolding works with no `AUTOMAD_STARTER_KIT_PATH` set. Override the env
+   * var to scaffold from a custom local starter kit instead.
+   */
   starterKitPath?: string | undefined;
   /** Per-request HTTP timeout in ms. Defaults to 30s. 0 disables. */
   requestTimeoutMs: number;
@@ -69,7 +75,7 @@ export function loadConfig(): Config {
   const mode = serverModeRaw as ServerMode;
 
   const themesPath = optionalPath('AUTOMAD_THEMES_PATH');
-  const starterKitPath = optionalPath('AUTOMAD_STARTER_KIT_PATH') ?? themesPath;
+  const starterKitPath = optionalPath('AUTOMAD_STARTER_KIT_PATH') ?? BUNDLED_STARTER_KIT_PATH;
 
   const writeModeRaw = process.env['AUTOMAD_WRITE_MODE'] ?? 'confirm-destructive';
   if (!(writeModeRaw in VALID_MODES)) {

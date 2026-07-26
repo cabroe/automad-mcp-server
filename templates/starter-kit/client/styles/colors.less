@@ -1,0 +1,35 @@
+.light {
+	/**
+	 * Light Theme
+	 */
+	--kit-fg-1: hsl(220, 10%, 18%);
+	--kit-fg-2: hsl(from var(--kit-fg-1) h s calc(l + 46));
+
+	--kit-bg-1: hsl(0, 0%, 100%);
+
+	--kit-border-clr: hsl(220, 10%, 86%);
+
+	--kit-shadow:
+		0 1rem 2rem -0.75rem rgba(0, 0, 0, 0.12),
+		0 1rem 3rem -1rem rgba(0, 0, 0, 0.06);
+
+	--kit-backdrop-clr: hsl(from var(--kit-bg-1) h s l / 0.7);
+}
+
+.dark {
+	/**
+	 * Dark Theme
+	 */
+	color-scheme: dark;
+
+	--kit-fg-1: hsl(220, 10%, 96%);
+	--kit-fg-2: hsl(from var(--kit-fg-1) h s calc(l - 46));
+
+	--kit-bg-1: hsl(220, 11%, 7%);
+
+	--kit-border-clr: hsl(220, 11%, 20%);
+
+	--kit-shadow:
+		0 1rem 2rem -0.5rem rgba(0, 0, 0, 0.6),
+		0 1rem 3rem -1rem rgba(0, 0, 0, 0.6);
+}
