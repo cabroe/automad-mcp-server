@@ -214,6 +214,17 @@ describe('ThemeAnalyzer', () => {
     const codes = result.findings.map((finding) => finding.code);
     expect(codes).not.toContain('PAGE_DATA_TEMPLATE_REQUIRED');
   });
+  it('warns when package.json is missing a build script', async () => {
+    await writeTheme('no-build-script', {
+      'theme.json': JSON.stringify({ name: 'NoBuild' }),
+      'package.json': JSON.stringify({ name: 'nobuild', scripts: {} }),
+      'default.php': '<?php',
+    });
+    const result = await analyzer().validate('no-build-script');
+    const finding = result.findings.find((f) => f.code === 'PACKAGE_BUILD_SCRIPT_MISSING');
+    expect(finding).toBeDefined();
+    expect(finding?.severity).toBe('warning');
+  });
 });
 
 describe('main snippet detection', () => {

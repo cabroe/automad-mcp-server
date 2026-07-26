@@ -384,6 +384,20 @@ export class ThemeAnalyzer {
           });
         }
       }
+      if (name === 'package') {
+        const scripts =
+          manifest['scripts'] && typeof manifest['scripts'] === 'object'
+            ? (manifest['scripts'] as Record<string, unknown>)
+            : undefined;
+        if (!scripts || typeof scripts['build'] !== 'string' || !scripts['build'].trim()) {
+          findings.push({
+            severity: 'warning',
+            code: 'PACKAGE_BUILD_SCRIPT_MISSING',
+            message: 'package.json is missing a "build" script (e.g. "build": "node esbuild.js")',
+            path: 'package.json',
+          });
+        }
+      }
     }
   }
 
