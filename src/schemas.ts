@@ -36,6 +36,9 @@ const pageBatchItem = z.object({
   url: urlSchema,
 
   title: z.string().optional(),
+  /** Theme/template binding. Format: `"{theme}/{template}"` (no `.php`).
+   *  v2 splits on `/` and appends `.php`, so `my-theme/page` resolves to
+   *  `packages/my-theme/page.php`. Binds the page to a non-default theme. */
   template: z.string().optional(),
   private: z.boolean().optional(),
   tags: z.array(z.string()).optional(),
@@ -51,6 +54,9 @@ export const pagesInput = z.object({
   action: actionEnum("automad_pages"),
   url: urlSchema.optional(),
   title: z.string().optional(),
+  /** Theme/template binding. Format: `"{theme}/{template}"` (no `.php`).
+   *  v2 splits on `/` and appends `.php`, so `my-theme/page` resolves to
+   *  `packages/my-theme/page.php`. Pass on `create` to bind a non-default theme. */
   template: z.string().optional(),
   private: z.boolean().optional(),
   tags: z.array(z.string()).optional(),

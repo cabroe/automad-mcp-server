@@ -354,7 +354,29 @@ The server keeps the public routers unchanged and maintains a static internal re
 > [!TIP]
 > `theme.build` runs `composer install` first when a `composer.json` is present, then `npm install` + `npm run build`. Pass `install: false` to skip installs and only re-run the build. `theme.dev` reuses the same `node_modules/` when it's already there — no second install.
 
-**Preview a change, then generate a snippet:**
+**Bind a page to a specific theme/template:**
+
+v2's `page/add` endpoint splits the `template` field on `/` and appends `.php`:
+pass `"{theme}/{template}"` (no extension) on `pages.create` to bind a page to
+a theme that isn't the site default. The site default itself isn't exposed
+via the API — it's set in the dashboard.
+
+```jsonc
+// create a page bound to my-theme's default template
+{ "action": "create", "target_url": "/", "url": "/hello", "title": "Hello",
+  "template": "my-theme/default" }
+// → { "ok": true, "url": "/hello" }
+
+// the page's data now carries the binding
+{ "action": "get", "url": "/hello" }
+// → { "title": "Hello", "theme": "my-theme", "template": "default", … }
+```
+
+> [!NOTE]
+> Theme templates use Automad's `<# #>` / `<@ @>` markup, not raw PHP — the
+> `$Automad` context is only set up by the markup engine. After editing
+> templates, clear Automad's page cache (`/cache/*` in the install) so the
+> next request picks up the new template.
 
 ```jsonc
 // read-only unified-diff preview (nothing is written)
