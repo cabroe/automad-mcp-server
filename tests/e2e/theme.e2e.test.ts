@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import * as path from 'node:path';
 import {
   asRecord,
   e2eEnabled,
@@ -116,6 +117,56 @@ describe.skipIf(!e2eEnabled)('e2e: theme tooling', () => {
       path: 'passwd',
     });
     expect(result.isError).toBe(true);
+  });
+
+  it('reads the package collection and the outdated list from v2', async () => {
+    const installed = asRecord(
+      await server.callOk('automad_theme', { action: 'list_installed' }),
+    );
+    const packages = installed['packages'];
+    expect(Array.isArray(packages)).toBe(true);
+    // Every install ships the standard theme, so the list is never empty.
+    expect(JSON.stringify(packages)).toContain('automad/');
+
+    const outdated = asRecord(await server.callOk('automad_theme', { action: 'outdated' }));
+    expect(Array.isArray(outdated['outdated'])).toBe(true);
+  });
+
+  it('reports no dev server for a theme that never started one', async () => {
+    const status = asRecord(
+      await server.callOk('automad_theme', { action: 'dev_status', theme: slug }),
+    );
+    // `null` used to come back here, which reads like a failure rather than
+    // "nothing is running".
+    expect(status['running']).toBe(false);
+  });
+
+  it('installs a theme from a local path and removes it again', async () => {
+    const copy = 'e2e-copied-theme';
+    const installed = asRecord(
+      await server.callOk('automad_theme', {
+        action: 'install',
+        source: path.join(themes.path, slug),
+        theme: copy,
+      }),
+    );
+    expect(installed['slug']).toBe(copy);
+    expect(JSON.stringify(await server.callOk('automad_theme', { action: 'list' }))).toContain(copy);
+
+    await server.callOk('automad_theme', { action: 'uninstall', theme: copy });
+    expect(JSON.stringify(await server.callOk('automad_theme', { action: 'list' }))).not.toContain(
+      copy,
+    );
+  });
+
+  it('activates a theme through v2 and reports the outcome either way', async () => {
+    // `activate` was advertised but had no implementation — every call came
+    // back as "unknown theme action". Whether v2's package manager accepts a
+    // local path depends on the instance, so the contract is the shape: a
+    // structured answer, never a crash.
+    const result = asRecord(await server.callOk('automad_theme', { action: 'activate', theme: slug }));
+    expect(typeof result['activated']).toBe('boolean');
+    expect(result).toHaveProperty('remote');
   });
 
   it('reports the theme through the MCP resource as well', async () => {
