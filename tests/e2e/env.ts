@@ -28,3 +28,25 @@ if (existsSync(ENV_FILE)) {
     if (process.env[key] === undefined) process.env[key] = value;
   }
 }
+
+/**
+ * Skipping is the right default locally — `npm test` must not need Docker. In
+ * CI it is a trap: a broken `e2e:up` leaves no credentials, every file skips
+ * itself, vitest exits 0, and the job reports success while nothing ran. That
+ * happened, undetected, on the run that introduced the themes mount.
+ *
+ * So CI sets `AUTOMAD_E2E_REQUIRED=1` and this turns a silent skip into a
+ * hard failure.
+ */
+if (process.env['AUTOMAD_E2E_REQUIRED'] === '1') {
+  const missing = ['AUTOMAD_E2E_URL', 'AUTOMAD_E2E_USER', 'AUTOMAD_E2E_PASS'].filter(
+    (name) => !process.env[name],
+  );
+  if (missing.length > 0) {
+    throw new Error(
+      `AUTOMAD_E2E_REQUIRED=1 but ${missing.join(', ')} ${missing.length === 1 ? 'is' : 'are'} unset, ` +
+        `so the live suite would silently skip itself. Either the environment failed to start ` +
+        `(check \`npm run e2e:up\`) or ${ENV_FILE} was not written.`,
+    );
+  }
+}

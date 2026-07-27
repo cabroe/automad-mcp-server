@@ -57,6 +57,11 @@ jobs:
         run: npm run e2e:up
 
       - name: Run live E2E tests
+        # A skipped suite is a failed suite here: without this the run stays
+        # green when the environment did not come up (tests/e2e/env.ts turns the
+        # missing credentials into an error instead of a silent skip).
+        env:
+          AUTOMAD_E2E_REQUIRED: '1'
         run: npm run e2e:run
 
       - name: Dump Automad logs on failure
