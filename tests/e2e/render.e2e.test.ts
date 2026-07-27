@@ -7,7 +7,7 @@ import {
   MOUNTED_THEMES_VENDOR,
   asRecord,
   e2eEnabled,
-  fetchPublic,
+  fetchPublicUntil,
   startServer,
   stringField,
   uniqueName,
@@ -35,6 +35,28 @@ describe.skipIf(!e2eEnabled)('e2e: customer theme renders on the live site', () 
   /** v2 caches rendered pages; clear it so a fetch reflects the last write. */
   async function publish(): Promise<void> {
     await server.call('automad_config', { action: 'cache_clear' });
+  }
+
+  /**
+   * Assert the visitor got our theme — and say why not when they did not.
+   *
+   * The overwhelmingly likely cause of a failure here is an instance without
+   * the themes bind mount (`docker-compose.e2e.yml` maps `automad-themes/` to
+   * `/app/packages/mcp`). Bare `expected 500 to be 200` sends the reader
+   * hunting through the MCP for a bug that is not there, so name the
+   * prerequisite instead.
+   */
+  function expectRenderedByOurTheme(status: number, html: string): void {
+    if (status !== 200 && /Template missing/i.test(html)) {
+      throw new Error(
+        `Automad answered ${status} "Template missing!" for a page bound to \`${template}\`. ` +
+          `The instance cannot see the theme: it needs ${MOUNTED_THEMES_PATH} mounted at ` +
+          `/app/packages/${MOUNTED_THEMES_VENDOR}, which docker-compose.e2e.yml does and a ` +
+          `plain \`docker run\` does not. Start the stack with \`npm run e2e:up\`.`,
+      );
+    }
+    expect(status).toBe(200);
+    expect(html).toContain(`${MARKER}: ${slug}`);
   }
 
   beforeAll(async () => {
@@ -92,9 +114,10 @@ describe.skipIf(!e2eEnabled)('e2e: customer theme renders on the live site', () 
     cleanup.addPage(server, pageUrl);
     await publish();
 
-    const { status, html } = await fetchPublic(pageUrl);
-    expect(status).toBe(200);
-    expect(html).toContain(`${MARKER}: ${slug}`);
+    const { status, html } = await fetchPublicUntil(pageUrl, (page) =>
+      page.includes(`${MARKER}: ${slug}`),
+    );
+    expectRenderedByOurTheme(status, html);
   });
 
   it('keeps the template binding when only content fields are updated', async () => {
@@ -110,9 +133,8 @@ describe.skipIf(!e2eEnabled)('e2e: customer theme renders on the live site', () 
     });
     await publish();
 
-    const { status, html } = await fetchPublic(pageUrl);
-    expect(status).toBe(200);
-    expect(html).toContain(`${MARKER}: ${slug}`);
+    const { status, html } = await fetchPublicUntil(pageUrl, (page) => page.includes(intro));
+    expectRenderedByOurTheme(status, html);
     expect(html).toContain(intro);
   });
 
@@ -133,9 +155,8 @@ describe.skipIf(!e2eEnabled)('e2e: customer theme renders on the live site', () 
     pageUrl = newUrl;
     await publish();
 
-    const { status, html } = await fetchPublic(newUrl);
-    expect(status).toBe(200);
-    expect(html).toContain(`${MARKER}: ${slug}`);
+    const { status, html } = await fetchPublicUntil(newUrl, (page) => page.includes(renamed));
+    expectRenderedByOurTheme(status, html);
     expect(html).toContain(renamed);
   });
 });

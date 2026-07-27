@@ -196,6 +196,29 @@ export async function fetchPublic(pageUrl: string): Promise<{ status: number; ht
   return { status: res.status, html: await res.text() };
 }
 
+/**
+ * Fetch until the rendered page satisfies `predicate`, then return it.
+ *
+ * A write returns from the API slightly before the change reaches the rendered
+ * page — measured at roughly 200 ms on a local container. A single immediate
+ * fetch therefore races the site and fails at random, which is worse than
+ * useless in a regression suite. Returns the last response either way, so the
+ * caller's assertion produces the real diff on timeout.
+ */
+export async function fetchPublicUntil(
+  pageUrl: string,
+  predicate: (html: string) => boolean,
+  timeoutMs = 10_000,
+): Promise<{ status: number; html: string }> {
+  const deadline = Date.now() + timeoutMs;
+  let last = await fetchPublic(pageUrl);
+  while (!predicate(last.html) && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    last = await fetchPublic(pageUrl);
+  }
+  return last;
+}
+
 /** Throwaway themes directory for the theme tests; removed via the returned dispose. */
 export function makeTempThemesDir(): { path: string; dispose: () => void } {
   const dir = mkdtempSync(path.join(tmpdir(), 'automad-e2e-themes-'));
