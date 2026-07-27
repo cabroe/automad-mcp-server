@@ -8,6 +8,10 @@ export interface BatchItemResult {
   url: string;
   ok: boolean;
   resultingUrl?: string;
+  /** False when the item was saved but is not live (draft, or publishing failed). */
+  published?: boolean;
+  /** Caller-facing notes, e.g. a publish that did not take effect. */
+  warnings?: string[];
   /** Filled when ok=false and the item required a confirm token. */
   confirmToken?: string;
   action?: WriteAction;
@@ -52,25 +56,80 @@ function normalizeUrl(url: string | undefined): string | undefined {
   if (!url) return undefined;
   return url === '/' ? '/' : url.replace(/\/+$/, '');
 }
+/** What actually became of a publish attempt. `warnings` is caller-facing prose. */
+export interface PublishOutcome {
+  published: boolean;
+  warnings: string[];
+}
+
+function describeError(err: unknown): string {
+  if (err instanceof AutomadMcpError) return `${err.code}: ${err.message}`;
+  return err instanceof Error ? err.message : String(err);
+}
+
+/**
+ * Empty the rendered-page cache. Best effort: a write that reached Automad is
+ * not undone by a cache that refused to clear, so this reports rather than
+ * throws.
+ *
+ * It is not optional politeness. Automad serves cached HTML and only re-checks
+ * for content changes every `AM_CACHE_MONITOR_DELAY` seconds — 120 by default —
+ * so without this a visitor can keep getting the old page for two minutes
+ * after the tool reported success.
+ */
+async function clearCache(client: HttpClient, warnings: string[]): Promise<void> {
+  try {
+    await client.post(`${API_BASE}/cache/clear`, {});
+  } catch (err) {
+    warnings.push(
+      `the page cache could not be cleared (${describeError(err)}); visitors may keep seeing the previous version until Automad re-checks (AM_CACHE_MONITOR_DELAY, 120s by default)`,
+    );
+  }
+}
+
+/**
+ * Publish a page and report whether it *actually* became published.
+ *
+ * The previous version swallowed a failing `page/publish` and returned as if
+ * all was well, and then confirmed success by reading `page/data` — which
+ * serves drafts too, so it proved nothing. Both together let `create`/`update`
+ * report success on a page no visitor could see. The publication state is now
+ * read from the endpoint that distinguishes the two, and anything that went
+ * wrong travels back to the caller.
+ */
 async function publishAndWait(
   client: HttpClient,
   inputUrl: string,
   resultingUrl: string,
-): Promise<void> {
+): Promise<PublishOutcome> {
+  const warnings: string[] = [];
   try {
     await client.post(`${API_BASE}/page/publish`, { url: inputUrl });
-  } catch {
-    return;
+  } catch (err) {
+    warnings.push(
+      `saved, but publishing failed (${describeError(err)}) — the page is still a draft and is not visible to visitors. Retry with the \`publish\` action.`,
+    );
+    return { published: false, warnings };
   }
+
   for (let i = 0; i < 8 && i * READ_RETRY_INTERVAL_MS < READ_RETRY_TOTAL_MS; i++) {
     await new Promise((r) => setTimeout(r, READ_RETRY_INTERVAL_MS));
     try {
-      await client.post(`${API_BASE}/page/data`, { url: resultingUrl });
-      return;
+      const state = await client.post<unknown>(`${API_BASE}/page/get-publication-state`, {
+        url: resultingUrl,
+      });
+      if (isRecord(state) && state['isPublished'] === true) {
+        await clearCache(client, warnings);
+        return { published: true, warnings };
+      }
     } catch {
-      /* retry */
+      /* the page may not be queryable yet — keep polling */
     }
   }
+  warnings.push(
+    `publishing was accepted but ${resultingUrl} is still not reported as published after ${String(READ_RETRY_TOTAL_MS)}ms; check with the \`publication_state\` action`,
+  );
+  return { published: false, warnings };
 }
 
 async function readWithRetry(client: HttpClient, url: string): Promise<unknown> {
@@ -144,8 +203,17 @@ export async function handlePages(
           ? rawSlug
           : `/${rawSlug}`
         : input.url;
-      if (slug && input.publish !== false) await publishAndWait(client, slug, slug);
-      return { ok: true, url: slug, ...created };
+      const outcome =
+        slug && input.publish !== false
+          ? await publishAndWait(client, slug, slug)
+          : { published: false, warnings: [] };
+      return {
+        ok: true,
+        url: slug,
+        published: outcome.published,
+        ...(outcome.warnings.length > 0 ? { warnings: outcome.warnings } : {}),
+        ...created,
+      };
     }
     case 'update': {
       if (!input.url) throw new AutomadMcpError('VALIDATION', 'url is required for update');
@@ -161,7 +229,13 @@ export async function handlePages(
     }
     case 'delete': {
       if (!input.url) throw new AutomadMcpError('VALIDATION', 'url is required for delete');
-      return client.post(`${API_BASE}/page/delete`, { url: input.url });
+      const deleted = await client.post<unknown>(`${API_BASE}/page/delete`, { url: input.url });
+      // Without this the deleted page keeps being served from the cache.
+      const warnings: string[] = [];
+      await clearCache(client, warnings);
+      return isRecord(deleted)
+        ? { ...deleted, ...(warnings.length > 0 ? { warnings } : {}) }
+        : { ok: true, ...(warnings.length > 0 ? { warnings } : {}) };
     }
     case 'move': {
       if (!input.url) throw new AutomadMcpError('VALIDATION', 'url is required for move');
@@ -204,8 +278,13 @@ export async function handlePages(
     }
     case 'publish': {
       if (!input.url) throw new AutomadMcpError('VALIDATION', 'url is required for publish');
-      await client.post(`${API_BASE}/page/publish`, { url: input.url });
-      return { ok: true, url: input.url, published: true };
+      const outcome = await publishAndWait(client, input.url, input.url);
+      return {
+        ok: outcome.published,
+        url: input.url,
+        published: outcome.published,
+        ...(outcome.warnings.length > 0 ? { warnings: outcome.warnings } : {}),
+      };
     }
     case 'trash_list':
       return client.post(`${API_BASE}/page-trash/list`, {});
@@ -303,7 +382,13 @@ async function handleBatchUpdate(
     }
     try {
       const res = await updateOnePage(client, item);
-      results.push({ url: item.url, ok: true, resultingUrl: res.url });
+      results.push({
+        url: item.url,
+        ok: true,
+        resultingUrl: res.url,
+        published: res.published,
+        ...(res.warnings ? { warnings: res.warnings } : {}),
+      });
     } catch (err) {
       results.push({
         url: item.url,
@@ -391,7 +476,7 @@ async function readStoredPage(client: HttpClient, url: string): Promise<StoredPa
 async function updateOnePage(
   client: HttpClient,
   item: PageUpdateFields,
-): Promise<{ ok: true; url: string }> {
+): Promise<{ ok: true; url: string; published: boolean; warnings?: string[] }> {
   const stored = await readStoredPage(client, item.url);
   const data: Record<string, unknown> = { ...stored.fields };
   if (item.title !== undefined) {
@@ -425,8 +510,16 @@ async function updateOnePage(
       ? saved.slug
       : `/${saved.slug}`
     : item.url;
-  if (item.publish !== false) await publishAndWait(client, item.url, resultingUrl);
-  return { ok: true, url: resultingUrl };
+  const outcome =
+    item.publish !== false
+      ? await publishAndWait(client, item.url, resultingUrl)
+      : { published: false, warnings: [] };
+  return {
+    ok: true,
+    url: resultingUrl,
+    published: outcome.published,
+    ...(outcome.warnings.length > 0 ? { warnings: outcome.warnings } : {}),
+  };
 }
 
 function extractSlugFromRedirect(redirect: string | undefined): string | undefined {

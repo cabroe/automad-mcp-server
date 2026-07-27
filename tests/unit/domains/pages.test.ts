@@ -37,10 +37,13 @@ function mockPageData(
     save?: Record<string, unknown>;
     /** Absolute template path, the shape v2 reports on read. */
     template?: string;
+    /** What the publication-state poll reports. Defaults to published. */
+    published?: boolean;
   } = {},
 ): void {
   const fields = opts.fields ?? { title: 'Existing Title' };
   const save = opts.save ?? { slug: 's' };
+  const isPublished = opts.published ?? true;
   (c.post as ReturnType<typeof vi.fn>).mockImplementation(
     (path: string, body?: Record<string, unknown>) => {
       if (path === '/_api/page/data' && body && !('data' in body)) {
@@ -51,9 +54,25 @@ function mockPageData(
           ...(opts.template !== undefined ? { template: opts.template } : {}),
         });
       }
+      // Answer the post-save publish handshake, otherwise every publishing test
+      // spends the full confirmation timeout polling a mock that never says yes.
+      if (path === '/_api/page/get-publication-state') return Promise.resolve({ isPublished });
       return Promise.resolve(save);
     },
   );
+}
+
+/**
+ * Answer the publish handshake: `page/publish`, then the publication-state poll
+ * `updateOnePage`/`publish` use to confirm the page really went live, then the
+ * cache clear. `published` controls what the state endpoint reports.
+ */
+function mockPublish(c: HttpClient, opts: { published?: boolean } = {}): void {
+  const isPublished = opts.published ?? true;
+  (c.post as ReturnType<typeof vi.fn>).mockImplementation((path: string) => {
+    if (path === '/_api/page/get-publication-state') return Promise.resolve({ isPublished });
+    return Promise.resolve({});
+  });
 }
 
 /** The `page/data` calls that actually wrote (as opposed to the pre-read). */
@@ -131,7 +150,7 @@ describe('handlePages (v2 /_api)', () => {
     (c.post as ReturnType<typeof vi.fn>)
       .mockResolvedValueOnce({ redirect: 'page?url=%2Fhello' })
       .mockResolvedValueOnce({ ok: true })
-      .mockResolvedValue({ url: '/hello', fields: {} });
+      .mockResolvedValue({ url: '/hello', fields: {}, isPublished: true });
     await expect(
       handlePages({ action: 'create', title: 'Hello', target_url: '/' }, c, new WriteGuard(cfg())),
     ).resolves.toMatchObject({ ok: true, url: '/hello' });
@@ -142,7 +161,7 @@ describe('handlePages (v2 /_api)', () => {
     (c.post as ReturnType<typeof vi.fn>)
       .mockResolvedValueOnce({ redirect: 'page?url=%2Fhello' })
       .mockResolvedValueOnce({ ok: true })
-      .mockResolvedValue({ url: '/hello', fields: {} });
+      .mockResolvedValue({ url: '/hello', fields: {}, isPublished: true });
     const out = await handlePages(
       { action: 'create', title: 'Hello', target_url: '/blog', template: 'standard-lite/page.php' },
       c,
@@ -162,7 +181,7 @@ describe('handlePages (v2 /_api)', () => {
     (c.post as ReturnType<typeof vi.fn>)
       .mockResolvedValueOnce({ redirect: 'no-url-here' })
       .mockResolvedValueOnce({ ok: true })
-      .mockResolvedValue({ url: '/expected', fields: {} });
+      .mockResolvedValue({ url: '/expected', fields: {}, isPublished: true });
     await handlePages(
       { action: 'create', title: 'Hi', url: '/expected' },
       c,
@@ -176,7 +195,7 @@ describe('handlePages (v2 /_api)', () => {
     (c.post as ReturnType<typeof vi.fn>)
       .mockResolvedValueOnce({ redirect: 'page?url=%2Fhello' })
       .mockRejectedValueOnce(new Error('publish offline'))
-      .mockResolvedValue({ url: '/hello', fields: {} });
+      .mockResolvedValue({ url: '/hello', fields: {}, isPublished: true });
     const out = await handlePages(
       { action: 'create', title: 'Hello', target_url: '/blog' },
       c,
@@ -417,12 +436,113 @@ describe('handlePages (v2 /_api)', () => {
     ).rejects.toMatchObject({ code: 'VALIDATION' });
   });
 
-  it('publish posts /_api/page/publish and reports published', async () => {
+  it('publish posts /_api/page/publish, confirms the state, and clears the cache', async () => {
     const c = mockClient();
-    (c.post as ReturnType<typeof vi.fn>).mockResolvedValue({});
+    mockPublish(c);
     const out = await handlePages({ action: 'publish', url: '/blog' }, c, new WriteGuard(cfg()));
     expect(out).toMatchObject({ ok: true, url: '/blog', published: true });
-    expect(c.post).toHaveBeenCalledWith('/_api/page/publish', { url: '/blog' });
+    expect(out).not.toHaveProperty('warnings');
+    const paths = (c.post as ReturnType<typeof vi.fn>).mock.calls.map((call) => call[0]);
+    expect(paths).toContain('/_api/page/publish');
+    // Confirmation must come from the endpoint that distinguishes draft from
+    // published — `page/data` serves drafts too and would prove nothing.
+    expect(paths).toContain('/_api/page/get-publication-state');
+    // Without this a visitor keeps getting the cached previous version.
+    expect(paths).toContain('/_api/cache/clear');
+  });
+
+  it('publish reports the failure instead of claiming success', async () => {
+    const c = mockClient();
+    (c.post as ReturnType<typeof vi.fn>).mockImplementation((path: string) =>
+      path === '/_api/page/publish'
+        ? Promise.reject(new AutomadMcpError('NETWORK', 'connection reset'))
+        : Promise.resolve({}),
+    );
+    const out = (await handlePages(
+      { action: 'publish', url: '/blog' },
+      c,
+      new WriteGuard(cfg()),
+    )) as { ok: boolean; published: boolean; warnings: string[] };
+    expect(out.ok).toBe(false);
+    expect(out.published).toBe(false);
+    expect(out.warnings[0]).toMatch(/publishing failed/i);
+  });
+
+  it('publish warns when the page never reports itself published', async () => {
+    const c = mockClient();
+    mockPublish(c, { published: false });
+    const out = (await handlePages(
+      { action: 'publish', url: '/blog' },
+      c,
+      new WriteGuard(cfg()),
+    )) as { published: boolean; warnings: string[] };
+    expect(out.published).toBe(false);
+    expect(out.warnings[0]).toMatch(/still not reported as published/i);
+  });
+
+  it('update reports published and carries a publish failure to the caller', async () => {
+    const c = mockClient();
+    (c.post as ReturnType<typeof vi.fn>).mockImplementation(
+      (path: string, body?: Record<string, unknown>) => {
+        if (path === '/_api/page/data' && body && !('data' in body)) {
+          return Promise.resolve({ url: body['url'], fields: { title: 'T' }, unused: {} });
+        }
+        if (path === '/_api/page/publish') {
+          return Promise.reject(new AutomadMcpError('FORBIDDEN', 'nope'));
+        }
+        return Promise.resolve({ slug: 'blog' });
+      },
+    );
+    const out = (await handlePages(
+      { action: 'update', url: '/blog', fields: { text: 'x' } },
+      c,
+      new WriteGuard(cfg()),
+    )) as { ok: boolean; published: boolean; warnings: string[] };
+    // The save itself succeeded — that is not undone by a failed publish.
+    expect(out.ok).toBe(true);
+    expect(out.published).toBe(false);
+    expect(out.warnings[0]).toMatch(/still a draft/i);
+  });
+
+  it('create with publish:false reports a draft without warning about it', async () => {
+    const c = mockClient();
+    (c.post as ReturnType<typeof vi.fn>).mockResolvedValue({ redirect: 'page?url=%2Fdraft' });
+    const out = (await handlePages(
+      { action: 'create', title: 'Draft', target_url: '/', publish: false },
+      c,
+      new WriteGuard(cfg()),
+    )) as { published: boolean; warnings?: string[] };
+    expect(out.published).toBe(false);
+    expect(out.warnings).toBeUndefined();
+    const paths = (c.post as ReturnType<typeof vi.fn>).mock.calls.map((call) => call[0]);
+    expect(paths).not.toContain('/_api/page/publish');
+  });
+
+  it('delete clears the cache so the removed page stops being served', async () => {
+    const c = mockClient();
+    (c.post as ReturnType<typeof vi.fn>).mockResolvedValue({});
+    await handlePages({ action: 'delete', url: '/gone' }, c, new WriteGuard(cfg()));
+    const paths = (c.post as ReturnType<typeof vi.fn>).mock.calls.map((call) => call[0]);
+    expect(paths).toEqual(['/_api/page/delete', '/_api/cache/clear']);
+  });
+
+  it('a cache clear that fails becomes a warning, not a failed write', async () => {
+    const c = mockClient();
+    (c.post as ReturnType<typeof vi.fn>).mockImplementation((path: string) => {
+      if (path === '/_api/cache/clear') {
+        return Promise.reject(new AutomadMcpError('NETWORK', 'timeout'));
+      }
+      if (path === '/_api/page/get-publication-state') return Promise.resolve({ isPublished: true });
+      return Promise.resolve({});
+    });
+    const out = (await handlePages(
+      { action: 'publish', url: '/blog' },
+      c,
+      new WriteGuard(cfg()),
+    )) as { ok: boolean; published: boolean; warnings: string[] };
+    expect(out.ok).toBe(true);
+    expect(out.published).toBe(true);
+    expect(out.warnings[0]).toMatch(/cache could not be cleared/i);
   });
 
   it('publish requires url', async () => {
