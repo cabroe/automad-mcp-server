@@ -1,6 +1,34 @@
 ## [Unreleased]
 
+### Fixed (customer-theme workflow)
+- **`pages.update` unbound the page's theme, leaving a dead page.** v2's
+ `page/data` save replaces the template selection along with the fields: a save
+ without `theme_template` falls back to the site default *with an empty
+ template name*, and the public URL then answers **HTTP 500
+ "Template missing!"**. Every page an update touched was broken for visitors —
+ the API kept answering happily, so nothing surfaced it until a browser asked
+ for the page. `updateOnePage` now reads the current selection and sends it
+ back unless the caller passes `template`. v2 reports the template as an
+ absolute path but expects the id form, so `templateIdFromPath()` converts
+ `/app/packages/mcp/cafe/home.php` → `mcp/cafe/home`, and deliberately returns
+ nothing for v2's empty-basename "no template" shape.
+- Templates are addressed **`{vendor}/{theme}/{template}`** (v2 splits at the
+ last slash), not `{theme}/{template}` as the field docs claimed.
+
 ### Added
+
+- **The test environment can now host a customer theme.** `automad-themes/`
+ (the `AUTOMAD_THEMES_PATH` default) is bind-mounted into the container at
+ `/app/packages/mcp`, so a theme scaffolded through `automad_theme` is
+ immediately usable by the running site — bind a page to
+ `mcp/<slug>/<template>`. `testenv.ts` creates the directory before compose
+ starts (Docker would otherwise create it root-owned and theme writes would
+ fail) and keeps it on `down`, since it can hold real work.
+- **`tests/e2e/render.e2e.test.ts`** — the suite that checks the actual job:
+ scaffold a theme, write a template, bind a page, and assert the **public**
+ HTML a visitor receives, including after a fields-only update and after a
+ rename. Verified as a real regression guard: with the template fix reverted,
+ three of its four tests fail with the production symptom (HTTP 500).
 - **Reproducible local test environment.** `docker-compose.e2e.yml` +
  `scripts/testenv.ts` bring up a throwaway `automad/automad:v2` instance on
  `127.0.0.1:8899` (named volume, curl healthcheck) and wire it to the MCP
