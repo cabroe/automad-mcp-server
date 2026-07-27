@@ -28,6 +28,9 @@ describe('handleFileMeta (v2 /_api/file)', () => {
     expect(c.post).toHaveBeenCalledWith('/_api/file/edit-info', {
       'new-name': 'new.jpg',
       'old-name': 'old.jpg',
+      // v2 resolves the file relative to `url`; without it the lookup lands in
+      // the wrong directory and fails with a misleading "Permissions denied".
+      url: '',
     });
   });
 
@@ -41,5 +44,20 @@ describe('handleFileMeta (v2 /_api/file)', () => {
     );
     expect(out).toMatchObject({ allowed: 'pending' });
     expect(c.post).not.toHaveBeenCalled();
+  });
+
+  it('passes the page url through so v2 looks in the right directory', async () => {
+    const c = mockClient();
+    (c.post as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ ok: true });
+    await handleFileMeta(
+      { action: 'edit_info', url: '/blog/post', new_name: 'new', old_name: 'old.png' },
+      c,
+      new WriteGuard(cfg()),
+    );
+    expect(c.post).toHaveBeenCalledWith('/_api/file/edit-info', {
+      'new-name': 'new',
+      'old-name': 'old.png',
+      url: '/blog/post',
+    });
   });
 });

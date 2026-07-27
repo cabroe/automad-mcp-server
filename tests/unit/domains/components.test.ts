@@ -16,7 +16,9 @@ describe('handleComponents (v2 /_api/component)', () => {
     const c = mockClient();
     (c.post as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ components: [] });
     await handleComponents({ action: 'data' }, c, new WriteGuard(cfg()));
-    expect(c.post).toHaveBeenCalledWith('/_api/component/data', { components: [] });
+    // Body-less on purpose: `component/data` *saves* whatever `components`
+    // array it is given, so passing one turned a read into a wipe.
+    expect(c.post).toHaveBeenCalledWith('/_api/component/data', {});
   });
 
   it('discard_draft requires url and POSTs /_api/component/discard-draft', async () => {

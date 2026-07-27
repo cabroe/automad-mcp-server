@@ -137,8 +137,6 @@ export type ImageInput = z.infer<typeof imageInput>;
 /** Components: data, discard_draft, publication_state, publish (v2 ComponentController). */
 export const componentsInput = z.object({
   action: actionEnum('automad_components'),
-  /** For `data`: component key list (e.g. `['main', 'hero']`). */
-  components: z.array(z.string().max(MAX_SHORT)).max(50).optional(),
   /** For `discard_draft` / `publication_state` / `publish`: page URL. */
   url: urlSchema.optional(),
   confirm_token: z.string().max(MAX_SHORT).optional(),
@@ -169,6 +167,13 @@ export type SystemInput = z.infer<typeof systemInput>;
 /** File meta: edit_info (rename + alt-text). */
 export const fileMetaInput = z.object({
   action: actionEnum('automad_file_meta'),
+  /**
+   * Page whose directory holds the file; omit for the shared directory. v2
+   * resolves the file relative to this (`FileSystem::getPathByPostUrl`), so a
+   * missing `url` makes it look in the wrong place and fail with a misleading
+   * "Permissions denied".
+   */
+  url: urlSchema.optional(),
   /** For `edit_info`: new file name (no extension). */
   new_name: z.string().max(MAX_SHORT).optional(),
   /** For `edit_info`: current file name. */

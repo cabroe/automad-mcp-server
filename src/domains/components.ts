@@ -23,9 +23,14 @@ export async function handleComponents(
   if (permit.allowed === 'pending') return permit;
   switch (input.action) {
     case 'data':
-      return client.post(`${API_BASE}/component/data`, {
-        components: input.components ?? [],
-      });
+      // Deliberately body-less. `component/data` is two endpoints wearing one
+      // name: hand it a `components` array and it *saves* that array as the
+      // draft component store; omit it and it reads. Sending `components: []`
+      // — which is what an absent argument used to produce — therefore wiped
+      // the site's components while presenting itself as a read, and being
+      // flagged read-only meant the write guard let it through in every mode.
+      // Saving components is not exposed; reading is.
+      return client.post(`${API_BASE}/component/data`, {});
     case 'discard_draft': {
       if (!input.url) throw new AutomadMcpError('VALIDATION', 'url is required for discard_draft');
       return client.post(`${API_BASE}/component/discard-draft`, { url: input.url });

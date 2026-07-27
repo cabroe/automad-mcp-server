@@ -730,16 +730,34 @@ describe('handlePages (v2 /_api)', () => {
     ).rejects.toMatchObject({ code: 'VALIDATION' });
   });
 
-  it('trash_restore POSTs /_api/page-trash/restore with url', async () => {
+  it('trash_restore refuses a former page URL and names the right value', async () => {
+    const c = mockClient();
+    await expect(
+      handlePages({ action: 'trash_restore', url: '/x' }, c, new WriteGuard(cfg())),
+    ).rejects.toMatchObject({ code: 'VALIDATION' });
+    expect(c.post).not.toHaveBeenCalled();
+  });
+
+  it('trash_permanently_delete refuses a former page URL', async () => {
+    const c = mockClient();
+    await expect(
+      handlePages({ action: 'trash_permanently_delete', url: '/x' }, c, new WriteGuard(cfg())),
+    ).rejects.toMatchObject({ code: 'VALIDATION' });
+    expect(c.post).not.toHaveBeenCalled();
+  });
+
+  it('trash_restore POSTs /_api/page-trash/restore with the trash path', async () => {
     const c = mockClient();
     (c.post as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ ok: true });
     const out = await handlePages(
-      { action: 'trash_restore', url: '/x' },
+      { action: 'trash_restore', url: '/.trash/x' },
       c,
       new WriteGuard(cfg()),
     );
     expect(out).toEqual({ ok: true });
-    expect(c.post).toHaveBeenCalledWith('/_api/page-trash/restore', { url: '/x' });
+    // v2 reads `path`, not `url` — sending `url` made it restore nothing while
+    // still answering 200.
+    expect(c.post).toHaveBeenCalledWith('/_api/page-trash/restore', { path: '/.trash/x' });
   });
 
   it('trash_restore returns pending confirm token in confirm-destructive mode', async () => {
@@ -750,15 +768,17 @@ describe('handlePages (v2 /_api)', () => {
     expect(c.post).not.toHaveBeenCalled();
   });
 
-  it('trash_permanently_delete POSTs /_api/page-trash/permanently-delete with url', async () => {
+  it('trash_permanently_delete POSTs the trash path', async () => {
     const c = mockClient();
     (c.post as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ ok: true });
     await handlePages(
-      { action: 'trash_permanently_delete', url: '/x' },
+      { action: 'trash_permanently_delete', url: '/.trash/x' },
       c,
       new WriteGuard(cfg()),
     );
-    expect(c.post).toHaveBeenCalledWith('/_api/page-trash/permanently-delete', { url: '/x' });
+    expect(c.post).toHaveBeenCalledWith('/_api/page-trash/permanently-delete', {
+      path: '/.trash/x',
+    });
   });
 
   it('trash_clear POSTs /_api/page-trash/clear with no body', async () => {

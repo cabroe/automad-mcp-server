@@ -292,13 +292,17 @@ export async function handlePages(
       if (!input.url) {
         throw new AutomadMcpError('VALIDATION', 'url is required for trash_restore');
       }
-      return client.post(`${API_BASE}/page-trash/restore`, { url: input.url });
+      return client.post(`${API_BASE}/page-trash/restore`, {
+        path: assertTrashPath(input.url, 'trash_restore'),
+      });
     }
     case 'trash_permanently_delete': {
       if (!input.url) {
         throw new AutomadMcpError('VALIDATION', 'url is required for trash_permanently_delete');
       }
-      return client.post(`${API_BASE}/page-trash/permanently-delete`, { url: input.url });
+      return client.post(`${API_BASE}/page-trash/permanently-delete`, {
+        path: assertTrashPath(input.url, 'trash_permanently_delete'),
+      });
     }
     case 'trash_clear':
       return client.post(`${API_BASE}/page-trash/clear`, {});
@@ -419,6 +423,27 @@ interface PageUpdateFields {
   fields?: Record<string, unknown> | undefined;
   /** Publish after saving (default true). */
   publish?: boolean | undefined;
+}
+
+/** v2's trash directory, as it appears in the `path` values `trash_list` returns. */
+const TRASH_PATH_MARKER = '/.trash/';
+
+/**
+ * Both trash writes address a page by its **trash path** (`Request::post('path')`,
+ * e.g. `/.trash/my-page`), not by the URL the page had while it was live. Sent
+ * the wrong value, v2 does not complain: `permanently_delete` returns early and
+ * `restore` moves an empty path — both answer 200, so the caller is told the
+ * work happened. Reject the likely mistake here instead, and say where the
+ * right value comes from.
+ */
+function assertTrashPath(value: string, action: string): string {
+  if (!value.includes(TRASH_PATH_MARKER)) {
+    throw new AutomadMcpError(
+      'VALIDATION',
+      `${action} expects the trash path of the page (e.g. "/.trash/my-page"), not its former URL. Take the \`path\` field from \`trash_list\`; got "${value}".`,
+    );
+  }
+  return value;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
