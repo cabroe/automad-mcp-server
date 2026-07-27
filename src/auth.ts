@@ -1,6 +1,6 @@
 import { AutomadMcpError } from './errors.js';
 import { logger } from './logger.js';
-import { safeJson } from './client.js';
+import { NO_SESSION_MARKER, safeJson } from './client.js';
 import { API_BASE, type Config } from './config.js';
 
 /** AuthProvider hands the HttpClient the session cookie and CSRF token. */
@@ -53,6 +53,17 @@ export function extractCsrfToken(html: string): string | undefined {
 const LOGIN_PROBE_ATTEMPTS = 3;
 const LOGIN_PROBE_DELAY_MS = 200;
 
+/**
+ * Endpoint used to prove the session is *really* authenticated.
+ *
+ * It must be session-protected. `/_api/app/bootstrap` is not: on 2.0.0-beta.51
+ * it answers anonymous callers with the full payload — `sitename` included —
+ * so probing it accepted any password (live-verified 2026-07-27). `shared/data`
+ * is a core read that returns `{data: {message: "No session"}}` without a
+ * session, which is the signal we key off.
+ */
+const AUTH_PROBE_PATH = `${API_BASE}/shared/data`;
+
 export class AuthManager implements AuthProvider {
   private cookie: string | undefined;
   private csrf: string | undefined;
@@ -98,6 +109,15 @@ export class AuthManager implements AuthProvider {
       throw new AutomadMcpError('AUTH', `Login failed: HTTP ${res.status}`, await safeJson(res));
     }
 
+    // v2 answers a *rejected* login with HTTP 200 and an `error` key — the
+    // status code alone proves nothing, so read the body before trusting it.
+    const loginBody = await safeJson(res);
+    if (isRecord(loginBody) && typeof loginBody['error'] === 'string' && loginBody['error']) {
+      throw new AutomadMcpError('AUTH', `Login failed: ${loginBody['error']}`, {
+        user: this.cfg.username,
+      });
+    }
+
     // Cookie is set on the login response AND any redirect response.
     this.cookie = collectCookie([(res.headers as HeaderLike | undefined) ?? undefined]);
     if (!this.cookie) {
@@ -133,13 +153,14 @@ export class AuthManager implements AuthProvider {
 
   /**
    * v2 has a dangerous quirk: the login endpoint returns 200 + a session
-   * cookie for ANY credentials, but the session is unauthenticated when
-   * the password is wrong. We probe by hitting /_api/app/bootstrap with the
-   * cookie+CSRF and checking whether v2 returns the authenticated payload
-   * (a populated `data.sitename`) or a generic error / empty body.
+   * cookie for ANY credentials, but the session is unauthenticated when the
+   * password is wrong. We probe a *session-protected* endpoint
+   * (`AUTH_PROBE_PATH`) with the cookie+CSRF and reject the two shapes v2 uses
+   * for "you are not logged in": an `error` string, or a `No session` message
+   * where the payload should be.
    */
   private async probeAuthenticated(): Promise<void> {
-    const url = this.cfg.url.replace(/\/$/, '') + `${API_BASE}/app/bootstrap`;
+    const url = this.cfg.url.replace(/\/$/, '') + AUTH_PROBE_PATH;
     const csrf = this.csrf;
     if (!csrf) throw new AutomadMcpError('AUTH', 'Cannot probe without CSRF token');
     const fdata = new FormData();
@@ -158,17 +179,26 @@ export class AuthManager implements AuthProvider {
         status: res.status,
       });
     }
-    const body = (await safeJson(res)) as
-      { code?: number; data?: { sitename?: string }; error?: string } | undefined;
+    const body = await safeJson(res);
+    const error = isRecord(body) ? body['error'] : undefined;
     // Bad credentials come back as {code: 200, error: "Invalid username or password."}.
-    if (typeof body?.error === 'string' && body.error.length > 0) {
-      throw new AutomadMcpError('AUTH', `Login probe failed: ${body.error}`, { retryable: false });
+    if (typeof error === 'string' && error.length > 0) {
+      throw new AutomadMcpError('AUTH', `Login probe failed: ${error}`, { retryable: false });
     }
-    // For a logged-in session, /app/bootstrap returns {code: 200, data: {sitename, ...}}.
-    if (typeof body?.data?.sitename !== 'string') {
+    const data = isRecord(body) ? body['data'] : undefined;
+    if (!isRecord(data)) {
       throw new AutomadMcpError(
         'AUTH',
-        'Login probe failed: session is not authenticated (no sitename in response data)',
+        'Login probe failed: session is not authenticated (no data in response)',
+        { retryable: false },
+      );
+    }
+    // Anonymous session on a protected endpoint: {code: 200, data: {message: "No session"}}.
+    const message = data['message'];
+    if (typeof message === 'string' && NO_SESSION_MARKER.test(message)) {
+      throw new AutomadMcpError(
+        'AUTH',
+        'Login probe failed: session is not authenticated (v2 reported "No session")',
         { retryable: false },
       );
     }
