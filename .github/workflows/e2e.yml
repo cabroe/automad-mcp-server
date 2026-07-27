@@ -5,9 +5,29 @@ on:
     # Daily at 06:00 UTC — catches v2 regressions early.
     - cron: '0 6 * * *'
   workflow_dispatch:
+  pull_request:
+    branches: [main]
+    # Spinning up a container costs a couple of minutes, so skip PRs that
+    # cannot affect the outcome (docs, changelog, the homepage). `paths`
+    # applies to `pull_request` only — the nightly run always covers everything.
+    paths:
+      - 'src/**'
+      - 'tests/e2e/**'
+      - 'scripts/testenv.ts'
+      - 'docker-compose.e2e.yml'
+      - 'vitest.e2e.config.ts'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/e2e.yml'
 
 permissions:
   contents: read
+
+# One live run per branch: a push to an open PR cancels the previous run
+# instead of leaving two containers racing on the same suite.
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   e2e:
