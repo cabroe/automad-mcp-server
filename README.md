@@ -638,6 +638,12 @@ to `mcp/<slug>/<template>` and it renders. That is what
 `tests/e2e/render.e2e.test.ts` verifies: it builds a theme, binds a page, and
 asserts the **public** HTML a visitor gets.
 
+Live coverage is **69 of 70 actions**. The exception is `system.update`, which
+replaces the running Automad. `AUTOMAD_E2E_HEAVY=1` additionally runs the
+operations that need a package manager, network access or a background process
+(`theme.build`, `theme.dev`, `theme.dev_stop`, `theme.update`,
+`theme.update_all`).
+
 The suite (`tests/e2e/**`, own `vitest.e2e.config.ts`) covers login + CSRF
 handling, the page lifecycle including drafts and renames, media upload/delete
 against the real Dropzone endpoint, shared data + config, theme scaffolding and
