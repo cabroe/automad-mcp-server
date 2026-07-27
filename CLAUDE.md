@@ -88,7 +88,7 @@ tests/e2e/               opt-in live E2E vs. a real Automad v2 container (skippe
   env.ts                 vitest setup: loads .env.e2e (real env vars win) so the suite opts itself in
   auth / pages / media / shared-config / theme / write-modes  one file per scenario
   trash-history / components / files / system-mail / docs-discover  the rest of the surface
-  heavy.e2e.test.ts      opt-in (AUTOMAD_E2E_HEAVY=1): build, dev, dev_stop, update, update_all
+  theme-build / theme-dev / theme-update  one file per long-running action (build, dev, dev_stop, update, update_all); run by default
   render.e2e.test.ts     the actual job: scaffold a theme → bind a page → assert the *public* HTML renders
 docker-compose.e2e.yml   throwaway Automad v2 stack (named volume, curl healthcheck); managed by scripts/testenv.ts
 vitest.e2e.config.ts     E2E runner: setup file, no parallelism (v2 races on concurrent writes), long timeouts

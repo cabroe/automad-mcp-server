@@ -77,17 +77,17 @@
 
 ### Added (live coverage)
 - **Live coverage went from 35 to 69 of 70 actions.** Six new suites —
- `trash-history`, `components`, `files`, `system-mail`, `docs-discover` and the
- opt-in `heavy` — cover the trash and history flows, the component store, image
- variants and file metadata, update checks, mail configuration, cache purging,
- and the docs/discovery tools. Every one of the five bugs above was found by
- writing them. The live suite is now 85 tests across 12 files.
-- **`AUTOMAD_E2E_HEAVY=1` runs the operations the default suite leaves alone**:
- `theme.build`, `theme.dev`, `theme.dev_stop`, `theme.update`,
- `theme.update_all`. They need a package manager, network access and a
- background process, so they are opt-in rather than absent — and they assert
- the reporting shape rather than a successful toolchain, which is not the MCP's
- to guarantee. `system.update` remains uncovered on purpose: it replaces the
+ `trash-history`, `components`, `files`, `system-mail`, `docs-discover` — cover
+ the trash and history flows, the component store, image variants and file
+ metadata, update checks, mail configuration, cache purging, and the
+ docs/discovery tools. Every one of the five bugs above was found by writing
+ them. The live suite is now 85 tests across 12 files.
+- **`theme.build`, `theme.dev`, `theme.dev_stop`, `theme.update`, `theme.update_all`
+ now run with the default suite** — each in its own file
+ (`theme-build.e2e.test.ts`, `theme-dev.e2e.test.ts`, `theme-update.e2e.test.ts`)
+ so a slow or failing one can't stall the rest. They assert the reporting
+ shape rather than a successful toolchain, which is not the MCP's to
+ guarantee. `system.update` remains uncovered on purpose: it replaces the
  running Automad, so every later assertion would describe a different program.
 - `pages.move`, `pages.batch_update` and the publication reporting now have
  live E2E coverage — `batch_update` in particular was heavily unit-tested but
