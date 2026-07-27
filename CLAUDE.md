@@ -14,7 +14,7 @@ also works on the local filesystem (where Automad's theme packages live).
 
 ```bash
 npm run build            # tsc → dist/  (ESM, strict; reads package.json#version at compile time)
-npm test                 # vitest run — offline unit suite only (<!-- AUTOGEN:TESTCOUNT -->451 tests, 39 files<!-- /AUTOGEN:TESTCOUNT -->)
+npm test                 # vitest run — offline unit suite only (<!-- AUTOGEN:TESTCOUNT -->458 tests, 39 files<!-- /AUTOGEN:TESTCOUNT -->)
 npm run test:coverage    # vitest + v8 coverage (gate: 80% stmts / 70% branches)
 npm run lint             # eslint src tests
 npm run dev              # tsx src/index.ts  (run the server locally)
@@ -82,7 +82,7 @@ scripts/                 # build-time helpers, run via `npm run <name>`
   sync.ts                # regenerates the AUTOGEN tool tables + fenced number markers in README/CLAUDE.md/docs/index.html (--tests refreshes TESTCOUNT via a live vitest run)
   testenv.ts             # local E2E environment: docker compose up/down/status/logs + deterministic admin + .env.e2e
   release.ts             # version-bump + CHANGELOG skeleton + git tag (`--tag` / `--dry-run`); the skeleton is an *empty* section inserted above the newest one — when the changelog already carries a filled `## [Unreleased]`, rename that heading to the new version instead of running the script
-tests/unit/              <!-- AUTOGEN:TESTCOUNT -->451 tests, 39 files<!-- /AUTOGEN:TESTCOUNT --> (drift test pins the registry's runtime derivations: Zod action enums, guard sets, bindings, guard behavior; docs-drift test pins CLAUDE.md/README/CHANGELOG against code reality; server test pins mcp.getServerVersion() ↔ package.json)
+tests/unit/              <!-- AUTOGEN:TESTCOUNT -->458 tests, 39 files<!-- /AUTOGEN:TESTCOUNT --> (drift test pins the registry's runtime derivations: Zod action enums, guard sets, bindings, guard behavior; docs-drift test pins CLAUDE.md/README/CHANGELOG against code reality; server test pins mcp.getServerVersion() ↔ package.json)
 tests/e2e/               opt-in live E2E vs. a real Automad v2 container (skipped unless AUTOMAD_E2E_* set; `npm run e2e`)
   harness.ts             spawns dist/index.js over stdio per test file; call/callOk helpers, Cleanup, temp themes dir
   env.ts                 vitest setup: loads .env.e2e (real env vars win) so the suite opts itself in
@@ -336,7 +336,7 @@ implementation; treat them as load-bearing constraints:
 | Tool | Actions | Endpoint |
 |---|---|---|
 | `automad_pages` | `list` `get` `create` `update` `delete` `move` `duplicate` `publish` `batch_update` | `/_api/page/*` (create/update auto-publish unless `publish:false`; `batch_update` runs items sequentially) |
-| `automad_media` | `list` `upload` `delete` | `/_api/file-collection/list`, `/upload` (single-chunk Dropzone), `delete` (destructive) |
+| `automad_media` | `list` `upload` `import` `delete` | `/_api/file-collection/list`, `/upload` (single-chunk Dropzone), `/_api/file/import` (server-side fetch by URL), `delete` (destructive) |
 | `automad_shared` | `get` `set` | `/_api/shared/data` |
 | `automad_config` | `get` `set` | `/_api/app/bootstrap`, `/_api/config/update` (type discriminator) |
 | `automad_site` | `info` `search` `health` | `/_api/app/bootstrap` (info/health), `/_api/search/search-replace` (`search` becomes `site.search_replace` and requires a confirm token when `replace` is set) |

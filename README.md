@@ -200,7 +200,7 @@ Destructive actions: `pages.delete` · `pages.move` · `pages.update_rename` *(t
 | Tool | Actions | What it does |
 |---|---|---|
 | `automad_pages` | `list` `get` `create` `update` `delete` `move` `duplicate` `publish` `batch_update` `trash_list` `trash_restore` `trash_permanently_delete` `trash_clear` `history` `history_restore` `breadcrumbs` `publication_state` `recent` `discard_draft` | Manage Automad pages |
-| `automad_media` | `list` `upload` `delete` | Manage Automad media |
+| `automad_media` | `list` `upload` `import` `delete` | Manage Automad media |
 | `automad_shared` | `get` `set` | Manage site-wide shared data |
 | `automad_config` | `get` `set` `cache_clear` `cache_purge` | Manage Automad configuration |
 | `automad_site` | `info` `search` `health` | Inspect and search the site |

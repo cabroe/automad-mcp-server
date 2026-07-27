@@ -1,5 +1,60 @@
 ## [Unreleased]
 
+### Added
+- **`media.import`** — pull a file into a page (or the shared directory)
+ straight from an http(s) URL via `/_api/file/import`. Automad downloads it
+ server-side, so unlike `media.upload` there is no base64 round-trip and no
+ `MAX_BASE64_INPUT` ceiling: the natural way to bring customer assets onto a
+ site. An ordinary write (runs directly in `confirm-destructive` mode). The URL
+ is validated for shape and http/https scheme locally, so `file:///…` never
+ reaches the server.
+
+ Live-verified against `automad/automad:v2` 2.0.0-beta.51, which pinned down
+ four behaviours worth knowing before you call it:
+ - **The fetch happens on the Automad host**, not in the MCP process. A URL
+   that resolves on your machine (a host port mapping, a private address) may
+   not resolve there.
+ - **Automad renames the stored file** and does not URL-decode while doing so:
+   `Mein%20Logo%20(RGB).svg` is stored as `mein-20logo-20-rgb-.svg`. The
+   handler therefore does *not* report a file name — deriving one would be a
+   guess. Call `media.list` afterwards to read the real name.
+ - **An existing file of the same name is silently overwritten** — no versioning,
+   no rename, no warning.
+ - **The extension must be allowed** by the site's `AM_ALLOWED_FILE_TYPES`, and
+   a URL without any extension is rejected outright.
+
+ Automad reports every one of those failures identically — HTTP 200 with a
+ terse `error` string, which the generic envelope mapping could only classify
+ as `UNKNOWN`. The handler translates the two shapes it actually produces into
+ codes a caller can act on: `VALIDATION` for a refused file type (fix the URL)
+ and `NETWORK` for a source Automad could not fetch (unreachable host, non-200,
+ unresolvable name).
+
+### Fixed (test environment)
+- **The stack could not start from scratch once the themes mount existed.** The
+ image ships an empty `/app` and installs Automad on first boot with
+ `composer create-project`, which refuses to run unless `/app` is empty — and
+ the themes bind mount creates `/app/packages/mcp` before that ever happens.
+ With the image's `set -e` entrypoint the container died on the spot, so
+ `e2e:up` timed out on any machine without a pre-existing volume. Compose now
+ runs a one-shot `install` service (named volume only, no mount) that the real
+ service waits for via `service_completed_successfully`; it mirrors the image's
+ own install *and* its permission fixup, which the main container skips once
+ `/app/automad` exists. Verified from zero both with an empty and a populated
+ themes directory.
+- **A skipped live suite reported success.** When the environment failed to
+ start, no `.env.e2e` was written, every E2E file skipped itself, vitest exited
+ 0 and the workflow went green — which is exactly what happened, undetected, on
+ the run that introduced the themes mount. CI now sets
+ `AUTOMAD_E2E_REQUIRED=1`, and `tests/e2e/env.ts` turns missing credentials
+ into a hard error instead of a silent skip. Running the suite locally without
+ an instance still skips, as before.
+- **`render.e2e.test.ts` raced the site.** A write returns from the API roughly
+ 200 ms before the change reaches the rendered page, and the test fetched once,
+ immediately. `fetchPublicUntil()` now polls until the expected content appears
+ (10 s cap) and returns the last response either way, so a real regression
+ still fails with the true diff.
+
 ### Fixed (customer-theme workflow)
 - **`pages.update` unbound the page's theme, leaving a dead page.** v2's
  `page/data` save replaces the template selection along with the fields: a save
@@ -14,8 +69,6 @@
  nothing for v2's empty-basename "no template" shape.
 - Templates are addressed **`{vendor}/{theme}/{template}`** (v2 splits at the
  last slash), not `{theme}/{template}` as the field docs claimed.
-
-### Added
 
 - **The test environment can now host a customer theme.** `automad-themes/`
  (the `AUTOMAD_THEMES_PATH` default) is bind-mounted into the container at
@@ -60,7 +113,18 @@
  client and drains a cleanup registry in `afterAll`, so a failed test still
  removes its fixtures. Files run sequentially in a single fork (v2 races on
  concurrent writes to the same page tree).
-- TBD: deferred work (AI tooling, edit-lock, in-page editing, file import).
+- Deferred work, assessed against the v2 source rather than left as a
+ placeholder: **file import** is done (see `media.import` above). **AI
+ tooling** is only half worth having — `ai-assistance/text` generates prose
+ from blocks, which is redundant for a server driven by a language model; the
+ useful part is `ai-provider/*` (key, model, validation) as customer-dashboard
+ configuration, and that means routing an API key through the MCP, which wants
+ a deliberate decision. **Edit-lock** is dormant in beta.51: `lockHandle`
+ appears only in `RequestHandler.php`, the shipped dashboard never sends it,
+ and `EditLock::isLocked()` returns false whenever `instanceId` is empty — so
+ implementing it would protect nothing in either direction. **In-page editing**
+ (`in-page/edit|publish|toggle`) drives the front-end inline editor for a
+ browser session and has no meaning for an agent; it is dropped from the list.
 
 ### Fixed
 - **Bad credentials were accepted.** `AuthManager.probeAuthenticated` treated a
