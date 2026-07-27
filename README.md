@@ -528,6 +528,18 @@ against `automad/automad:v2` `2.0.0-beta.51`). A few need a special note:
 - `pages.update` / `pages.batch_update` switch to the destructive
   `pages.update_rename` action when they carry a title change — see the
   [destructive actions list](#write-protection) above.
+- `pages.update` reads the page before writing it. v2's `page/data` save is a
+  **full replace** and rejects any payload without a `title` ("Title missing!"),
+  so a partial update has to merge onto the stored record — otherwise every
+  field the caller didn't mention would be deleted. That costs one extra read
+  per update.
+- A draft (`publish: false`) is readable through the dashboard API; what marks
+  it as a draft is `pages.publication_state` (`isPublished: false`), not a
+  failing read.
+- `/_api/app/bootstrap` is **public** — it answers anonymous callers with the
+  full payload — so the login check probes the session-protected
+  `/_api/shared/data` instead. A wrong password shows up as HTTP 200 with an
+  `error` key, both on login and on the probe.
 
 **Not exposed (no v2 endpoint):**
 
@@ -548,7 +560,7 @@ uses `/_api/page-collection/get-recently-edited` instead.
 ```bash
 npm install
 npm run build          # tsc → dist/ (also reads package.json#version)
-npm test               # vitest (unit + domain; live E2E auto-skips)
+npm test               # vitest — offline unit + domain suite (no instance needed)
 npm run test:coverage
 npm run lint           # eslint
 npm run dev            # tsx src/index.ts
@@ -573,10 +585,46 @@ npm run release:full:patch
 npm run release:full:minor
 npm run release:full:major
 # Add `--dry-run` to any of the above to preview without writing files.
-# Opt-in live E2E against a real Automad v2 instance:
-AUTOMAD_E2E_URL=http://localhost:8899 AUTOMAD_E2E_USER=admin \
-  AUTOMAD_E2E_PASS=secret npm run test:e2e
 ```
+
+### Test environment (live E2E)
+
+The E2E suite runs against a **real** Automad v2 container, not mocks. One
+command builds the whole thing — container, admin user, environment file:
+
+```bash
+npm run e2e            # build + start the container + run the live suite
+npm run e2e:up         # just the environment (idempotent; safe to re-run)
+npm run e2e:run        # just the tests (needs a built dist/)
+npm run e2e:status     # container state + HTTP probe + login probe
+npm run e2e:logs       # tail the Automad log
+npm run e2e:serve      # run the MCP server (full mode, stdio) against the container
+npm run e2e:down       # destroy everything: docker compose down -v + rm .env.e2e
+```
+
+`e2e:up` starts `docker-compose.e2e.yml` (a throwaway `automad/automad:v2` on
+`127.0.0.1:8899` with a named volume), waits until the instance answers,
+creates a **deterministic** dashboard admin — the image otherwise generates a
+random user and password on first boot — and writes `.env.e2e`, which the suite
+loads automatically. Nothing is committed: `.env.e2e` is gitignored and
+`e2e:down` removes both the volume and the file.
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `AUTOMAD_E2E_PORT` | `8899` | Host port for the test instance |
+| `AUTOMAD_E2E_USER` | `mcpadmin` | Dashboard admin created by `e2e:up` |
+| `AUTOMAD_E2E_PASS` | `mcp-e2e-secret` | Its password |
+| `AUTOMAD_E2E_EMAIL` | `mcp-e2e@example.invalid` | Its email |
+| `AUTOMAD_E2E_TIMEOUT_MS` | `180000` | How long `e2e:up` waits for the instance |
+
+The suite (`tests/e2e/**`, own `vitest.e2e.config.ts`) covers login + CSRF
+handling, the page lifecycle including drafts and renames, media upload/delete
+against the real Dropzone endpoint, shared data + config, theme scaffolding and
+analysis, and all three write modes including the confirm-token flow. Files run
+sequentially — v2 races on concurrent writes to the same page tree — and every
+test cleans up its own fixtures. Without `AUTOMAD_E2E_*` the whole suite skips
+itself, so `npm test` stays offline. The nightly
+[`e2e.yml`](.github/workflows/e2e.yml) workflow runs the exact same commands.
 
 <details>
 <summary>Project layout</summary>
@@ -605,10 +653,15 @@ src/
                     WriteAction union, the write-guard sets, the Zod action enums,
                     automad_discover and the generated docs table
     tools.ts        wiring layer: one binding per tool (schema + gate + dispatch)
-tests/unit/         Vitest unit and domain tests
-tests/e2e/          opt-in live E2E vs. a real Automad instance (npm run test:e2e)
+tests/unit/         Vitest unit and domain tests (offline)
+tests/e2e/          opt-in live E2E vs. a real Automad v2 container (npm run e2e)
+  harness.ts        spawns dist/index.js over stdio via the MCP SDK client; call helpers + cleanup registry
+  env.ts            vitest setup: loads .env.e2e (real env vars win)
+docker-compose.e2e.yml  throwaway Automad v2 stack for the E2E suite
+vitest.e2e.config.ts    E2E runner config (sequential, long timeouts)
 docs/index.html     GitHub Pages landing page (self-contained; tool table + counts are AUTOGEN regions)
 scripts/            TypeScript build-time helpers (run via `npm run <name>`)
+  testenv.ts        E2E environment: docker compose up/down/status/logs + deterministic admin + .env.e2e
   sync.ts           regenerates the AUTOGEN tool table + fenced number markers in README/CLAUDE.md/docs/index.html (--tests refreshes TESTCOUNT via a live vitest run)
   release.ts        version-bump + CHANGELOG skeleton + git tag (`--tag` / `--dry-run`)
 ```
