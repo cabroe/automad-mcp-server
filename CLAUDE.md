@@ -483,11 +483,17 @@ These are *known* boundaries. Don't try to "fix" them in this repo.
   of this server itself. If you need HTTP, run this server as a subprocess
   of an MCP-aware proxy.
 - **API-token auth.** v2 has no Bearer-token / Personal-Access-Token model
-  (researched 2026-07-25 against `automad/automad:v2` beta.51 source:
-  `src/server/Routes.php` + `src/server/API/RequestHandler.php` only wire
-  session-cookie + TOTP, no `Authorization` header listener). The session
-  scraping the MCP does is the only option. Upstream feature request would
-  be the right path.
+ (verified against `marcantondahmen/automad@2.0.0-beta.51` source): the
+ only auth listener in `automad/src/server/Routes.php` is
+ `Session::getUsername()` (PHP session presence) plus
+ `automad/src/server/API/RequestHandler.php`'s per-POST `__csrf__` field;
+ `getallheaders()` / `HTTP_AUTHORIZATION` / `api_token` / `personal_access`
+ return zero matches across the v2 tree. The only "Bearer" string in the
+ whole codebase is the *outbound* `Authorization: Bearer …` Automad sends
+ to OpenAI in `automad/src/server/System/Ai/Providers/OpenAiProvider.php`
+ — irrelevant to incoming API auth. The session-scraping handshake the MCP
+ does is therefore the only option; an upstream feature request would be
+ the right path.
 - **In-place media rename.** v2's `/_api/file-collection/list` supports
   `action: "move"` (file → different directory) but no in-place rename.
   All three boundaries are also listed in CHANGELOG.md's trailing
