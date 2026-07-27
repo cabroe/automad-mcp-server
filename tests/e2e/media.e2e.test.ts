@@ -10,6 +10,13 @@ import {
   type E2eServer,
 } from './harness.js';
 
+/**
+ * An asset every Automad install serves, addressed the way the *Automad host*
+ * sees itself — `import` is fetched server-side, so a host-side port mapping
+ * would be the wrong address.
+ */
+const SELF_HOSTED_ASSET = 'http://localhost/automad/dist/build/admin/index.js';
+
 /** Names of the files v2 reports for a directory listing. */
 function fileNames(listing: unknown): string[] {
   const record = asRecord(listing);
@@ -72,6 +79,53 @@ describe.skipIf(!e2eEnabled)('e2e: media', () => {
     await server.callOk('automad_media', { action: 'delete', url, filename });
     const afterDelete = await server.callOk('automad_media', { action: 'list', url });
     expect(fileNames(afterDelete)).not.toContain(filename);
+  });
+
+  it('imports a file from a URL the Automad host can reach', async () => {
+    const page = asRecord(
+      await server.callOk('automad_pages', {
+        action: 'create',
+        title: uniqueName('E2E Import'),
+        target_url: '/',
+      }),
+    );
+    const url = stringField(page, 'url');
+    cleanup.addPage(server, url);
+
+    // Sourced from the instance itself (`localhost` from *Automad's* point of
+    // view), so the test needs no outbound network and no fixture host.
+    const result = asRecord(
+      await server.callOk('automad_media', {
+        action: 'import',
+        url,
+        import_url: SELF_HOSTED_ASSET,
+      }),
+    );
+    expect(result['ok']).toBe(true);
+
+    // The stored name is Automad's business — it sanitizes without decoding —
+    // so the check is that *something* arrived, read back through `list`.
+    const listing = await server.callOk('automad_media', { action: 'list', url });
+    expect(fileNames(listing).length).toBeGreaterThan(0);
+  });
+
+  it('reports an unreachable source as NETWORK, not as a generic failure', async () => {
+    const result = await server.call('automad_media', {
+      action: 'import',
+      import_url: 'http://127.0.0.1:1/nothing.png',
+    });
+    expect(result.isError).toBe(true);
+    expect(result.text).toContain('NETWORK');
+  });
+
+  it('reports a file type Automad refuses as VALIDATION', async () => {
+    // No extension at all — Automad answers "Unsupported file type".
+    const result = await server.call('automad_media', {
+      action: 'import',
+      import_url: 'http://localhost/',
+    });
+    expect(result.isError).toBe(true);
+    expect(result.text).toContain('VALIDATION');
   });
 
   it('rejects a filename with path separators before touching the backend', async () => {

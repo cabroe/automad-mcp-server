@@ -87,11 +87,14 @@ const CAPABILITY_SPECS = {
     title: 'Media',
     summary: 'Manage Automad media.',
     description:
-      'Manage Automad v2 media: list files for a page/shared directory, upload (single-chunk). Uses /_api/file-collection/*.',
+      'Manage Automad v2 media: list files for a page/shared directory, upload (single-chunk), or import from a URL. Uses /_api/file-collection/* and /_api/file/import.',
     requires: 'live',
     actions: {
       list: read('List media files.'),
       upload: write('Upload a media file.'),
+      import: write(
+        'Import a file from an http(s) URL into a page (or the shared directory when url is omitted). Automad downloads it server-side, so the URL must be reachable from the Automad host, not from here, and the extension must be one the site allows (a URL without a file extension is rejected). Automad renames the stored file — call `list` afterwards to learn the actual name — and silently overwrites an existing file of the same name.',
+      ),
       delete: destructive('Delete a media file.'),
     },
   },
