@@ -31,6 +31,21 @@
  unresolvable name).
 
 ### Fixed (test environment)
+- **`e2e:up` exited silently mid-wait, reporting success.**
+ `AbortSignal.timeout()` arms an *unref'd* timer, so when a readiness probe
+ hung — as it does on a CI runner while the container starts — nothing
+ referenced kept the event loop alive: Node decided it was idle and exited
+ **0** without reaching either the success or the failure branch. No
+ `.env.e2e`, no instance, and a green job. The wait now holds a referenced
+ timer, detects an already-exited container from `compose ps` and fails
+ immediately with its log, and reports progress while it waits.
+- **The test instance no longer caches pages.** Automad serves cached HTML and
+ only re-checks for changes every `AM_CACHE_MONITOR_DELAY` seconds (120 by
+ default), so an edit could stay invisible to visitors for two minutes — which
+ made every assertion about the *rendered* page a race. `e2e:up` now sets
+ `AM_CACHE_ENABLED=0` on the instance. Locally the timing happened to line up;
+ on the CI runner it did not, and the render suite failed there while passing
+ here.
 - **The stack could not start from scratch once the themes mount existed.** The
  image ships an empty `/app` and installs Automad on first boot with
  `composer create-project`, which refuses to run unless `/app` is empty — and
