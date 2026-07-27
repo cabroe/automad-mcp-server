@@ -1,5 +1,31 @@
 ## [Unreleased]
 
+### Fixed (found by covering the rest of the surface live)
+- **`components.data` destroyed the component store.** v2's `component/data` is
+ two endpoints under one name: hand it a `components` array and it *saves* that
+ array as the draft store, omit it and it reads. The handler always sent one —
+ `components: []` when the caller passed nothing — so the read action wiped the
+ site's components and answered 200. Being flagged read-only, it did so in
+ **every write mode**, including `read-only`. `data` is now body-less and reads;
+ writing the store is not exposed, and the `components` input field is gone.
+- **`file_meta.edit_info` could never succeed.** v2 resolves the file relative
+ to the posted `url` (`FileSystem::getPathByPostUrl`), which the handler never
+ sent, so every call looked in the wrong directory and came back as
+ "Permissions denied". The schema gained a `url` field (page directory; omit for
+ shared) and the handler passes it through.
+- **`pages.trash_restore` and `pages.trash_permanently_delete` did nothing.**
+ Both v2 endpoints address a page by its *trash path* (`Request::post('path')`,
+ e.g. `/.trash/my-page`), while the handler sent `url`. v2 answers 200 either
+ way — `permanently_delete` returns early, `restore` moves an empty path — so
+ both reported success and changed nothing. They now send `path`, and passing a
+ former page URL is rejected locally with a message naming `trash_list` as the
+ source of the right value.
+- **`theme.activate` was advertised but not implemented.** The registry
+ declared it, the guard classified it, the docs listed it — and the router had
+ no case for it, so every call fell through to "unknown theme action".
+- **`theme.dev_status` answered `null`** when no dev server had ever been
+ started, which reads like a failure. It now says `{running: false}`.
+
 ### Added
 - **`media.import`** — pull a file into a page (or the shared directory)
  straight from an http(s) URL via `/_api/file/import`. Automad downloads it
@@ -50,6 +76,19 @@
  not a failed write.
 
 ### Added (live coverage)
+- **Live coverage went from 35 to 69 of 70 actions.** Six new suites —
+ `trash-history`, `components`, `files`, `system-mail`, `docs-discover` and the
+ opt-in `heavy` — cover the trash and history flows, the component store, image
+ variants and file metadata, update checks, mail configuration, cache purging,
+ and the docs/discovery tools. Every one of the five bugs above was found by
+ writing them. The live suite is now 85 tests across 12 files.
+- **`AUTOMAD_E2E_HEAVY=1` runs the operations the default suite leaves alone**:
+ `theme.build`, `theme.dev`, `theme.dev_stop`, `theme.update`,
+ `theme.update_all`. They need a package manager, network access and a
+ background process, so they are opt-in rather than absent — and they assert
+ the reporting shape rather than a successful toolchain, which is not the MCP's
+ to guarantee. `system.update` remains uncovered on purpose: it replaces the
+ running Automad, so every later assertion would describe a different program.
 - `pages.move`, `pages.batch_update` and the publication reporting now have
  live E2E coverage — `batch_update` in particular was heavily unit-tested but
  had never run against a real backend, despite sharing `updateOnePage` with the

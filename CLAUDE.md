@@ -14,7 +14,7 @@ also works on the local filesystem (where Automad's theme packages live).
 
 ```bash
 npm run build            # tsc → dist/  (ESM, strict; reads package.json#version at compile time)
-npm test                 # vitest run — offline unit suite only (<!-- AUTOGEN:TESTCOUNT -->464 tests, 39 files<!-- /AUTOGEN:TESTCOUNT -->)
+npm test                 # vitest run — offline unit suite only (<!-- AUTOGEN:TESTCOUNT -->467 tests, 39 files<!-- /AUTOGEN:TESTCOUNT -->)
 npm run test:coverage    # vitest + v8 coverage (gate: 80% stmts / 70% branches)
 npm run lint             # eslint src tests
 npm run dev              # tsx src/index.ts  (run the server locally)
@@ -82,11 +82,13 @@ scripts/                 # build-time helpers, run via `npm run <name>`
   sync.ts                # regenerates the AUTOGEN tool tables + fenced number markers in README/CLAUDE.md/docs/index.html (--tests refreshes TESTCOUNT via a live vitest run)
   testenv.ts             # local E2E environment: docker compose up/down/status/logs + deterministic admin + .env.e2e
   release.ts             # version-bump + CHANGELOG skeleton + git tag (`--tag` / `--dry-run`); the skeleton is an *empty* section inserted above the newest one — when the changelog already carries a filled `## [Unreleased]`, rename that heading to the new version instead of running the script
-tests/unit/              <!-- AUTOGEN:TESTCOUNT -->464 tests, 39 files<!-- /AUTOGEN:TESTCOUNT --> (drift test pins the registry's runtime derivations: Zod action enums, guard sets, bindings, guard behavior; docs-drift test pins CLAUDE.md/README/CHANGELOG against code reality; server test pins mcp.getServerVersion() ↔ package.json)
+tests/unit/              <!-- AUTOGEN:TESTCOUNT -->467 tests, 39 files<!-- /AUTOGEN:TESTCOUNT --> (drift test pins the registry's runtime derivations: Zod action enums, guard sets, bindings, guard behavior; docs-drift test pins CLAUDE.md/README/CHANGELOG against code reality; server test pins mcp.getServerVersion() ↔ package.json)
 tests/e2e/               opt-in live E2E vs. a real Automad v2 container (skipped unless AUTOMAD_E2E_* set; `npm run e2e`)
   harness.ts             spawns dist/index.js over stdio per test file; call/callOk helpers, Cleanup, temp themes dir
   env.ts                 vitest setup: loads .env.e2e (real env vars win) so the suite opts itself in
   auth / pages / media / shared-config / theme / write-modes  one file per scenario
+  trash-history / components / files / system-mail / docs-discover  the rest of the surface
+  heavy.e2e.test.ts      opt-in (AUTOMAD_E2E_HEAVY=1): build, dev, dev_stop, update, update_all
   render.e2e.test.ts     the actual job: scaffold a theme → bind a page → assert the *public* HTML renders
 docker-compose.e2e.yml   throwaway Automad v2 stack (named volume, curl healthcheck); managed by scripts/testenv.ts
 vitest.e2e.config.ts     E2E runner: setup file, no parallelism (v2 races on concurrent writes), long timeouts
@@ -292,6 +294,18 @@ implementation; treat them as load-bearing constraints:
   The save response carries `slug: "<new>"` — the MCP uses that to compute
   the canonical URL. Publish is sent to `input.url` (where the directory
   currently lives); v2 does the rename, then publish.
+- **`component/data` is a reader and a writer under one name.** Given a
+  `components` array it *saves* it as the draft store; given none it reads.
+  `components.data` therefore sends no body at all — passing an array (even an
+  empty one) wipes the store, and since the action is read-only the guard would
+  not stop it in any mode.
+- **The trash addresses pages by trash path, not URL.** `page-trash/restore`
+  and `page-trash/permanently-delete` read `path` (`/.trash/my-page`, as
+  reported by `page-trash/list`). Sent a page URL they answer 200 and do
+  nothing, so the domain rejects that mistake locally.
+- **`file/edit-info` resolves the file relative to the posted `url`**
+  (`FileSystem::getPathByPostUrl`). Without it v2 looks in the wrong directory
+  and reports "Permissions denied", which is not what went wrong.
 - **`page/move` is sibling-reordering / reparenting, not rename.** Requires
   `target_url` (destination parent); optionally takes a `layout` (JSON-encoded
   array of sibling URLs). The MCP throws `VALIDATION` when `target_url` is
