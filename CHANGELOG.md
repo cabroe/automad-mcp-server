@@ -1,7 +1,73 @@
 ## [Unreleased]
 
 ### Added
+- **Reproducible local test environment.** `docker-compose.e2e.yml` +
+ `scripts/testenv.ts` bring up a throwaway `automad/automad:v2` instance on
+ `127.0.0.1:8899` (named volume, curl healthcheck) and wire it to the MCP
+ server end to end: `npm run e2e:up` starts the stack, waits until
+ `/_api/session/validate` answers, creates a **deterministic** dashboard admin
+ (the image otherwise prints a random user + password to its log) via
+ `php /app/automad/console user:create`, and writes a gitignored `.env.e2e`.
+ `e2e:down` destroys container, volume and env file. Every subcommand is
+ idempotent — `up` on a healthy stack just re-verifies the login. Also
+ `e2e:status`, `e2e:logs`, and `e2e:serve` (runs the MCP server in full mode
+ against the container for MCP Inspector / manual JSON-RPC).
+- **Rebuilt live E2E suite** (`tests/e2e/**`, 47 tests across 6 files, own
+ `vitest.e2e.config.ts`). Everything runs against the real backend — no mocks:
+ - `auth` — login, CSRF reuse across read → write → read, the advertised tool
+   surface (asserted against the capability registry, not a hard-coded list),
+   resources, prompts, and bad-credential handling.
+ - `pages` — create → get → update → rename → publish → duplicate →
+   breadcrumbs → delete, plus the draft path and the trash.
+ - `media` — upload → list → delete against the real single-chunk Dropzone
+   endpoint.
+ - `shared-config` — shared `fields`/`unused` split, config get/set, cache
+   clear, site search.
+ - `theme` — scaffold from the bundled starter kit into a temp directory,
+   files/read/analyze/validate/schema/diff/write/generate, path-escape refusal.
+ - `write-modes` — read-only refusals, the full confirm-token flow
+   (pending → replay → executed), token/target binding, unknown tokens,
+   rename-as-destructive, and confirm-token isolation between server processes.
+ `tests/e2e/harness.ts` spawns the built server over stdio through the MCP SDK
+ client and drains a cleanup registry in `afterAll`, so a failed test still
+ removes its fixtures. Files run sequentially in a single fork (v2 races on
+ concurrent writes to the same page tree).
 - TBD: deferred work (AI tooling, edit-lock, in-page editing, file import).
+
+### Fixed
+- **Bad credentials were accepted.** `AuthManager.probeAuthenticated` treated a
+ populated `data.sitename` from `/_api/app/bootstrap` as proof of a valid
+ session — but that endpoint is **public** on 2.0.0-beta.51 and returns the
+ same payload, `sitename` included, to anonymous callers. Any password
+ therefore "logged in", and `site.health` reported `ok: true,
+ authenticated: true` until the first genuinely protected call failed. The
+ probe now targets the session-protected `/_api/shared/data` and rejects the
+ `{data: {message: "No session"}}` shape v2 returns (HTTP 200, not 401) for
+ anonymous sessions. The login response body is checked too — v2 answers a
+ rejected login with HTTP 200 + `{"error": "Invalid username or password."}` —
+ so bad credentials now fail immediately, before the dashboard scrape.
+- **`pages.update` with only `fields` failed, and partial updates lost data.**
+ v2's `page/data` save is a full replace that rejects any payload without a
+ `title`, so a field-only update came back as
+ `VALIDATION: Title missing!`, and an update that did carry a title silently
+ dropped every field it didn't mention. `updateOnePage` now reads the current
+ record first (declared `fields` plus the `unused` map v2 keeps for keys the
+ active template doesn't declare) and merges the caller's changes on top. Same
+ fix applies to `pages.batch_update`, which shares the code path. Cost: one
+ extra read per update.
+
+### Changed
+- **`npm test` is now the offline unit suite only.** `vitest.config.ts` matches
+ `tests/unit/**` and the live E2E tests moved to `vitest.e2e.config.ts`
+ (sequential, long timeouts, `.env.e2e` auto-loaded via `tests/e2e/env.ts`).
+ `npm run test:e2e` still works — it delegates to `npm run e2e:run`. No change
+ to the MCP tool surface.
+- **The nightly E2E workflow uses the same commands as a local run.**
+ `.github/workflows/e2e.yml` calls `e2e:up` / `e2e:run` / `e2e:logs` /
+ `e2e:down` instead of a hand-rolled `docker run` plus scraping credentials out
+ of the container log with `grep`, so CI and local runs cannot drift apart.
+ The old workflow also pinned a stale seven-tool list and had been failing
+ against the current thirteen-tool surface.
 
 ## [0.7.5] - 2026-07-26
 
