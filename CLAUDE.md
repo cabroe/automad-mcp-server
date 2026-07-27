@@ -14,7 +14,7 @@ also works on the local filesystem (where Automad's theme packages live).
 
 ```bash
 npm run build            # tsc → dist/  (ESM, strict; reads package.json#version at compile time)
-npm test                 # vitest run — offline unit suite only (<!-- AUTOGEN:TESTCOUNT -->448 tests, 39 files<!-- /AUTOGEN:TESTCOUNT -->)
+npm test                 # vitest run — offline unit suite only (<!-- AUTOGEN:TESTCOUNT -->451 tests, 39 files<!-- /AUTOGEN:TESTCOUNT -->)
 npm run test:coverage    # vitest + v8 coverage (gate: 80% stmts / 70% branches)
 npm run lint             # eslint src tests
 npm run dev              # tsx src/index.ts  (run the server locally)
@@ -82,11 +82,12 @@ scripts/                 # build-time helpers, run via `npm run <name>`
   sync.ts                # regenerates the AUTOGEN tool tables + fenced number markers in README/CLAUDE.md/docs/index.html (--tests refreshes TESTCOUNT via a live vitest run)
   testenv.ts             # local E2E environment: docker compose up/down/status/logs + deterministic admin + .env.e2e
   release.ts             # version-bump + CHANGELOG skeleton + git tag (`--tag` / `--dry-run`); the skeleton is an *empty* section inserted above the newest one — when the changelog already carries a filled `## [Unreleased]`, rename that heading to the new version instead of running the script
-tests/unit/              <!-- AUTOGEN:TESTCOUNT -->448 tests, 39 files<!-- /AUTOGEN:TESTCOUNT --> (drift test pins the registry's runtime derivations: Zod action enums, guard sets, bindings, guard behavior; docs-drift test pins CLAUDE.md/README/CHANGELOG against code reality; server test pins mcp.getServerVersion() ↔ package.json)
+tests/unit/              <!-- AUTOGEN:TESTCOUNT -->451 tests, 39 files<!-- /AUTOGEN:TESTCOUNT --> (drift test pins the registry's runtime derivations: Zod action enums, guard sets, bindings, guard behavior; docs-drift test pins CLAUDE.md/README/CHANGELOG against code reality; server test pins mcp.getServerVersion() ↔ package.json)
 tests/e2e/               opt-in live E2E vs. a real Automad v2 container (skipped unless AUTOMAD_E2E_* set; `npm run e2e`)
   harness.ts             spawns dist/index.js over stdio per test file; call/callOk helpers, Cleanup, temp themes dir
   env.ts                 vitest setup: loads .env.e2e (real env vars win) so the suite opts itself in
   auth / pages / media / shared-config / theme / write-modes  one file per scenario
+  render.e2e.test.ts     the actual job: scaffold a theme → bind a page → assert the *public* HTML renders
 docker-compose.e2e.yml   throwaway Automad v2 stack (named volume, curl healthcheck); managed by scripts/testenv.ts
 vitest.e2e.config.ts     E2E runner: setup file, no parallelism (v2 races on concurrent writes), long timeouts
 docs/index.html          GitHub Pages landing page (https://cabroe.github.io/automad-mcp-server/), served from /docs on main.
@@ -243,6 +244,21 @@ implementation; treat them as load-bearing constraints:
   `page/data` (up to 3s) (`publishAndWait`) — **unless `publish:false`**, which
   keeps the page a draft (explicit draft→edit→publish; use `pages.publish`
   later). Pinned by `tests/e2e/pages.e2e.test.ts`.
+- **A save without `theme_template` unbinds the page's theme.** `page/data`
+  replaces the template selection just like the fields: omit it and v2 falls
+  back to the site default *with an empty template name*, after which the
+  public URL answers **HTTP 500 "Template missing!"**. Every page an update
+  touched would be dead. `updateOnePage` therefore reads the current selection
+  and sends it back unless the caller passes `template`. v2 reports the
+  template as an absolute path (`/app/packages/mcp/cafe/home.php`) but expects
+  the id form (`mcp/cafe/home`) — `templateIdFromPath()` converts, and returns
+  undefined for the empty-basename "nothing selected" shape so it is never
+  echoed back as a selection. Pinned end-to-end by
+  `tests/e2e/render.e2e.test.ts`, which fetches the *public* page.
+- **Templates are addressed `<vendor>/<theme>/<template>`**, not
+  `<theme>/<template>`: v2 splits at the last slash and resolves against
+  `packages/`. A theme in `packages/mcp/cafe/` with `home.php` is
+  `mcp/cafe/home`.
 - **`page/data` (save) is a full replace and always needs a `title`.** Posting
   a partial `data` map drops every field it omits, and posting one without
   `title` fails outright with `{"error":"Title missing!"}`. `updateOnePage`
@@ -388,6 +404,14 @@ Load-bearing details:
 - **Readiness comes from the host.** `up` polls `/_api/session/validate` (200
   even for anonymous callers) rather than trusting the compose healthcheck, so
   the script works the same whether or not compose reports `healthy` yet.
+- **The themes directory is mounted into the container.** `automad-themes/`
+  (the `AUTOMAD_THEMES_PATH` default) is bind-mounted to `/app/packages/mcp`,
+  so a theme scaffolded through `automad_theme` is immediately usable by the
+  running site: bind a page to `mcp/<slug>/<template>`. Automad's own
+  `packages/automad/*` sits untouched beside it. `testenv.ts` creates the
+  directory before compose starts — otherwise Docker creates it root-owned and
+  theme writes fail — and `down` deliberately keeps it (it can hold real
+  customer work).
 - **CI runs the same commands.** `.github/workflows/e2e.yml` calls `e2e:up` /
   `e2e:run` / `e2e:logs` / `e2e:down` — no separate docker invocation to drift.
 

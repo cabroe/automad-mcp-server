@@ -533,6 +533,13 @@ against `automad/automad:v2` `2.0.0-beta.51`). A few need a special note:
   so a partial update has to merge onto the stored record — otherwise every
   field the caller didn't mention would be deleted. That costs one extra read
   per update.
+- The same replace applies to the **template binding**: a save without
+  `theme_template` resets the page to the site default with an empty template
+  name, and the public URL then answers `500 Template missing!`. `pages.update`
+  carries the stored selection forward unless you pass `template`.
+- Templates are addressed **`{vendor}/{theme}/{template}`** (v2 splits at the
+  last slash and resolves against `packages/`), e.g. `mcp/cafe/home` for
+  `packages/mcp/cafe/home.php`.
 - A draft (`publish: false`) is readable through the dashboard API; what marks
   it as a draft is `pages.publication_state` (`isPublished: false`), not a
   failing read.
@@ -616,6 +623,13 @@ loads automatically. Nothing is committed: `.env.e2e` is gitignored and
 | `AUTOMAD_E2E_PASS` | `mcp-e2e-secret` | Its password |
 | `AUTOMAD_E2E_EMAIL` | `mcp-e2e@example.invalid` | Its email |
 | `AUTOMAD_E2E_TIMEOUT_MS` | `180000` | How long `e2e:up` waits for the instance |
+
+The stack also bind-mounts `automad-themes/` (the `AUTOMAD_THEMES_PATH`
+default) into the container at `/app/packages/mcp`, so a theme you scaffold
+through `automad_theme` is immediately usable by the running site — bind a page
+to `mcp/<slug>/<template>` and it renders. That is what
+`tests/e2e/render.e2e.test.ts` verifies: it builds a theme, binds a page, and
+asserts the **public** HTML a visitor gets.
 
 The suite (`tests/e2e/**`, own `vitest.e2e.config.ts`) covers login + CSRF
 handling, the page lifecycle including drafts and renames, media upload/delete
