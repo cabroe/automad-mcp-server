@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Documentation
+    url: https://cabroe.github.io/automad-mcp-server/
+    about: The MCP server's homepage — quick start, tools, configuration.
+  - name: CHANGELOG
+    url: https://github.com/cabroe/automad-mcp-server/blob/main/CHANGELOG.md
+    about: Version history and the trailing "Known limitations / future work" section.
