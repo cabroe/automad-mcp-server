@@ -13,9 +13,38 @@
 name: automad-mcp-e2e
 
 services:
+  # One-shot installer, no themes mount.
+  #
+  # The image ships an empty /app and installs Automad on first boot with
+  # `composer create-project`, which refuses to run unless /app is empty — and
+  # the themes bind mount below creates /app/packages/mcp, which is enough to
+  # make it non-empty. With the image's `set -e` entrypoint that kills the
+  # container outright. So the install has to happen first, in a container that
+  # does not carry the mount; the real service then starts on a populated
+  # volume and skips the install. Re-running is free: the `[ -d /app/automad ]`
+  # check makes it a no-op once installed.
+  install:
+    image: automad/automad:v2
+    container_name: automad-mcp-e2e-install
+    volumes:
+      - automad-data:/app
+    entrypoint:
+      - /bin/sh
+      - -c
+      # Mirrors the image's own init.sh, including the permission fixup it does
+      # after installing — the real container skips both once /app/automad
+      # exists, so this is the only place they can happen.
+      - >
+        [ -d /app/automad ] ||
+        (composer create-project --no-install --prefer-dist automad/automad /app "$$AUTOMAD_VERSION"
+        && chown -R www-data:www-data /app && chmod -R 755 /app)
+
   automad:
     image: automad/automad:v2
     container_name: automad-mcp-e2e
+    depends_on:
+      install:
+        condition: service_completed_successfully
     ports:
       # Host port is configurable so the stack can coexist with a dev instance.
       - '${AUTOMAD_E2E_PORT:-8899}:80'
