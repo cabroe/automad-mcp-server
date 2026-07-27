@@ -6,5 +6,6 @@ coverage/
 .vitest-sync-report.json
 .env
 .env.local
+.env.e2e
 *.log
 .DS_Store

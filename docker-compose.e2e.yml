@@ -1,0 +1,37 @@
+# Local E2E test environment: a throwaway Automad v2 instance.
+#
+# Not for production use — this stack has no TLS, no backups, and a
+# deterministic admin password. It exists so `tests/e2e/**` can run against a
+# real v2 backend instead of mocks.
+#
+# Managed by `scripts/testenv.ts` (npm run e2e:up / e2e:down), which also
+# creates the admin user and writes `.env.e2e`. Using compose directly works
+# too, but then the admin user is the random one the image prints to its log.
+#
+#   npm run e2e:up      # start + wait healthy + ensure admin + write .env.e2e
+#   npm run e2e:down    # docker compose down -v (destroys the volume)
+name: automad-mcp-e2e
+
+services:
+  automad:
+    image: automad/automad:v2
+    container_name: automad-mcp-e2e
+    ports:
+      # Host port is configurable so the stack can coexist with a dev instance.
+      - '${AUTOMAD_E2E_PORT:-8899}:80'
+    volumes:
+      # The image declares /app as a volume and populates it on first boot
+      # (composer create-project). A named volume keeps the install across
+      # restarts; `down -v` throws it away for a guaranteed-fresh site.
+      - automad-data:/app
+    healthcheck:
+      # `session/validate` answers 200 for anonymous callers as soon as PHP-FPM
+      # and nginx are up — the cheapest honest readiness signal v2 offers.
+      test: ['CMD', 'curl', '-fsS', 'http://localhost/_api/session/validate']
+      interval: 3s
+      timeout: 5s
+      retries: 30
+      start_period: 15s
+
+volumes:
+  automad-data:
