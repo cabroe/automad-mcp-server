@@ -32,14 +32,24 @@ function cfg(): Config {
  */
 function mockPageData(
   c: HttpClient,
-  opts: { fields?: Record<string, unknown>; save?: Record<string, unknown> } = {},
+  opts: {
+    fields?: Record<string, unknown>;
+    save?: Record<string, unknown>;
+    /** Absolute template path, the shape v2 reports on read. */
+    template?: string;
+  } = {},
 ): void {
   const fields = opts.fields ?? { title: 'Existing Title' };
   const save = opts.save ?? { slug: 's' };
   (c.post as ReturnType<typeof vi.fn>).mockImplementation(
     (path: string, body?: Record<string, unknown>) => {
       if (path === '/_api/page/data' && body && !('data' in body)) {
-        return Promise.resolve({ url: body['url'], fields, unused: {} });
+        return Promise.resolve({
+          url: body['url'],
+          fields,
+          unused: {},
+          ...(opts.template !== undefined ? { template: opts.template } : {}),
+        });
       }
       return Promise.resolve(save);
     },
@@ -236,6 +246,56 @@ describe('handlePages (v2 /_api)', () => {
       handlePages({ action: 'update', url: '/page', fields: { text: 'x' } }, c, new WriteGuard(cfg())),
     ).rejects.toMatchObject({ code: 'VALIDATION' });
     expect(saveCalls(c).length).toBe(0);
+  });
+
+  it('update carries the stored template forward so v2 cannot reset it', async () => {
+    // Live-verified: a `page/data` save without `theme_template` resets the
+    // page to the site default with an *empty* template name, after which v2
+    // answers the public URL with "Template missing!" (HTTP 500).
+    const c = mockClient();
+    mockPageData(c, {
+      fields: { title: 'Home' },
+      template: '/app/packages/mcp/cafe-sonnenschein/home.php',
+    });
+    await handlePages(
+      { action: 'update', url: '/home', fields: { text: 'x' }, publish: false },
+      c,
+      new WriteGuard(cfg()),
+    );
+    const [, payload] = saveCalls(c)[0] as [string, { theme_template?: string }];
+    expect(payload.theme_template).toBe('mcp/cafe-sonnenschein/home');
+  });
+
+  it('update lets an explicit template override the stored one', async () => {
+    const c = mockClient();
+    mockPageData(c, {
+      fields: { title: 'Home' },
+      template: '/app/packages/mcp/cafe-sonnenschein/home.php',
+    });
+    await handlePages(
+      { action: 'update', url: '/home', template: 'mcp/cafe-sonnenschein/landing', publish: false },
+      c,
+      new WriteGuard(cfg()),
+    );
+    const [, payload] = saveCalls(c)[0] as [string, { theme_template?: string }];
+    expect(payload.theme_template).toBe('mcp/cafe-sonnenschein/landing');
+  });
+
+  it('update sends no template when the page has none selected', async () => {
+    // v2 stores "no template" as a path with an empty basename; echoing that
+    // back would look like a deliberate (broken) selection.
+    const c = mockClient();
+    mockPageData(c, {
+      fields: { title: 'Home' },
+      template: '/app/packages/automad/standard-lite/.php',
+    });
+    await handlePages(
+      { action: 'update', url: '/home', fields: { text: 'x' }, publish: false },
+      c,
+      new WriteGuard(cfg()),
+    );
+    const [, payload] = saveCalls(c)[0] as [string, Record<string, unknown>];
+    expect(payload).not.toHaveProperty('theme_template');
   });
 
   it('update publishes via input.url, polls on resulting slug, returns canonical URL', async () => {

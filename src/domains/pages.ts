@@ -340,17 +340,39 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+interface StoredPage {
+  /** Declared fields plus the `unused` ones, merged into one record. */
+  fields: Record<string, unknown>;
+  /** The page's `theme_template` id, when it has a usable one. */
+  template?: string;
+}
+
 /**
- * Current stored field record of a page: the template-declared fields plus the
- * ones v2 files under `unused` (anything the active template doesn't declare —
- * v2 sends `[]` there when empty).
+ * v2 reports a page's template as an absolute file path
+ * (`/app/packages/mcp/cafe/home.php`); `theme_template` expects the id form
+ * (`mcp/cafe/home`). Returns undefined when no template is selected — v2 stores
+ * that as a path with an empty basename (`…/standard-lite/.php`), which must
+ * never be echoed back as if it were a selection.
  */
-async function readPageRecord(client: HttpClient, url: string): Promise<Record<string, unknown>> {
+export function templateIdFromPath(templatePath: unknown): string | undefined {
+  if (typeof templatePath !== 'string') return undefined;
+  const id = /(?:^|\/)packages\/(.+)\.php$/.exec(templatePath)?.[1];
+  if (!id || id.endsWith('/')) return undefined;
+  return id;
+}
+
+/**
+ * Current stored state of a page: the template-declared fields plus the ones v2
+ * files under `unused` (anything the active template doesn't declare — v2 sends
+ * `[]` there when empty), and the selected template.
+ */
+async function readStoredPage(client: HttpClient, url: string): Promise<StoredPage> {
   const page = await client.post<unknown>(`${API_BASE}/page/data`, { url });
-  if (!isRecord(page)) return {};
+  if (!isRecord(page)) return { fields: {} };
   const fields = isRecord(page['fields']) ? page['fields'] : {};
   const unused = isRecord(page['unused']) ? page['unused'] : {};
-  return { ...fields, ...unused };
+  const template = templateIdFromPath(page['template']);
+  return { fields: { ...fields, ...unused }, ...(template ? { template } : {}) };
 }
 
 /**
@@ -360,12 +382,18 @@ async function readPageRecord(client: HttpClient, url: string): Promise<Record<s
  * ("Title missing!", live-verified on 2.0.0-beta.51). A partial update
  * therefore has to read the current record first and merge the caller's
  * changes on top — otherwise every field the caller didn't mention is dropped.
+ *
+ * The same applies to the *template*: a save without `theme_template` resets
+ * the page to the site default with an empty template name, which v2 then
+ * fails to render at all ("Template missing!", HTTP 500). The stored selection
+ * is therefore carried forward unless the caller overrides it.
  */
 async function updateOnePage(
   client: HttpClient,
   item: PageUpdateFields,
 ): Promise<{ ok: true; url: string }> {
-  const data: Record<string, unknown> = await readPageRecord(client, item.url);
+  const stored = await readStoredPage(client, item.url);
+  const data: Record<string, unknown> = { ...stored.fields };
   if (item.title !== undefined) {
     if (!item.title.trim()) {
       throw new AutomadMcpError(
@@ -389,7 +417,8 @@ async function updateOnePage(
     );
   }
   const payload: Record<string, unknown> = { url: item.url, data };
-  if (item.template) payload['theme_template'] = item.template;
+  const template = item.template ?? stored.template;
+  if (template) payload['theme_template'] = template;
   const saved = (await client.post(`${API_BASE}/page/data`, payload)) as { slug?: string };
   const resultingUrl = saved.slug
     ? saved.slug.startsWith('/')
