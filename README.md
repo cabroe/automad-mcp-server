@@ -533,6 +533,13 @@ against `automad/automad:v2` `2.0.0-beta.51`). A few need a special note:
   so a partial update has to merge onto the stored record — otherwise every
   field the caller didn't mention would be deleted. That costs one extra read
   per update.
+- Page writes report **`published`** and, when something did not take effect,
+  a **`warnings`** array. A save that reached Automad but failed to publish
+  comes back as `ok: true, published: false` with the reason — the page is
+  saved but not visible to visitors. `pages.publish` retries it.
+- Page writes also **clear the page cache**. Automad re-checks for content
+  changes only every `AM_CACHE_MONITOR_DELAY` seconds (120 by default), so
+  without it an edit stays invisible to visitors for up to two minutes.
 - The same replace applies to the **template binding**: a save without
   `theme_template` resets the page to the site default with an empty template
   name, and the public URL then answers `500 Template missing!`. `pages.update`
