@@ -336,12 +336,36 @@ interface PageUpdateFields {
   publish?: boolean | undefined;
 }
 
-/** Save one page via /_api/page/data, then publish unless `publish === false`. */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/**
+ * Current stored field record of a page: the template-declared fields plus the
+ * ones v2 files under `unused` (anything the active template doesn't declare —
+ * v2 sends `[]` there when empty).
+ */
+async function readPageRecord(client: HttpClient, url: string): Promise<Record<string, unknown>> {
+  const page = await client.post<unknown>(`${API_BASE}/page/data`, { url });
+  if (!isRecord(page)) return {};
+  const fields = isRecord(page['fields']) ? page['fields'] : {};
+  const unused = isRecord(page['unused']) ? page['unused'] : {};
+  return { ...fields, ...unused };
+}
+
+/**
+ * Save one page via /_api/page/data, then publish unless `publish === false`.
+ *
+ * v2's save is a **full replace** and rejects any payload without a `title`
+ * ("Title missing!", live-verified on 2.0.0-beta.51). A partial update
+ * therefore has to read the current record first and merge the caller's
+ * changes on top — otherwise every field the caller didn't mention is dropped.
+ */
 async function updateOnePage(
   client: HttpClient,
   item: PageUpdateFields,
 ): Promise<{ ok: true; url: string }> {
-  const data: Record<string, unknown> = {};
+  const data: Record<string, unknown> = await readPageRecord(client, item.url);
   if (item.title !== undefined) {
     if (!item.title.trim()) {
       throw new AutomadMcpError(
@@ -355,6 +379,15 @@ async function updateOnePage(
   if (item.tags !== undefined)
     data['tags'] = item.tags.map((t) => t.trim()).filter(Boolean).join(',');
   if (item.fields) Object.assign(data, item.fields);
+  const title = data['title'];
+  if (typeof title !== 'string' || !title.trim()) {
+    // Only reachable when the stored record has no usable title (e.g. the read
+    // was served by a stub). v2 would answer "Title missing!" — say so first.
+    throw new AutomadMcpError(
+      'VALIDATION',
+      `cannot update ${item.url}: the page has no title and none was supplied (v2 requires one on every save)`,
+    );
+  }
   const payload: Record<string, unknown> = { url: item.url, data };
   if (item.template) payload['theme_template'] = item.template;
   const saved = (await client.post(`${API_BASE}/page/data`, payload)) as { slug?: string };
