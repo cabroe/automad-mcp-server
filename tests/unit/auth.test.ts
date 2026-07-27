@@ -17,15 +17,24 @@ const META =
   '<meta name="csrf" content="0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcd00">';
 const TOKEN = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcd00';
 const COOKIE = 'PHPSESSID=abc; path=/';
-const BOOTSTRAP_LOGGED_IN = {
+/**
+ * Probe responses from `/_api/shared/data` (the session-protected endpoint the
+ * AuthManager uses to prove the session is real — `/_api/app/bootstrap` is
+ * public on 2.0.0-beta.51 and answers anonymous callers identically).
+ */
+const PROBE_AUTHENTICATED = {
   code: 200,
-  data: { version: '2.0.0-beta.51', sitename: 'My Site', dashboard: '/dashboard' },
+  data: { fields: { sitename: 'My Site' }, unused: [] },
 };
-const BOOTSTRAP_ANONYMOUS = { code: 200, data: {} };
-const BOOTSTRAP_BAD_CREDS = { code: 200, error: 'Invalid username or password.' };
+/** What a protected endpoint returns for an anonymous session: 200 + "No session". */
+const PROBE_NO_SESSION = { code: 200, data: { message: 'No session' } };
+const PROBE_BAD_CREDS = { code: 200, error: 'Invalid username or password.' };
+/** v2 rejects a bad password with HTTP 200 + an `error` key on the login call itself. */
+const LOGIN_BAD_CREDS = { code: 200, error: 'Invalid username or password.' };
 
-/** Standard 3-step login: login -> dashboard (csrf) -> bootstrap probe (POST __json__={}). */
+/** Standard 3-step login: login -> dashboard (csrf) -> auth probe (POST __json__={}). */
 function mockLoggedIn(fetchMock: ReturnType<typeof vi.fn>, sitename = 'My Site'): void {
+  const probe = { ...PROBE_AUTHENTICATED, data: { fields: { sitename }, unused: [] } };
   fetchMock
     .mockResolvedValueOnce({
       status: 200,
@@ -42,12 +51,8 @@ function mockLoggedIn(fetchMock: ReturnType<typeof vi.fn>, sitename = 'My Site')
     .mockResolvedValueOnce({
       status: 200,
       ok: true,
-      json: async () => ({
-        ...BOOTSTRAP_LOGGED_IN,
-        data: { ...BOOTSTRAP_LOGGED_IN.data, sitename },
-      }),
-      text: async () =>
-        JSON.stringify({ ...BOOTSTRAP_LOGGED_IN, data: { ...BOOTSTRAP_LOGGED_IN.data, sitename } }),
+      json: async () => probe,
+      text: async () => JSON.stringify(probe),
     });
 }
 
@@ -71,11 +76,11 @@ describe('AuthManager (v2 /_api)', () => {
     expect(body.get('password')).toBe('secret');
     const token = await auth.getCsrfToken();
     expect(token).toBe(TOKEN);
-    // 3 fetch calls: login, dashboard (csrf), bootstrap probe
+    // 3 fetch calls: login, dashboard (csrf), auth probe
     expect(fetchMock.mock.calls.length).toBe(3);
-    // Probe is a POST to /_api/app/bootstrap with __csrf__ + __json__={}
+    // Probe is a POST to the session-protected /_api/shared/data with __csrf__ + __json__={}
     const [probeUrl, probeInit] = fetchMock.mock.calls[2] as [string, RequestInit];
-    expect(probeUrl).toBe('https://blog.example.com/_api/app/bootstrap');
+    expect(probeUrl).toBe('https://blog.example.com/_api/shared/data');
     expect(probeInit.method).toBe('POST');
     expect((probeInit.headers as Record<string, string>).Cookie).toBe('PHPSESSID=abc');
   });
@@ -107,13 +112,13 @@ describe('AuthManager (v2 /_api)', () => {
           status: 200,
           ok: true,
           json: async () => ({
-            ...BOOTSTRAP_LOGGED_IN,
-            data: { ...BOOTSTRAP_LOGGED_IN.data, sitename: `s${i}` },
+            ...PROBE_AUTHENTICATED,
+            data: { fields: { sitename: `s${i}` }, unused: [] },
           }),
           text: async () =>
             JSON.stringify({
-              ...BOOTSTRAP_LOGGED_IN,
-              data: { ...BOOTSTRAP_LOGGED_IN.data, sitename: `s${i}` },
+              ...PROBE_AUTHENTICATED,
+              data: { fields: { sitename: `s${i}` }, unused: [] },
             }),
         });
     }
@@ -135,7 +140,24 @@ describe('AuthManager (v2 /_api)', () => {
     await expect(auth.getCookie(true)).rejects.toMatchObject({ code: 'AUTH' });
   });
 
-  it('throws AUTH when probe returns 200 with empty data (v2 quirk: anonymous session)', async () => {
+  it('throws AUTH when the login body carries an error (v2 answers bad creds with HTTP 200)', async () => {
+    fetchMock.mockResolvedValueOnce({
+      status: 200,
+      ok: true,
+      headers: { get: () => COOKIE, getSetCookie: () => [COOKIE] },
+      json: async () => LOGIN_BAD_CREDS,
+      text: async () => JSON.stringify(LOGIN_BAD_CREDS),
+    });
+    const auth = new AuthManager(cfg());
+    await expect(auth.getCookie(true)).rejects.toMatchObject({
+      code: 'AUTH',
+      message: 'Login failed: Invalid username or password.',
+    });
+    // Rejected before the dashboard scrape — no point spending requests on it.
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('throws AUTH when the probe reports "No session" (v2 quirk: anonymous session)', async () => {
     fetchMock
       .mockResolvedValueOnce({
         status: 200,
@@ -152,8 +174,8 @@ describe('AuthManager (v2 /_api)', () => {
       .mockResolvedValueOnce({
         status: 200,
         ok: true,
-        json: async () => BOOTSTRAP_ANONYMOUS,
-        text: async () => JSON.stringify(BOOTSTRAP_ANONYMOUS),
+        json: async () => PROBE_NO_SESSION,
+        text: async () => JSON.stringify(PROBE_NO_SESSION),
       });
     const auth = new AuthManager(cfg());
     await expect(auth.getCookie(true)).rejects.toMatchObject({ code: 'AUTH' });
@@ -176,8 +198,8 @@ describe('AuthManager (v2 /_api)', () => {
       .mockResolvedValueOnce({
         status: 200,
         ok: true,
-        json: async () => BOOTSTRAP_BAD_CREDS,
-        text: async () => JSON.stringify(BOOTSTRAP_BAD_CREDS),
+        json: async () => PROBE_BAD_CREDS,
+        text: async () => JSON.stringify(PROBE_BAD_CREDS),
       });
     const auth = new AuthManager(cfg());
     await expect(auth.getCookie(true)).rejects.toMatchObject({ code: 'AUTH' });
@@ -200,8 +222,8 @@ describe('AuthManager (v2 /_api)', () => {
       .mockResolvedValueOnce({
         status: 200,
         ok: true,
-        json: async () => BOOTSTRAP_BAD_CREDS,
-        text: async () => JSON.stringify(BOOTSTRAP_BAD_CREDS),
+        json: async () => PROBE_BAD_CREDS,
+        text: async () => JSON.stringify(PROBE_BAD_CREDS),
       });
     const auth = new AuthManager(cfg());
     await expect(auth.getCookie(true)).rejects.toMatchObject({ code: 'AUTH' });
@@ -237,8 +259,8 @@ describe('AuthManager (v2 /_api)', () => {
       .mockResolvedValueOnce({
         status: 200,
         ok: true,
-        json: async () => BOOTSTRAP_LOGGED_IN,
-        text: async () => JSON.stringify(BOOTSTRAP_LOGGED_IN),
+        json: async () => PROBE_AUTHENTICATED,
+        text: async () => JSON.stringify(PROBE_AUTHENTICATED),
       });
     const auth = new AuthManager(cfg());
     await expect(auth.getCookie(true)).resolves.toBe('PHPSESSID=abc');

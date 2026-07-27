@@ -13,6 +13,14 @@ export interface AuthProvider {
   getCsrfToken(force?: boolean): Promise<string>;
 }
 
+/**
+ * v2's "you are not logged in" marker. Protected endpoints answer an anonymous
+ * or expired session with HTTP **200** and `{data: {message: "No session"}}`
+ * rather than a 401, so both the request loop (session expiry → re-auth) and
+ * the AuthManager's login probe key off this shape.
+ */
+export const NO_SESSION_MARKER = /^\s*No session\s*$/i;
+
 export interface HttpClientOptions {
   baseUrl: string;
   /** Per-request timeout in ms. 0 disables. Default 30000. */
@@ -173,7 +181,7 @@ export class HttpClient {
           typeof (peekData as { message?: unknown }).message === 'string'
             ? (peekData as { message: string }).message
             : undefined;
-        if (peekMsg && /^No session$/i.test(peekMsg)) {
+        if (peekMsg && NO_SESSION_MARKER.test(peekMsg)) {
           logger.warn(
             { url, attempt },
             "session expired (v2 'No session' marker), forcing re-auth",
