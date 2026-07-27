@@ -24,13 +24,15 @@
  *   AUTOMAD_E2E_TIMEOUT_MS=180000   how long `up` waits for the instance
  */
 import { execFileSync, spawnSync } from "node:child_process";
-import { existsSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = resolve(fileURLToPath(import.meta.url), "..", "..");
 const COMPOSE_FILE = resolve(ROOT, "docker-compose.e2e.yml");
 const ENV_FILE = resolve(ROOT, ".env.e2e");
+/** Bind-mounted into the container at /app/packages/mcp — see docker-compose.e2e.yml. */
+const THEMES_DIR = resolve(ROOT, "automad-themes");
 const SERVICE = "automad";
 
 const PORT = process.env.AUTOMAD_E2E_PORT ?? "8899";
@@ -193,6 +195,7 @@ function writeEnvFile(): void {
     `AUTOMAD_URL=${URL}`,
     `AUTOMAD_USER=${USER}`,
     `AUTOMAD_PASS=${PASS}`,
+    `AUTOMAD_THEMES_PATH=${THEMES_DIR}`,
     "AUTOMAD_WRITE_MODE=confirm-destructive",
     "LOG_LEVEL=info",
     "",
@@ -203,6 +206,9 @@ function writeEnvFile(): void {
 
 async function up(): Promise<void> {
   assertDocker();
+  // Must exist before compose starts: Docker would otherwise create the bind
+  // mount source itself, owned by root, and the MCP could not write themes.
+  mkdirSync(THEMES_DIR, { recursive: true });
   log(`starting Automad v2 on ${URL} …`);
   compose(["up", "-d"]);
   await waitUntilReachable();
@@ -215,6 +221,8 @@ async function up(): Promise<void> {
       `    dashboard : ${URL}/dashboard`,
       `    user      : ${USER}`,
       `    password  : ${PASS}`,
+      `    themes    : ${THEMES_DIR} → /app/packages/mcp`,
+      "                (bind a page to \`mcp/<slug>/<template>\`)",
       "",
       "  Run the E2E suite:   npm run e2e:run",
       "  Tear everything down: npm run e2e:down",
@@ -231,7 +239,9 @@ function down(): void {
     rmSync(ENV_FILE);
     log(`removed ${ENV_FILE}`);
   }
-  log("environment destroyed");
+  // Themes are deliberately kept: `${THEMES_DIR}` can hold real customer work,
+  // and it is cheap to re-mount into a fresh container.
+  log("environment destroyed (themes directory kept)");
 }
 
 async function status(): Promise<void> {
@@ -244,6 +254,7 @@ async function status(): Promise<void> {
     console.log(`e2e-env: login as "${USER}": ${String(await canLogIn())}`);
   }
   console.log(`e2e-env: ${ENV_FILE} present: ${String(existsSync(ENV_FILE))}`);
+  console.log(`e2e-env: themes dir ${THEMES_DIR} present: ${String(existsSync(THEMES_DIR))}`);
   if (!reachable) process.exit(1);
 }
 
@@ -273,6 +284,7 @@ async function serve(): Promise<void> {
       AUTOMAD_URL: URL,
       AUTOMAD_USER: USER,
       AUTOMAD_PASS: PASS,
+      AUTOMAD_THEMES_PATH: THEMES_DIR,
       AUTOMAD_WRITE_MODE: process.env.AUTOMAD_WRITE_MODE ?? "confirm-destructive",
     },
   });

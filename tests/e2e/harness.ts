@@ -178,6 +178,24 @@ export class Cleanup {
   }
 }
 
+/**
+ * Host directory that `docker-compose.e2e.yml` bind-mounts into the container
+ * at `/app/packages/mcp`. A theme scaffolded here is immediately usable by the
+ * running site — bind a page to `mcp/<slug>/<template>`. Tests that only need
+ * theme *tooling* should use `makeTempThemesDir()` instead; this one is for the
+ * tests that check what the visitor actually gets served.
+ */
+export const MOUNTED_THEMES_PATH = path.resolve(ROOT, 'automad-themes');
+
+/** Vendor namespace the mount appears under inside v2's package tree. */
+export const MOUNTED_THEMES_VENDOR = 'mcp';
+
+/** Fetch a page from the site the way a visitor would — no session, no API. */
+export async function fetchPublic(pageUrl: string): Promise<{ status: number; html: string }> {
+  const res = await fetch(`${E2E_URL}${pageUrl}`, { redirect: 'follow' });
+  return { status: res.status, html: await res.text() };
+}
+
 /** Throwaway themes directory for the theme tests; removed via the returned dispose. */
 export function makeTempThemesDir(): { path: string; dispose: () => void } {
   const dir = mkdtempSync(path.join(tmpdir(), 'automad-e2e-themes-'));

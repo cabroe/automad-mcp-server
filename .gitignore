@@ -9,3 +9,4 @@ coverage/
 .env.e2e
 *.log
 .DS_Store
+automad-themes/
