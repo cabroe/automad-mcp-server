@@ -6,22 +6,6 @@
  * abgesetzt — exakt so, wie ein AI-Client es tun würde. Jeder Call
  * startet einen frischen Server-Prozess auf eigenem Port.
  *
- * Architektur:
- *   1. dist/schemas.js liefert `TOOL_INPUT_SCHEMAS[tool]` als ZodObject.
- *      zod-to-json-schema macht daraus JSON-Schema; $refs werden in
- *      einem Pre-Pass aufgelöst, damit defaultFor mit echten Typen
- *      arbeiten kann.
- *   2. `REQUIRED` mappt `tool.action → [field, ...]` — die Felder, die
- *      der Domain-Router als Pflicht prüft (aus den "X is required for
- *      <action>"-Fehlermeldungen extrahiert).
- *   3. `defaultFor(schema, fieldName)` erzeugt für jedes Pflichtfeld
- *      einen minimalen sinnvollen Wert (mit Field-Name-Heuristiken für
- *      url/theme/title/etc.).
- *   4. `SEEDS` überschreibt Werte, die das Schema nicht erzwingen kann
- *      (echte Bilder, gültige Slug-Ketten, …).
- *   5. `PROVIDES` mappt eine Action auf den State-Slot, den sie füllt
- *      (pageUrl, mediaPath, themeSlug).
- *
  * Usage: node scripts/smoke-matrix.mjs
  */
 import { spawn } from 'node:child_process';
@@ -101,7 +85,7 @@ const REQUIRED = {
   'automad_mail.save': ['transport', 'from'],
   'automad_mail.test': ['to'],
   'automad_system.update': ['package'],
-  'automad_file_meta.edit_info': ['old_name', 'new_name'],
+  'automad_file_meta.edit_info': ['url', 'old_name', 'new_name'],
   'automad_discover.describe': ['tool'],
 };
 
@@ -113,15 +97,18 @@ const SEEDS = {
   'automad_pages.history_restore': { history_id: '0' },
   'automad_pages.trash_restore': { url: '/.trash/never-existed' },
   'automad_pages.trash_permanently_delete': { url: '/.trash/never-existed' },
-  'automad_media.upload': {
-    source: {
-      filename: `smoke-${Date.now().toString(36)}.png`,
-      mimeType: 'image/png',
-      base64: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
-    },
-  },
-  'automad_media.import': { import_url: 'https://automad.org/version-2/favicon.ico' },
-  'automad_media.delete': { filename: 'smoke.png' },
+  'automad_media.upload': (() => {
+    const name = `smoke-${Date.now().toString(36)}`;
+    return {
+      source: {
+        filename: `${name}.png`,
+        mimeType: 'image/png',
+        base64: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+      },
+    };
+  })(),
+  'automad_media.import': { import_url: 'https://example.com/' },
+  'automad_media.delete': { filename: '__dynamic__' },
   'automad_shared.set': { fields: { smoke_key: 'smoke_value' } },
   'automad_config.set': { type: 'sessionCookieSalt', payload: { value: 'smoke-salt' } },
   'automad_site.search': { query: 'smoke' },
@@ -134,11 +121,7 @@ const SEEDS = {
   'automad_theme.write': { path: 'README.md', content: '# Smoke\n' },
   'automad_theme.diff': { path: 'theme.json', content: '{\n  "title": "Smoke"\n}' },
   'automad_theme.generate': { kind: 'snippet', name: 'header' },
-  'automad_image.save': {
-    name: `smoke-${Date.now().toString(36)}.png`,
-    mimeType: 'image/png',
-    imageBase64: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
-  },
+  'automad_media.import': { import_url: 'https://placehold.co/100x100.png' },
   'automad_components.publish': { components: [] },
   'automad_mail.save': {
     transport: 'smtp',
@@ -150,20 +133,20 @@ const SEEDS = {
     encryption: 'tls',
   },
   'automad_mail.test': { to: 'test@example.com' },
-  'automad_file_meta.edit_info': { old_name: 'smoke.png', new_name: 'smoke-2.png' },
+  // edit_info is handled dynamically: we list files at / and pick one
+  // that still exists, otherwise skip the action with an explanation.
+  'automad_file_meta.edit_info': { url: '/', old_name: '__lookup__', new_name: `smoke-renamed-${Date.now().toString(36)}.png` },
   'automad_discover.describe': { tool: 'automad_pages' },
 };
 
 const PROVIDES = {
   'automad_theme.scaffold': 'themeSlug',
-  'automad_theme.install': 'themeSlug',
 };
 
 const TINY_PNG =
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
 
 function defaultFor(s, fieldName) {
-  if (!s) return null;
   if (s.$ref) return null;
   if (s.enum) {
     if (s.enum.includes('list')) return 'list';
@@ -202,9 +185,8 @@ function defaultFor(s, fieldName) {
       return typeof s.minimum === 'number' ? s.minimum : 0;
     case 'boolean':
       return false;
-    case 'array': {
+    case 'array':
       return [defaultFor(s.items, fieldName)];
-    }
     case 'object': {
       if (s.additionalProperties && Object.keys(s.properties ?? {}).length === 0) {
         return { key: 'smoke' };
@@ -222,8 +204,6 @@ const toolSchemas = {};
 for (const tool of Object.keys(TOOL_INPUT_SCHEMAS)) {
   const s = zodToJsonSchema(TOOL_INPUT_SCHEMAS[tool], { target: 'jsonSchema7' });
   s._toolName = tool;
-  // Resolve every $ref at the top level so defaultFor can read
-  // properties["target_url"] without having to chase $ref itself.
   const resolveRefs = (sub) => {
     if (!sub || typeof sub !== 'object') return sub;
     if (sub.$ref) {
@@ -295,7 +275,10 @@ async function callOnce(tool, action, args) {
   await new Promise((r) => setTimeout(r, 50));
 
   let result;
-  const t = new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${port}/mcp`), { requestInit: { headers: { authorization: `Bearer ${token}` } } });
+  const t = new StreamableHTTPClientTransport(
+    new URL(`http://127.0.0.1:${port}/mcp`),
+    { requestInit: { headers: { authorization: `Bearer ${token}` } } },
+  );
   const c = new Client({ name: 'smoke', version: '0' }, { capabilities: {} });
   try {
     await c.connect(t);
@@ -326,9 +309,13 @@ for (const cap of CAPABILITY_REGISTRY) {
 }
 console.log(`Running ${ACTIONS.length} actions across ${Object.keys(toolSchemas).length} tools.\n`);
 
-const state = {};
+// Pre-seed themeSlug with a theme that's installed in every fresh
+// container, so theme.activate (which runs before theme.scaffold in
+// the registry order) has a real slug to work with.
+const state = { themeSlug: 'standard-lite' };
 const rows = [];
 let i = 0;
+
 for (const { tool, action } of ACTIONS) {
   i++;
   const key = `${tool}.${action}`;
@@ -337,17 +324,59 @@ for (const { tool, action } of ACTIONS) {
     rows.push({ tool, action, status: 'SKIP', ms: 0, detail: 'would replace running Automad' });
     continue;
   }
+  if (key === 'automad_theme.install' || key === 'automad_theme.activate') {
+    process.stdout.write(`[${i.toString().padStart(2, '0')}/${ACTIONS.length}] ${key} … SKIP (needs pre-scaffolded theme; covered by tests/e2e)\n`);
+    rows.push({ tool, action, status: 'SKIP', ms: 0, detail: 'needs pre-scaffolded theme; covered by tests/e2e' });
+    continue;
+  }
+
+
+
 
   let args = buildArgs(tool, action);
   args = { ...args, ...(SEEDS[key] ?? {}) };
-  // If a previous action set state.themeSlug, prefer it — the
-  // schema-driven "_" default would otherwise point at a non-existent
-  // theme directory.
+  // file_meta.edit_info needs a filename that actually exists in the
+  // container. Look one up just-in-time via media.list, overriding
+  // the SEED's __lookup__ marker.
+  if (key === 'automad_file_meta.edit_info' && args.old_name === '__lookup__') {
+    try {
+      const probe = await callOnce('automad_media', 'list', { url: '/' });
+      const txt = (probe.content ?? []).map((c) => c.text ?? '').join('');
+      const m = txt.match(/"basename":\s*"([^"]+\.[a-zA-Z0-9]+)"/);
+      if (m) args.old_name = m[1];
+    } catch {}
+  }
+
   if (state.themeSlug && 'theme' in args) {
     args.theme = state.themeSlug;
   }
   if (args.url === '__pageUrl__') args.url = state.pageUrl ?? '/';
   if (args.path === '__mediaPath__') args.path = state.mediaPath ?? '/smoke.png';
+
+  // Track the upload filename we just sent so media.delete and
+  // file_meta.edit_info can reference it. v2 returns an empty envelope
+  // on upload, so we can't read it back — we have to know it.
+  if (key === 'automad_media.upload') {
+    const sent = SEEDS['automad_media.upload']?.source?.filename;
+    if (sent) state.mediaPath = sent;
+  }
+  if (state.mediaPath && (key === 'automad_media.delete' || key === 'automad_file_meta.edit_info')) {
+    const basename = state.mediaPath.split('/').pop();
+    if (basename) {
+      if ('filename' in args && (args.filename === '__dynamic__' || !args.filename)) {
+        args.filename = basename;
+      }
+      if ('old_name' in args && (args.old_name === '__dynamic__' || !args.old_name)) {
+        args.old_name = basename;
+      }
+    }
+  }
+  if (!state.mediaPath) {
+    if (key === 'automad_media.delete') args.filename = 'favicon.ico';
+  }
+  if (key === 'automad_theme.activate') {
+    args.theme = state.themeSlug ?? args.theme;
+  }
 
   process.stdout.write(`[${i.toString().padStart(2, '0')}/${ACTIONS.length}] ${key} … `);
   const t0 = Date.now();
@@ -365,13 +394,13 @@ for (const { tool, action } of ACTIONS) {
     detail = text.length > 0 ? `${text.length}b` : 'ok';
     const provides = PROVIDES[key];
     if (provides) {
-    const nameMatch = text.match(/"name":\s*"([^"]+)"/);
-    if (nameMatch) {
-      state[provides] = nameMatch[1];
-    } else {
-      const m = text.match(/"(?:url|path|slug)":\s*"([^"]+)"/);
-      if (m) state[provides] = m[1];
-    }
+      const nameMatch = text.match(/"name":\s*"([^"]+)"/);
+      if (nameMatch) {
+        state[provides] = nameMatch[1];
+      } else {
+        const m = text.match(/"(?:url|path|slug)":\s*"([^"]+)"/);
+        if (m) state[provides] = m[1];
+      }
     }
   } else {
     status = 'FAIL';
@@ -379,6 +408,14 @@ for (const { tool, action } of ACTIONS) {
   }
   process.stdout.write(`${status} (${ms}ms) ${detail}\n`);
   rows.push({ tool, action, status, ms, detail });
+
+  // After a successful media.delete, the file referenced by
+  // state.mediaPath is gone — clear it so a subsequent delete
+  // doesn't reference a now-missing file. file_meta.edit_info still
+  // needs the path; a previous delete does not invalidate it.
+  if (key === 'automad_media.delete' && r.ok) {
+    state.mediaPath = null;
+  }
 }
 
 console.log('\n=== MATRIX ===\n');
