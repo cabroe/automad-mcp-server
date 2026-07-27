@@ -112,6 +112,12 @@ export const mediaInput = z.object({
       mimeType: z.string().max(127),
     })
     .optional(),
+  /**
+   * For `import`: the http(s) source to fetch. v2 downloads it server-side, so
+   * this is the way to add large assets — `upload` carries them as base64 and
+   * is capped accordingly.
+   */
+  import_url: z.string().max(MAX_MEDIUM).optional(),
   confirm_token: z.string().max(MAX_SHORT).optional(),
 });
 
