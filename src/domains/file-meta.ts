@@ -14,7 +14,7 @@ export async function handleFileMeta(
   client: HttpClient,
   guard: WriteGuard,
 ): Promise<unknown> {
-  const target = input.old_name ?? '/';
+  const target = input.url ?? input.old_name ?? '/';
   const permit = guard.check(ACTION_MAP[input.action], target, input.confirm_token);
   if (permit.allowed === false) throw new AutomadMcpError('FORBIDDEN', permit.reason);
   if (permit.allowed === 'pending') return permit;
@@ -29,6 +29,10 @@ export async function handleFileMeta(
       const body: Record<string, unknown> = {
         'new-name': input.new_name,
         'old-name': input.old_name,
+        // v2 derives the directory from `url` and looks for the file there.
+        // Without it the lookup lands in the wrong directory and v2 answers
+        // with a misleading "Permissions denied".
+        url: input.url ?? '',
       };
       if (input.caption !== undefined) body['caption'] = input.caption;
       return client.post(`${API_BASE}/file/edit-info`, body);

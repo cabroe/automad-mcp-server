@@ -108,6 +108,12 @@ export async function handleTheme(input: ThemeInput, deps: ThemeHandlerDeps): Pr
     }
     case 'list':
       return manager.list();
+    case 'activate': {
+      // Was advertised by the registry but had no case here, so every call
+      // fell through to the default and answered "unknown theme action".
+      if (!input.theme) throw new AutomadMcpError('VALIDATION', 'theme is required for activate');
+      return manager.activate(input.theme);
+    }
     case 'install': {
       if (!input.source) throw new AutomadMcpError('VALIDATION', 'source is required for install');
       return manager.install(input.source, input.theme);
@@ -201,7 +207,9 @@ export async function handleTheme(input: ThemeInput, deps: ThemeHandlerDeps): Pr
     case 'dev_status': {
       if (!input.theme) throw new AutomadMcpError('VALIDATION', 'theme is required for dev_status');
       const themePath = assertWithinRoot(deps.themesPath, path.join(deps.themesPath, input.theme));
-      return getDevStatus(themePath, fs);
+      // No record means no dev server was ever started for this theme. `null`
+      // leaves the model guessing whether that is a failure; say it plainly.
+      return (await getDevStatus(themePath, fs)) ?? { theme: input.theme, running: false };
     }
     default: {
       throw new AutomadMcpError('VALIDATION', `unknown theme action: ${String(input.action)}`);

@@ -69,8 +69,12 @@ const CAPABILITY_SPECS = {
       publish: write('Publish a page (draft to live).'),
       batch_update: write('Update multiple pages sequentially.'),
       trash_list: read('List pages currently in trash.'),
-      trash_restore: destructive('Restore a trashed page by URL.'),
-      trash_permanently_delete: destructive('Permanently delete a single trashed page.'),
+      trash_restore: destructive(
+        'Restore a trashed page. Pass its `path` from `trash_list` (e.g. "/.trash/my-page") as `url` — not the URL the page had before it was deleted.',
+      ),
+      trash_permanently_delete: destructive(
+        'Permanently delete one trashed page. Pass its `path` from `trash_list` as `url`, not its former URL.',
+      ),
       trash_clear: destructive('Empty the trash (deletes all trashed pages permanently).'),
       history: read('List the change history for a page (v2 history log).'),
       history_restore: destructive('Restore a page to a prior history entry (by logId).'),
@@ -198,10 +202,10 @@ const CAPABILITY_SPECS = {
     title: 'Components',
     summary: 'Manage per-page component fields (v2 ComponentController).',
     description:
-      'Component-level fields: `data` returns the field map for the given component keys; `publication_state` returns the draft/published state; `discard_draft` reverts a component draft; `publish` publishes component changes. Uses /_api/component/*.',
+      'Site-wide component fields: `data` reads the component store; `publication_state` returns the draft/published state; `discard_draft` reverts a component draft; `publish` publishes component changes. Uses /_api/component/*. Writing the component store is not exposed — the same v2 endpoint doubles as a writer, and conflating the two once cost the store its contents.',
     requires: 'live',
     actions: {
-      data: read('Read component field data for a set of component keys.'),
+      data: read('Read the site-wide component store.'),
       publication_state: read('Get the publication state of component fields for a page.'),
       discard_draft: destructive('Discard component draft and revert to published state.'),
       publish: destructive('Publish component changes for a page.'),
@@ -234,10 +238,10 @@ const CAPABILITY_SPECS = {
     title: 'File meta',
     summary: 'Edit file metadata (alt text, etc.) via v2 FileController.',
     description:
-      'Edit file metadata without re-uploading: `edit_info` updates alt/caption fields. Uses /_api/file/edit-info.',
+      'Rename a file and set its caption without re-uploading. Pass `url` for the page whose directory holds the file (omit it for the shared directory) — v2 resolves the file relative to that. Renaming also rewrites links to the file across the site. Uses /_api/file/edit-info.',
     requires: 'live',
     actions: {
-      edit_info: destructive('Edit file metadata (alt text, etc.) for an existing file.'),
+      edit_info: destructive('Rename a file and/or set its caption. Also updates links to it site-wide.'),
     },
   },
   automad_discover: {
