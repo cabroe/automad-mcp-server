@@ -24,6 +24,35 @@ function cfg(): Config {
   };
 }
 
+/**
+ * v2's `page/data` endpoint is both the read and the write: `{url}` reads,
+ * `{url, data}` saves. Since a save is a full replace that requires a title,
+ * `updateOnePage` reads the current record first — so update tests have to
+ * answer both shapes.
+ */
+function mockPageData(
+  c: HttpClient,
+  opts: { fields?: Record<string, unknown>; save?: Record<string, unknown> } = {},
+): void {
+  const fields = opts.fields ?? { title: 'Existing Title' };
+  const save = opts.save ?? { slug: 's' };
+  (c.post as ReturnType<typeof vi.fn>).mockImplementation(
+    (path: string, body?: Record<string, unknown>) => {
+      if (path === '/_api/page/data' && body && !('data' in body)) {
+        return Promise.resolve({ url: body['url'], fields, unused: {} });
+      }
+      return Promise.resolve(save);
+    },
+  );
+}
+
+/** The `page/data` calls that actually wrote (as opposed to the pre-read). */
+function saveCalls(c: HttpClient): unknown[][] {
+  return (c.post as ReturnType<typeof vi.fn>).mock.calls.filter(
+    (call) => call[0] === '/_api/page/data' && call[1] && 'data' in (call[1] as object),
+  );
+}
+
 describe('handlePages (v2 /_api)', () => {
   it('list POSTs /_api/page-collection/get-recently-edited', async () => {
     const c = mockClient();
@@ -173,7 +202,7 @@ describe('handlePages (v2 /_api)', () => {
 
   it('update runs without confirmation when no title changes (ordinary write)', async () => {
     const c = mockClient();
-    (c.post as ReturnType<typeof vi.fn>).mockResolvedValue({ slug: 'x' });
+    mockPageData(c, { save: { slug: 'x' } });
     const out = await handlePages(
       { action: 'update', url: '/x', fields: { text: 'body' } },
       c,
@@ -182,12 +211,39 @@ describe('handlePages (v2 /_api)', () => {
     expect(out).toMatchObject({ ok: true, url: '/x' });
   });
 
+  it('update carries the stored title and untouched fields into a fields-only save', async () => {
+    // Live-verified on v2 2.0.0-beta.51: `page/data` saves are a full replace
+    // and reject a payload without `title` ("Title missing!"). A fields-only
+    // update must therefore merge onto what is stored, not post the delta.
+    const c = mockClient();
+    mockPageData(c, {
+      fields: { title: 'Stored Title', intro: 'keep me', text: 'old' },
+      save: { slug: 'page' },
+    });
+    await handlePages(
+      { action: 'update', url: '/page', fields: { text: 'new' }, publish: false },
+      c,
+      new WriteGuard(cfg()),
+    );
+    const [, payload] = saveCalls(c)[0] as [string, { data: Record<string, unknown> }];
+    expect(payload.data).toEqual({ title: 'Stored Title', intro: 'keep me', text: 'new' });
+  });
+
+  it('update fails with VALIDATION when neither the caller nor the page has a title', async () => {
+    const c = mockClient();
+    mockPageData(c, { fields: {} });
+    await expect(
+      handlePages({ action: 'update', url: '/page', fields: { text: 'x' } }, c, new WriteGuard(cfg())),
+    ).rejects.toMatchObject({ code: 'VALIDATION' });
+    expect(saveCalls(c).length).toBe(0);
+  });
+
   it('update publishes via input.url, polls on resulting slug, returns canonical URL', async () => {
     const c = mockClient();
-    (c.post as ReturnType<typeof vi.fn>)
-      .mockResolvedValueOnce({ updateUI: true, slug: 'renamed' })
-      .mockResolvedValueOnce({ ok: true })
-      .mockResolvedValue({ url: '/renamed', fields: {} });
+    mockPageData(c, {
+      fields: { title: 'original', keepMe: 'untouched' },
+      save: { updateUI: true, slug: 'renamed' },
+    });
     const out = await handlePages(
       {
         action: 'update',
@@ -200,11 +256,14 @@ describe('handlePages (v2 /_api)', () => {
       c,
       new WriteGuard(cfg()),
     );
-    expect(c.post).toHaveBeenNthCalledWith(1, '/_api/page/data', {
+    // Call 1 reads the current record, call 2 writes it back merged: the
+    // caller's changes on top, `keepMe` preserved rather than dropped.
+    expect(c.post).toHaveBeenNthCalledWith(1, '/_api/page/data', { url: '/original' });
+    expect(c.post).toHaveBeenNthCalledWith(2, '/_api/page/data', {
       url: '/original',
-      data: { title: 'renamed', private: true, tags: 'x,y', main: [] },
+      data: { title: 'renamed', keepMe: 'untouched', private: true, tags: 'x,y', main: [] },
     });
-    expect(c.post).toHaveBeenNthCalledWith(2, '/_api/page/publish', { url: '/original' });
+    expect(c.post).toHaveBeenNthCalledWith(3, '/_api/page/publish', { url: '/original' });
     expect(out).toMatchObject({ ok: true, url: '/renamed' });
   });
 
@@ -314,7 +373,7 @@ describe('handlePages (v2 /_api)', () => {
 
   it('update with publish:false saves as a draft (no publish call)', async () => {
     const c = mockClient();
-    (c.post as ReturnType<typeof vi.fn>).mockResolvedValue({ slug: 'blog' });
+    mockPageData(c, { save: { slug: 'blog' } });
     await handlePages(
       { action: 'update', url: '/blog', title: 'T', publish: false },
       c,
@@ -326,13 +385,13 @@ describe('handlePages (v2 /_api)', () => {
   });
   it('update trims tags and normalises trailing slashes from URL', async () => {
     const c = mockClient();
-    (c.post as ReturnType<typeof vi.fn>).mockResolvedValue({ slug: 'blog' });
+    mockPageData(c, { save: { slug: 'blog' } });
     await handlePages(
       { action: 'update', url: '/blog/', tags: [' news ', ' ', 'tech '] },
       c,
       new WriteGuard(cfg()),
     );
-    const [, payload] = (c.post as ReturnType<typeof vi.fn>).mock.calls[0] as [string, { url: string; data: { tags?: string } }];
+    const [, payload] = saveCalls(c)[0] as [string, { url: string; data: { tags?: string } }];
     expect(payload.url).toBe('/blog');
     expect(payload.data.tags).toBe('news,tech');
   });
@@ -348,7 +407,7 @@ describe('handlePages (v2 /_api)', () => {
 
   it('batch_update updates each item and reports per-item results', async () => {
     const c = mockClient();
-    (c.post as ReturnType<typeof vi.fn>).mockResolvedValue({ slug: 's' });
+    mockPageData(c);
     const out = await handlePages(
       {
         action: 'batch_update',
@@ -401,7 +460,7 @@ describe('handlePages (v2 /_api)', () => {
 
   it('batch_update requires per-item confirm_token for title-rename in confirm-destructive mode', async () => {
     const c = mockClient();
-    (c.post as ReturnType<typeof vi.fn>).mockResolvedValue({ slug: 's' });
+    mockPageData(c);
     const out = await handlePages(
       {
         action: 'batch_update',
@@ -425,16 +484,13 @@ describe('handlePages (v2 /_api)', () => {
         },
       ],
     });
-    // The safe item must have written (1 POST to page/data); the renamed item must NOT have written.
-    const dataCalls = (c.post as ReturnType<typeof vi.fn>).mock.calls.filter(
-      (c) => c[0] === '/_api/page/data',
-    );
-    expect(dataCalls.length).toBe(1);
+    // The safe item must have written once; the renamed item must NOT have written.
+    expect(saveCalls(c).length).toBe(1);
   });
 
   it('batch_update runs renamed items when the per-item confirm_token matches', async () => {
     const c = mockClient();
-    (c.post as ReturnType<typeof vi.fn>).mockResolvedValue({ slug: 's' });
+    mockPageData(c);
     const guard = new WriteGuard({ ...cfg(), writeMode: 'confirm-destructive' });
     // First call: returns pending for the renamed item.
     const first = await handlePages(
