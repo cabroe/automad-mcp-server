@@ -14,7 +14,7 @@ also works on the local filesystem (where Automad's theme packages live).
 
 ```bash
 npm run build            # tsc → dist/  (ESM, strict; reads package.json#version at compile time)
-npm test                 # vitest run — offline unit suite only (<!-- AUTOGEN:TESTCOUNT -->458 tests, 39 files<!-- /AUTOGEN:TESTCOUNT -->)
+npm test                 # vitest run — offline unit suite only (<!-- AUTOGEN:TESTCOUNT -->464 tests, 39 files<!-- /AUTOGEN:TESTCOUNT -->)
 npm run test:coverage    # vitest + v8 coverage (gate: 80% stmts / 70% branches)
 npm run lint             # eslint src tests
 npm run dev              # tsx src/index.ts  (run the server locally)
@@ -82,7 +82,7 @@ scripts/                 # build-time helpers, run via `npm run <name>`
   sync.ts                # regenerates the AUTOGEN tool tables + fenced number markers in README/CLAUDE.md/docs/index.html (--tests refreshes TESTCOUNT via a live vitest run)
   testenv.ts             # local E2E environment: docker compose up/down/status/logs + deterministic admin + .env.e2e
   release.ts             # version-bump + CHANGELOG skeleton + git tag (`--tag` / `--dry-run`); the skeleton is an *empty* section inserted above the newest one — when the changelog already carries a filled `## [Unreleased]`, rename that heading to the new version instead of running the script
-tests/unit/              <!-- AUTOGEN:TESTCOUNT -->458 tests, 39 files<!-- /AUTOGEN:TESTCOUNT --> (drift test pins the registry's runtime derivations: Zod action enums, guard sets, bindings, guard behavior; docs-drift test pins CLAUDE.md/README/CHANGELOG against code reality; server test pins mcp.getServerVersion() ↔ package.json)
+tests/unit/              <!-- AUTOGEN:TESTCOUNT -->464 tests, 39 files<!-- /AUTOGEN:TESTCOUNT --> (drift test pins the registry's runtime derivations: Zod action enums, guard sets, bindings, guard behavior; docs-drift test pins CLAUDE.md/README/CHANGELOG against code reality; server test pins mcp.getServerVersion() ↔ package.json)
 tests/e2e/               opt-in live E2E vs. a real Automad v2 container (skipped unless AUTOMAD_E2E_* set; `npm run e2e`)
   harness.ts             spawns dist/index.js over stdio per test file; call/callOk helpers, Cleanup, temp themes dir
   env.ts                 vitest setup: loads .env.e2e (real env vars win) so the suite opts itself in
@@ -273,6 +273,21 @@ implementation; treat them as load-bearing constraints:
   shape v2 returns (HTTP 200, not 401) for anonymous callers. The login
   response body is checked too: a wrong password is `{code: 200, error:
   "Invalid username or password."}`.
+- **A save is not a publication, and `page/data` cannot tell you otherwise.**
+  `page/data` (read) serves drafts as happily as published pages, so polling it
+  after a publish proves nothing. `publishAndWait` confirms via
+  `page/get-publication-state` (`isPublished`) instead, returns a
+  `PublishOutcome`, and every page write reports `published: boolean` plus
+  `warnings[]` when something did not take effect. A failing `page/publish` is
+  no longer swallowed — the save stands (`ok: true`) while `published: false`
+  and a warning say the page is still a draft.
+- **Writes clear the page cache.** Automad serves cached HTML and re-checks for
+  changes only every `AM_CACHE_MONITOR_DELAY` seconds (120 by default), so
+  without clearing it a visitor keeps seeing the old page for up to two minutes
+  after the tool reported success. `create`/`update`/`publish` clear it after a
+  confirmed publish, `delete` clears it too. Clearing is best effort: a failure
+  becomes a warning, never a failed write. (The E2E instance additionally runs
+  with `AM_CACHE_ENABLED=0` so rendered-page assertions are not races.)
 - **Renames happen during `page/publish`**, not during `page/data` (save).
   The save response carries `slug: "<new>"` — the MCP uses that to compute
   the canonical URL. Publish is sent to `input.url` (where the directory

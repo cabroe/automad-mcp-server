@@ -30,6 +30,33 @@
  and `NETWORK` for a source Automad could not fetch (unreachable host, non-200,
  unresolvable name).
 
+### Fixed (writes now tell the truth about going live)
+- **A failed publish was reported as success.** `publishAndWait` caught any
+ error from `page/publish` and returned as if nothing had happened, then
+ "confirmed" the result by reading `page/data` — which serves drafts too, so it
+ confirmed nothing. Together that let `pages.create` and `pages.update` report
+ success for a page no visitor could see. Publication is now confirmed through
+ `page/get-publication-state`, and every page write returns
+ `published: boolean` with a `warnings[]` array explaining anything that did
+ not take effect. The save still stands on a publish failure (`ok: true`,
+ `published: false`) — it did reach Automad; only the publication did not.
+ `batch_update` reports the same per item.
+- **Writes now clear the page cache.** Automad serves cached HTML and only
+ re-checks for content changes every `AM_CACHE_MONITOR_DELAY` seconds (120 by
+ default), so an agent's edit could stay invisible to visitors for two minutes
+ while the tool reported success. `create`/`update`/`publish` clear the cache
+ after a confirmed publish, and `delete` clears it so the removed page stops
+ being served. Best effort: a cache that refuses to clear becomes a warning,
+ not a failed write.
+
+### Added (live coverage)
+- `pages.move`, `pages.batch_update` and the publication reporting now have
+ live E2E coverage — `batch_update` in particular was heavily unit-tested but
+ had never run against a real backend, despite sharing `updateOnePage` with the
+ two bugs fixed above. The new tests check per-item payloads land on the right
+ pages, that one failing item does not abort the rest, and that a reparented
+ page is reachable under its new URL. Live action coverage: 35 of 70.
+
 ### Fixed (test environment)
 - **`e2e:up` exited silently mid-wait, reporting success.**
  `AbortSignal.timeout()` arms an *unref'd* timer, so when a readiness probe
