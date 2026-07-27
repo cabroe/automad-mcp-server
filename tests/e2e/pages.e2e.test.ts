@@ -176,6 +176,143 @@ describe.skipIf(!e2eEnabled)('e2e: pages', () => {
     expect(JSON.stringify(trail)).toContain(parentUrl);
   });
 
+  it('reports whether a write actually went live', async () => {
+    // `published` is the honest signal: the save succeeding says nothing about
+    // whether a visitor can see the page.
+    const created = asRecord(
+      await server.callOk('automad_pages', {
+        action: 'create',
+        title: uniqueName('E2E Published'),
+        target_url: '/',
+      }),
+    );
+    const url = stringField(created, 'url');
+    cleanup.addPage(server, url);
+    expect(created['published']).toBe(true);
+    expect(created['warnings']).toBeUndefined();
+
+    const state = asRecord(
+      await server.callOk('automad_pages', { action: 'publication_state', url }),
+    );
+    expect(state['isPublished']).toBe(true);
+
+    const draft = asRecord(
+      await server.callOk('automad_pages', {
+        action: 'create',
+        title: uniqueName('E2E Unpublished'),
+        target_url: '/',
+        publish: false,
+      }),
+    );
+    cleanup.addPage(server, stringField(draft, 'url'));
+    expect(draft['published']).toBe(false);
+    // A deliberate draft is not a problem, so it must not be reported as one.
+    expect(draft['warnings']).toBeUndefined();
+  });
+
+  it('updates several pages in one batch_update call', async () => {
+    const pages: string[] = [];
+    for (const label of ['E2E Batch A', 'E2E Batch B', 'E2E Batch C']) {
+      const created = asRecord(
+        await server.callOk('automad_pages', {
+          action: 'create',
+          title: uniqueName(label),
+          target_url: '/',
+        }),
+      );
+      const url = stringField(created, 'url');
+      cleanup.addPage(server, url);
+      pages.push(url);
+    }
+
+    const stamp = `batch ${Date.now().toString(36)}`;
+    const result = asRecord(
+      await server.callOk('automad_pages', {
+        action: 'batch_update',
+        items: pages.map((url) => ({ url, fields: { intro: `${stamp} ${url}` } })),
+      }),
+    );
+    expect(result['ok']).toBe(true);
+
+    const results = result['results'];
+    expect(Array.isArray(results)).toBe(true);
+    for (const entry of results as Array<Record<string, unknown>>) {
+      expect(entry['ok']).toBe(true);
+      expect(entry['published']).toBe(true);
+    }
+
+    // Every page must carry its own value — a batch that wrote one payload to
+    // all three would still report ok.
+    for (const url of pages) {
+      const page = asRecord(await server.callOk('automad_pages', { action: 'get', url }));
+      expect(JSON.stringify(page)).toContain(`${stamp} ${url}`);
+    }
+  });
+
+  it('keeps going when one batch item fails', async () => {
+    const created = asRecord(
+      await server.callOk('automad_pages', {
+        action: 'create',
+        title: uniqueName('E2E Batch Survivor'),
+        target_url: '/',
+      }),
+    );
+    const url = stringField(created, 'url');
+    cleanup.addPage(server, url);
+
+    const result = asRecord(
+      await server.callOk('automad_pages', {
+        action: 'batch_update',
+        items: [
+          { url: '/does-not-exist-at-all', fields: { intro: 'x' } },
+          { url, fields: { intro: 'survivor' } },
+        ],
+      }),
+    );
+    expect(result['ok']).toBe(false);
+    const [failed, succeeded] = result['results'] as Array<Record<string, unknown>>;
+    expect(failed?.['ok']).toBe(false);
+    expect(succeeded?.['ok']).toBe(true);
+
+    const page = asRecord(await server.callOk('automad_pages', { action: 'get', url }));
+    expect(JSON.stringify(page)).toContain('survivor');
+  });
+
+  it('moves a page under a different parent', async () => {
+    const parent = asRecord(
+      await server.callOk('automad_pages', {
+        action: 'create',
+        title: uniqueName('E2E Move Parent'),
+        target_url: '/',
+      }),
+    );
+    const parentUrl = stringField(parent, 'url');
+    cleanup.addPage(server, parentUrl);
+
+    const child = asRecord(
+      await server.callOk('automad_pages', {
+        action: 'create',
+        title: uniqueName('E2E Move Child'),
+        target_url: '/',
+      }),
+    );
+    const childUrl = stringField(child, 'url');
+    cleanup.addPage(server, childUrl);
+
+    await server.callOk('automad_pages', {
+      action: 'move',
+      url: childUrl,
+      target_url: parentUrl,
+    });
+
+    // v2 rebuilds the URL from the new position, so the moved page is now
+    // addressed below its parent.
+    const movedUrl = `${parentUrl}${childUrl}`;
+    cleanup.addPage(server, movedUrl);
+    const trail = await server.callOk('automad_pages', { action: 'breadcrumbs', url: movedUrl });
+    expect(JSON.stringify(trail)).toContain(parentUrl);
+  });
+
   it('deletes a page and moves it into the trash', async () => {
     const created = asRecord(
       await server.callOk('automad_pages', {
