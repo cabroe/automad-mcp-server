@@ -24,6 +24,13 @@ services:
       # (composer create-project). A named volume keeps the install across
       # restarts; `down -v` throws it away for a guaranteed-fresh site.
       - automad-data:/app
+      # The themes the MCP scaffolds locally, mounted into v2's package tree
+      # as their own vendor namespace (`mcp`), so a theme built through
+      # `automad_theme` is immediately usable by the running site: bind a page
+      # to `mcp/<slug>/<template>`. Automad's own `packages/automad/*` stays
+      # untouched next to it. The host directory is the `AUTOMAD_THEMES_PATH`
+      # default (`<cwd>/automad-themes`); scripts/testenv.ts creates it.
+      - ${AUTOMAD_E2E_THEMES_PATH:-./automad-themes}:/app/packages/mcp
     healthcheck:
       # `session/validate` answers 200 for anonymous callers as soon as PHP-FPM
       # and nginx are up — the cheapest honest readiness signal v2 offers.
