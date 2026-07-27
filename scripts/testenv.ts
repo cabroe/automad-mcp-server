@@ -123,17 +123,61 @@ async function canLogIn(): Promise<boolean> {
   }
 }
 
+/** `running` / `exited` / `` (gone) for the web service, straight from compose. */
+function serviceState(): string {
+  return composeOutput(["ps", "-a", "--format", "{{.Service}}\t{{.State}}"])
+    .split("\n")
+    .filter((line) => line.startsWith(`${SERVICE}\t`))
+    .map((line) => line.split("\t")[1] ?? "")
+    .join("")
+    .trim();
+}
+
+function dumpDiagnostics(): void {
+  console.error(`e2e-env: service state: ${serviceState() || "(no container)"}`);
+  console.error(composeOutput(["ps", "-a"]));
+  console.error(composeOutput(["logs", "--tail", "40"]));
+}
+
 async function waitUntilReachable(): Promise<void> {
   const deadline = Date.now() + TIMEOUT_MS;
   log(`waiting for ${URL} (timeout ${String(Math.round(TIMEOUT_MS / 1000))}s) …`);
+  // Hold the event loop open for the whole wait. `AbortSignal.timeout()` arms
+  // an *unref'd* timer, so if a probe request hangs — which it does on a CI
+  // runner while the container is still coming up — Node sees no referenced
+  // handles, decides it is idle, and exits **0** in the middle of the wait.
+  // That is how this script used to report success in CI while starting
+  // nothing at all, leaving the live suite to skip itself on a green run.
+  const keepAlive = setInterval(() => {}, 1000);
+  try {
+    return await pollUntilReachable(deadline);
+  } finally {
+    clearInterval(keepAlive);
+  }
+}
+
+async function pollUntilReachable(deadline: number): Promise<void> {
+  let attempts = 0;
   while (Date.now() < deadline) {
     if (await isReachable()) {
-      log("instance is reachable");
+      log(`instance is reachable after ${String(attempts)} attempt(s)`);
       return;
+    }
+    attempts++;
+    // A container that has already died will never answer — waiting out the
+    // full timeout only hides the reason. Compose reports the state, so check
+    // it instead of polling into the void.
+    const state = serviceState();
+    if (state !== "" && state !== "running" && state !== "restarting") {
+      dumpDiagnostics();
+      fail(`container is "${state}" — it exited instead of serving. See the log above.`);
+    }
+    if (attempts % 10 === 0) {
+      log(`still waiting (${String(attempts)} attempts, state=${state || "unknown"}) …`);
     }
     await sleep(READY_POLL_MS);
   }
-  console.error(composeOutput(["logs", "--tail", "40", SERVICE]));
+  dumpDiagnostics();
   fail(`instance did not become reachable within ${String(TIMEOUT_MS)}ms`);
 }
 
