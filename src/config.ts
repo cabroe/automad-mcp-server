@@ -79,7 +79,6 @@ export const VALID_LOG_LEVELS: Record<string, true> = {
   fatal: true,
   silent: true,
 };
-
 export function loadConfig(): Config {
   const serverModeRaw = process.env['AUTOMAD_MODE'] ?? 'full';
   if (!(serverModeRaw in VALID_SERVER_MODES)) {
@@ -89,14 +88,12 @@ export function loadConfig(): Config {
     );
   }
   const mode = serverModeRaw as ServerMode;
-
-  // Theme tooling always works: fall back to `<cwd>/automad-themes` so
-  // `theme.scaffold` needs zero config. Override with AUTOMAD_THEMES_PATH to
-  // point at a live Automad install's `packages/` dir.
-  const themesPath =
-    optionalPath('AUTOMAD_THEMES_PATH') ?? path.resolve(process.cwd(), 'automad-themes');
-  const starterKitPath = optionalPath('AUTOMAD_STARTER_KIT_PATH') ?? BUNDLED_STARTER_KIT_PATH;
-
+  // The server always starts in `full` mode. The live API bridge is
+  // gated by `liveEnabled`, which is true exactly when all three
+  // credentials are present. A bare `npx -y automad-mcp-server` start
+  // with no env vars boots cleanly: docs + theme tooling work, and the
+  // live-API tools return a clear `UNSUPPORTED` error via
+  // `assertLiveEnabled` until credentials are added.
   const writeModeRaw = process.env['AUTOMAD_WRITE_MODE'] ?? 'confirm-destructive';
   if (!(writeModeRaw in VALID_MODES)) {
     throw new AutomadMcpError(
@@ -104,7 +101,6 @@ export function loadConfig(): Config {
       `Invalid write mode in AUTOMAD_WRITE_MODE: ${writeModeRaw}. Must be one of: ${Object.keys(VALID_MODES).join(', ')}`,
     );
   }
-
   const logLevel = process.env['LOG_LEVEL'] ?? 'info';
   if (!(logLevel in VALID_LOG_LEVELS)) {
     throw new AutomadMcpError(
@@ -112,26 +108,34 @@ export function loadConfig(): Config {
       `Invalid LOG_LEVEL: ${logLevel}. Must be one of: ${Object.keys(VALID_LOG_LEVELS).join(', ')}`,
     );
   }
-
+  // Theme tooling always works: fall back to `<cwd>/automad-themes` so
+  // `theme.scaffold` needs zero config. Override with AUTOMAD_THEMES_PATH
+  // to point at a live Automad install's `packages/` dir.
+  const themesPath =
+    optionalPath('AUTOMAD_THEMES_PATH') ?? path.resolve(process.cwd(), 'automad-themes');
+  const starterKitPath = optionalPath('AUTOMAD_STARTER_KIT_PATH') ?? BUNDLED_STARTER_KIT_PATH;
+  // Credentials are optional. If all three are present we bridge to the
+  // live API; otherwise the live tools return UNSUPPORTED and the user
+  // sees a one-line stderr note (only when AUTOMAD_MODE was set
+  // explicitly — a totally bare `npx -y …` is silent).
+  const rawUrl = process.env['AUTOMAD_URL']?.trim();
+  const rawUser = process.env['AUTOMAD_USER']?.trim();
+  const rawPass = process.env['AUTOMAD_PASS'];
   let url = '';
   let username = '';
   let password = '';
-  let liveEnabled = false;
-
-  if (mode === 'full') {
-    url = validateUrl(required('AUTOMAD_URL'));
-    username = required('AUTOMAD_USER');
-    password = required('AUTOMAD_PASS');
-    liveEnabled = true;
-  } else {
-    // docs mode: credentials optional. If a URL is supplied, still validate it.
-    const rawUrl = process.env['AUTOMAD_URL'];
-    if (rawUrl) url = validateUrl(rawUrl);
-    username = process.env['AUTOMAD_USER'] ?? '';
-    password = process.env['AUTOMAD_PASS'] ?? '';
-    liveEnabled = false;
+  if (rawUrl) url = validateUrl(rawUrl);
+  if (rawUser) username = rawUser;
+  if (rawPass) password = rawPass;
+  const liveEnabled = Boolean(url && username && password);
+  const userSetMode = process.env['AUTOMAD_MODE'] !== undefined;
+  if (mode === 'full' && userSetMode && !liveEnabled) {
+    process.stderr.write(
+      '[automad-mcp] AUTOMAD_MODE=full but AUTOMAD_URL/USER/PASS are not set — ' +
+        'the live API bridge stays disabled. Set the three credentials to enable it. ' +
+        '(Live-API tools return UNSUPPORTED.)\n',
+    );
   }
-
   const httpPortRaw = process.env['AUTOMAD_HTTP_PORT'];
   let http: HttpConfig | undefined;
   if (httpPortRaw !== undefined && httpPortRaw.trim() !== '') {
@@ -148,7 +152,6 @@ export function loadConfig(): Config {
     const token = tokenRaw && tokenRaw.length > 0 ? tokenRaw : randomBytes(32).toString('hex');
     http = { port, host, token };
   }
-
   return {
     mode,
     url,
@@ -171,13 +174,6 @@ function parsePositiveInt(raw: string | undefined, fallback: number): number {
   return n;
 }
 
-function required(name: string): string {
-  const value = process.env[name];
-  if (!value) {
-    throw new AutomadMcpError('VALIDATION', `Missing required environment variable: ${name}`);
-  }
-  return value;
-}
 
 function optionalPath(name: string): string | undefined {
   const value = process.env[name];

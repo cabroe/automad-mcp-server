@@ -55,11 +55,17 @@ describe('loadConfig', () => {
     expect(cfg.starterKitPath).toBe('/templates/starter');
   });
 
-  it('requires AUTOMAD_PASS', () => {
+  it('treats missing credentials as a soft no-op (liveEnabled=false)', () => {
     process.env['AUTOMAD_URL'] = 'https://x';
     process.env['AUTOMAD_USER'] = 'u';
     process.env['AUTOMAD_THEMES_PATH'] = '/themes';
-    expect(() => loadConfig()).toThrow(/AUTOMAD_PASS/);
+    // No AUTOMAD_PASS — server still boots, liveEnabled stays false so
+    // the live-API tools return UNSUPPORTED via assertLiveEnabled.
+    expect(() => loadConfig()).not.toThrow();
+    const cfg = loadConfig();
+    expect(cfg.mode).toBe('full');
+    expect(cfg.liveEnabled).toBe(false);
+    expect(cfg.url).toBe('https://x');
   });
 
   it('exports the v2 /_api base path', () => {
