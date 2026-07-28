@@ -1,3 +1,16 @@
+## [0.7.6] - 2026-07-28
+
+### Fixed
+- **`npx -y automad-mcp-server` crashed on startup with "Missing required
+ environment variable: AUTOMAD_URL"** when no env vars were set. The server
+ now boots in `full` mode regardless of credentials; `liveEnabled` is true
+ exactly when all three credentials are present. Live-API tools return a
+ clear `UNSUPPORTED` error via the existing `assertLiveEnabled` gate instead
+ of killing the process. When `AUTOMAD_MODE=full` is set explicitly but
+ credentials are missing, the server emits one stderr line at startup
+ pointing at the three env vars to add. A totally bare start stays
+ silent — the user is just exploring the docs + theme tooling.
+
 ## [Unreleased]
 
 ### Fixed (found by covering the rest of the surface live)
